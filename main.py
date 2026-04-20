@@ -1263,10 +1263,18 @@ async def api_feed():
 async def api_get_player(user_id: int, username: str = ""):
     """
     WebApp entry point. Checks mandatory subscription before returning player data.
-    If the user is not subscribed — returns 402 with channel info.
+    Admin always bypasses the subscription gate (avoids broken UI on admin account).
+    Regular users that are not subscribed get 402 with channel info.
     """
-    # Mandatory subscription check for WebApp access
-    subscribed = await is_subscribed_to_channel(user_id)
+    # Admin always bypasses subscription gate
+    is_admin = (user_id == ADMIN_ID)
+
+    # Mandatory subscription check for WebApp access (skip for admin)
+    if not is_admin:
+        subscribed = await is_subscribed_to_channel(user_id)
+    else:
+        subscribed = True
+
     if not subscribed:
         player = await get_player(user_id)
         lang   = (player or {}).get("lang", "en")
@@ -1645,8 +1653,12 @@ async def api_support_send(request: Request):
                 parse_mode=ParseMode.HTML,
             )
             admin_msg_id = sent.message_id
+            logger.info(f"Support ticket forwarded to admin, admin_msg_id={admin_msg_id}")
         except Exception as e:
-            logger.warning(f"Support forward failed: {e}")
+            # Log full error so we can diagnose (blocked bot, wrong token, etc.)
+            logger.error(f"Support forward to admin FAILED (user={user_id}): {type(e).__name__}: {e}")
+            # Still save the message to DB so the user knows it was received,
+            # but admin_msg_id will be NULL — admin reply won't work until re-sent.
 
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute(
@@ -1657,6 +1669,12 @@ async def api_support_send(request: Request):
             (user_id, text, admin_msg_id),
         )
         await db.commit()
+
+    if admin_msg_id is None:
+        logger.warning(
+            f"Support message from user={user_id} saved to DB but NOT delivered to admin. "
+            f"Check that ADMIN_ID={ADMIN_ID} has started the bot and hasn't blocked it."
+        )
 
     return {"success": True}
 
