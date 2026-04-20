@@ -713,6 +713,7 @@ const TRANSLATIONS = {
     ruc_hint:"Invite 3 friends to unlock withdrawal.",
     withdraw_title:"Withdraw Earnings",
     withdraw_sub:"Invite 3 friends via your referral link to unlock withdrawal.",
+    withdraw_unlocked_hint:"✅ Withdrawal unlocked! Select your payout method.",
     warning_label:"Important:",
     withdraw_warning:"Withdrawal processing takes 1 to 7 business days. IMPORTANT: Do not unsubscribe from partner channels until the transfer is complete, or the payout will be cancelled.",
     wtab_usd:"💵 USD",wtab_stars:"⭐ Stars",
@@ -767,6 +768,7 @@ const TRANSLATIONS = {
     ruc_hint:"Пригласите 3 друзей, чтобы разблокировать вывод.",
     withdraw_title:"Вывод средств",
     withdraw_sub:"Пригласите 3 друзей, чтобы разблокировать вывод.",
+    withdraw_unlocked_hint:"✅ Вывод разблокирован! Выберите способ получения.",
     warning_label:"Важно:",
     withdraw_warning:"Обработка вывода занимает 1–7 рабочих дней. ВАЖНО: не отписывайтесь от партнёрских каналов до получения перевода, иначе выплата будет отменена.",
     wtab_usd:"💵 USD",wtab_stars:"⭐ Звёзды",
@@ -823,6 +825,14 @@ function toggleLang(){
   renderPortfolio(); renderQuests(); renderReferrals(); renderLiveFeed();
   updateUploadLock(); renderWithdrawPreviews();
   if(gameData?.player) updateHeader(gameData.player);
+  // Save to server so the bot also uses the right language
+  if(userId){
+    fetch(`${BASE}/api/player/${userId}/lang`,{
+      method:'PUT',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({lang})
+    }).catch(()=>{});
+  }
 }
 
 /* ═══ TELEGRAM INIT ═══ */
@@ -1151,23 +1161,55 @@ function tickCountdowns(){
 }
 
 /* ═══ LIVE FEED ═══ */
-const FAKE_USERS=['u***r7','a***2','m***k9','p***y4','t***3','j***8','k***5','s***1'];
-const FAKE_ACTIONS=[
-  (n,usd)=>`sold ${n} photo${n>1?'s':''} for $${usd}`,
-  (n,usd)=>`listed ${n} photo${n>1?'s':''} · $${usd} estimated`,
-  (n,usd)=>`received $${usd} from auction`,
+const FAKE_USERS=[
+  // Masked-style
+  'u***r7','a***2','m***k9','p***y4','t***3','j***8','k***5','s***1',
+  'x***z2','q***9','r***m3','b***6','c***w5','n***4','f***h1','d***7',
+  'w***l8','e***v3','g***o6','h***i2','y***t5','o***p1','z***k4','v***s9',
+  'i***b3','l***n7','R***a8','M***e2','A***i6','T***o4',
+  // Handle-style
+  'PhotoNinja_7','SniperLens_3','PixelHunter_2','SnapMaster_5',
+  'ArtClipper_9','LensPro_4','FrameKing_1','ShotWizard_6',
+  'GoldenHour_8','NightShooter_3','UrbanLens_5','NatureSnap_7',
+  'MacroKing_2','ArtFlip_6','StreetPhoto_4','GalleryMod_9',
+  'AuctionAce_1','BidMaster_3','PhotoTrader_7','ClickBoss_5',
+  'VintageSnap_8','ColorPop_2','DarkroomPro_6','HighRes_4',
+  'LensFlare_9','ShutterBug_1','ExposureX_3','FocalPoint_7',
+  'RAWmaster_5','DepthChaser_2',
 ];
+
+const FAKE_ACTIONS_EN=[
+  (n,usd)=>`sold ${n} photo${n>1?'s':''} for $${usd}`,
+  (n,usd)=>`listed ${n} photo${n>1?'s':''} · est. $${usd}`,
+  (n,usd)=>`received $${usd} from auction`,
+  (n,usd)=>`won auction bid · $${usd}`,
+  (n,usd)=>`uploaded ${n} photo${n>1?'s':''} · auction live`,
+];
+const FAKE_ACTIONS_RU=[
+  (n,usd)=>`продал ${n} фото за $${usd}`,
+  (n,usd)=>`выставил ${n} фото · оценка $${usd}`,
+  (n,usd)=>`получил $${usd} с аукциона`,
+  (n,usd)=>`выиграл торги · $${usd}`,
+  (n,usd)=>`загрузил ${n} фото на аукцион`,
+];
+
+function _pickAction(n,usd){
+  const pool=lang==='ru'?FAKE_ACTIONS_RU:FAKE_ACTIONS_EN;
+  return pool[Math.floor(Math.random()*pool.length)](n,usd);
+}
+
 let feedItems=[];
 
 function buildLiveFeed(){
   feedItems=[];
+  // Shuffle the user list so initial order is randomised
+  const shuffled=[...FAKE_USERS].sort(()=>Math.random()-0.5);
   for(let i=0;i<18;i++){
+    const user=shuffled[i % shuffled.length];
     const n=Math.random()<0.3?5:Math.ceil(Math.random()*4);
     const usd=(Math.random()*45+3).toFixed(2);
-    const user=FAKE_USERS[Math.floor(Math.random()*FAKE_USERS.length)];
-    const action=FAKE_ACTIONS[Math.floor(Math.random()*FAKE_ACTIONS.length)](n,usd);
     const minsAgo=Math.floor(Math.random()*59)+1;
-    feedItems.push({user,action,amount:'$'+usd,time:minsAgo+'m ago'});
+    feedItems.push({user,action:_pickAction(n,usd),amount:'$'+usd,time:minsAgo+'m ago'});
   }
   renderLiveFeed();
 }
@@ -1190,13 +1232,14 @@ function renderLiveFeed(){
 
 function tickLiveFeed(){
   if(!feedItems.length) return;
+  // Pick a user not in the last 6 entries to avoid repeats
+  const recentSet=new Set(feedItems.slice(0,6).map(i=>i.user));
+  const pool=FAKE_USERS.filter(u=>!recentSet.has(u));
+  const user=(pool.length?pool:FAKE_USERS)[Math.floor(Math.random()*(pool.length||FAKE_USERS.length))];
   const n=Math.random()<0.3?5:Math.ceil(Math.random()*4);
   const usd=(Math.random()*50+5).toFixed(2);
-  const user=FAKE_USERS[Math.floor(Math.random()*FAKE_USERS.length)];
-  const action=FAKE_ACTIONS[0](n,usd);
-  feedItems.unshift({user,action,amount:'$'+usd,time:'just now'});
+  feedItems.unshift({user,action:_pickAction(n,usd),amount:'$'+usd,time:'just now'});
   feedItems=feedItems.slice(0,18);
-  // Only re-render if market tab is active
   const active=document.querySelector('.panel.active');
   if(active?.id==='panel-market') renderLiveFeed();
 }
@@ -1217,7 +1260,7 @@ async function renderQuests(){
   document.getElementById('ruc-count').textContent=`${refs}/${minRefs}`;
   const hintEl=document.getElementById('ruc-hint');
   if(unlocked){
-    hintEl.textContent='✅ Withdrawal unlocked!';
+    hintEl.textContent=t('withdraw_unlocked_hint');
     hintEl.style.color='var(--green)';
   }else{
     const need=minRefs-refs;
@@ -1244,7 +1287,7 @@ async function renderQuests(){
   const box=document.getElementById('withdraw-box');
   box.classList.toggle('locked-state',!unlocked);
   const subEl=document.getElementById('withdraw-sub');
-  if(unlocked) subEl.textContent='Withdrawal is unlocked. Select your payout method.';
+  if(unlocked) subEl.textContent=t('withdraw_unlocked_hint');
   else subEl.textContent=t('withdraw_sub');
 }
 

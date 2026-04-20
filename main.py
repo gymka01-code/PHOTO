@@ -86,6 +86,11 @@ PARTNER_CHANNELS = [
      "url": "https://t.me/dsdfsdfawer"},
 ]
 
+# ── Required subscription channel ─────────────────────────────
+REQUIRED_CHANNEL_ID  = "@dsdfsdfawer"           # public username works for get_chat_member
+REQUIRED_CHANNEL_URL = "https://t.me/dsdfsdfawer"
+REQUIRED_CHANNEL_NAME = "PhotoFlip Community"
+
 # ── 50+ NPC names for live feed ──────────────────────────────
 NPC_NAMES = [
     "SkilledTrader", "CryptoKing", "MasterPhoto", "Dimon777", "Alena_V",
@@ -294,7 +299,7 @@ async def init_db():
                 total_earned    REAL    DEFAULT 0.0,
                 photos_sold     INTEGER DEFAULT 0,
                 referrals_count INTEGER DEFAULT 0,
-                lang            TEXT    DEFAULT 'ru',
+                lang            TEXT    DEFAULT 'en',
                 last_seen       TEXT    DEFAULT (datetime('now')),
                 last_bonus      TEXT    DEFAULT NULL,
                 created_at      TEXT    DEFAULT (datetime('now'))
@@ -302,7 +307,7 @@ async def init_db():
         # Safe migrations — add columns that may be missing in old DB
         for col in [
             "referrals_count INTEGER DEFAULT 0",
-            "lang TEXT DEFAULT 'ru'",
+            "lang TEXT DEFAULT 'en'",
             "last_seen TEXT DEFAULT (datetime('now'))",
             "last_bonus TEXT DEFAULT NULL",
         ]:
@@ -624,59 +629,76 @@ dp  = Dispatcher()
 
 # ── /start ───────────────────────────────────────────────────
 
-@dp.message(CommandStart())
-async def cmd_start(message: Message, command: CommandObject):
-    user = message.from_user
+async def is_subscribed_to_channel(user_id: int) -> bool:
+    """Return True if user is a member of the required channel."""
+    try:
+        member = await bot.get_chat_member(REQUIRED_CHANNEL_ID, user_id)
+        return member.status in (
+            ChatMemberStatus.MEMBER,
+            ChatMemberStatus.ADMINISTRATOR,
+            ChatMemberStatus.CREATOR,
+        )
+    except Exception as e:
+        logger.debug(f"Subscription check failed for {user_id}: {e}")
+        return False
 
-    # ── ОТЛАДКА: видно в логах Railway ──────────────────────
-    print(f"DEBUG: Start cmd with args: {message.text}")
 
-    # ── Определяем: новый пользователь или нет ──────────────
+async def _process_start(target: Message, user, args: str = ""):
+    """Send the main welcome menu. Called after subscription is confirmed."""
     player, is_new = await get_or_create_player(user.id, user.username or "")
     await touch_last_seen(user.id)
-    lang = player.get("lang", "ru")
+    lang = player.get("lang", "en")
 
-    # ── Реферальная система: засчитывается ТОЛЬКО новым ─────
-    args = command.args  # aiogram 3 корректно извлекает параметр из deep-link
+    # ── FIXED referral system ─────────────────────────────────
+    # We check the referrals TABLE (not is_new) so users who were
+    # auto-created by the webapp API still get their referral counted.
     if args and args.startswith("ref_"):
         try:
-            referrer_id = int(args[4:])  # "ref_12345" → 12345
-            print(f"DEBUG: Referral detected: referrer={referrer_id}, new_user={is_new}, uid={user.id}")
-            # Бонус ТОЛЬКО если пользователь новый И не пытается сам себя пригласить
-            if is_new and referrer_id != user.id:
+            referrer_id = int(args[4:])
+            print(f"DEBUG: Referral detected: referrer={referrer_id}, uid={user.id}")
+            if referrer_id != user.id:
                 async with aiosqlite.connect(DB_PATH) as db:
-                    # INSERT OR IGNORE предотвращает дубли
-                    await db.execute(
-                        "INSERT OR IGNORE INTO referrals (referrer_id, referred_id) VALUES (?,?)",
-                        (referrer_id, user.id),
-                    )
-                    await db.execute(
-                        "UPDATE players SET referrals_count=referrals_count+1 WHERE user_id=?",
-                        (referrer_id,),
-                    )
-                    await db.commit()
-                # Уведомляем пригласившего
-                try:
-                    rp = await get_player(referrer_id)
-                    if rp:
-                        rc    = rp.get("referrals_count", 0) + 1
-                        rl    = vip_level(rc)
-                        rs    = vip_slot_limit(rc)
-                        rlang = rp.get("lang", "ru")
-                        await bot.send_message(
-                            referrer_id,
-                            tr(rlang, "new_referral",
-                               name=user.first_name, count=rc, lvl=rl, slots=rs),
-                            parse_mode=ParseMode.HTML,
-                        )
-                except Exception as e:
-                    logger.debug(f"Referral notify failed: {e}")
-            elif not is_new:
-                print(f"DEBUG: Referral skipped — user {user.id} already registered")
-        except ValueError:
-            print(f"DEBUG: Could not parse referrer ID from args: {args}")
+                    async with db.execute(
+                        "SELECT 1 FROM referrals WHERE referred_id=?", (user.id,)
+                    ) as c:
+                        already_referred = await c.fetchone()
+                    async with db.execute(
+                        "SELECT 1 FROM players WHERE user_id=?", (referrer_id,)
+                    ) as c:
+                        referrer_exists = await c.fetchone()
 
-    # Обновляем данные игрока после возможных изменений реферала
+                    if not already_referred and referrer_exists:
+                        await db.execute(
+                            "INSERT OR IGNORE INTO referrals (referrer_id, referred_id) VALUES (?,?)",
+                            (referrer_id, user.id),
+                        )
+                        await db.execute(
+                            "UPDATE players SET referrals_count=referrals_count+1 WHERE user_id=?",
+                            (referrer_id,),
+                        )
+                        await db.commit()
+                        print(f"DEBUG: Referral COUNTED! {user.id} → {referrer_id}")
+                        try:
+                            rp = await get_player(referrer_id)
+                            if rp:
+                                rc    = rp.get("referrals_count", 0) + 1
+                                rl    = vip_level(rc)
+                                rs    = vip_slot_limit(rc)
+                                rlang = rp.get("lang", "en")
+                                await bot.send_message(
+                                    referrer_id,
+                                    tr(rlang, "new_referral",
+                                       name=user.first_name, count=rc, lvl=rl, slots=rs),
+                                    parse_mode=ParseMode.HTML,
+                                )
+                        except Exception as e:
+                            logger.debug(f"Referral notify failed: {e}")
+                    else:
+                        print(f"DEBUG: Referral skipped. already_referred="
+                              f"{bool(already_referred)}, referrer_exists={bool(referrer_exists)}")
+        except ValueError as e:
+            print(f"DEBUG: Could not parse referrer ID from args '{args}': {e}")
+
     player = await get_player(user.id)
     ref    = await referral_url(user.id)
     lvl    = vip_level(player.get("referrals_count", 0))
@@ -691,18 +713,64 @@ async def cmd_start(message: Message, command: CommandObject):
                               callback_data="daily_bonus")],
     ])
 
-    # Для существующих пользователей — случайная "новость рынка"
     news_suffix = ""
     if not is_new:
         news_list = MARKET_NEWS_RU if lang == "ru" else MARKET_NEWS_EN
         news_suffix = f"\n\n{random.choice(news_list)}"
 
-    await message.answer(
+    await target.answer(
         tr(lang, "welcome",
            balance=player["balance"] or 0, vip=lvl, slots=slots, ref_url=ref) + news_suffix,
         parse_mode=ParseMode.HTML,
         reply_markup=kb,
     )
+
+
+@dp.message(CommandStart())
+async def cmd_start(message: Message, command: CommandObject):
+    user = message.from_user
+    print(f"DEBUG: /start from {user.id}, args='{command.args}'")
+
+    # ── Mandatory subscription gate ──────────────────────────
+    subscribed = await is_subscribed_to_channel(user.id)
+    if not subscribed:
+        args_str = command.args or ""
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(
+                text="📢 Subscribe to Channel",
+                url=REQUIRED_CHANNEL_URL,
+            )],
+            [InlineKeyboardButton(
+                text="✅ I've Subscribed",
+                callback_data=f"chksub:{args_str}",
+            )],
+        ])
+        await message.answer(
+            "👋 Welcome to <b>PhotoFlip</b>!\n\n"
+            "📢 To use the bot you must subscribe to our channel first:\n"
+            f"<a href='{REQUIRED_CHANNEL_URL}'>{REQUIRED_CHANNEL_NAME}</a>\n\n"
+            "After subscribing tap <b>✅ I've Subscribed</b> to continue.",
+            parse_mode=ParseMode.HTML,
+            reply_markup=kb,
+        )
+        return
+
+    await _process_start(message, user, command.args or "")
+
+
+@dp.callback_query(F.data.startswith("chksub:"))
+async def cb_check_sub(cb: CallbackQuery):
+    args = cb.data[7:]   # remove "chksub:"
+    subscribed = await is_subscribed_to_channel(cb.from_user.id)
+    if not subscribed:
+        await cb.answer("❌ You haven't subscribed yet! Join the channel first.", show_alert=True)
+        return
+    await cb.answer("✅ Subscription confirmed!")
+    try:
+        await cb.message.delete()
+    except Exception:
+        pass
+    await _process_start(cb.message, cb.from_user, args)
 
 
 # ── /lang — переключение языка ───────────────────────────────
@@ -791,7 +859,7 @@ async def cb_referrals(cb: CallbackQuery):
 
 @dp.message(F.reply_to_message)
 async def admin_reply(message: Message):
-    """Когда админ отвечает на пересланное сообщение — ответ летит пользователю."""
+    """When admin replies to a forwarded support message — send it to the user."""
     if not ADMIN_ID or message.from_user.id != ADMIN_ID:
         return
     replied_id = message.reply_to_message.message_id
@@ -803,6 +871,8 @@ async def admin_reply(message: Message):
         ) as c:
             row = await c.fetchone()
         if not row:
+            print(f"DEBUG: Admin replied to msg_id={replied_id} but no matching support ticket found")
+            await message.reply("⚠️ No support ticket linked to this message.")
             return
         target  = row["user_id"]
         txt     = message.text or message.caption or ""
@@ -813,13 +883,17 @@ async def admin_reply(message: Message):
         await db.commit()
 
     p    = await get_player(target)
-    lang = (p or {}).get("lang", "ru")
+    lang = (p or {}).get("lang", "en")
     try:
         await bot.send_message(target, tr(lang, "support_reply", text=txt),
                                parse_mode=ParseMode.HTML)
-        print(f"Admin replied to {target}")  # ← лог для Railway
+        print(f"Admin replied to {target}: {txt[:60]}")
+        # ← Confirm delivery back to admin
+        await message.reply(f"✅ Reply delivered to user <code>{target}</code>",
+                            parse_mode=ParseMode.HTML)
     except Exception as e:
         logger.warning(f"support reply delivery failed: {e}")
+        await message.reply(f"❌ Delivery failed: {e}")
 
 
 # ── Admin: Broadcast ─────────────────────────────────────────
@@ -849,7 +923,7 @@ async def cmd_broadcast(message: Message, command: CommandObject):
         await asyncio.sleep(0.05)  # не превышаем лимит Telegram API
 
     player = await get_player(ADMIN_ID)
-    lang   = (player or {}).get("lang", "ru")
+    lang   = (player or {}).get("lang", "en")
     await message.answer(
         tr(lang, "broadcast_done", ok=delivered),
         parse_mode=ParseMode.HTML,
@@ -869,7 +943,11 @@ async def lifespan(app: FastAPI):
     print(f"  🔗  Webhook  : {WEBHOOK_URL}")
     print(f"{'='*55}\n")
     try:
-        await bot.set_webhook(WEBHOOK_URL, drop_pending_updates=True)
+        await bot.set_webhook(
+            WEBHOOK_URL,
+            drop_pending_updates=True,
+            allowed_updates=["message", "callback_query", "chat_member"],
+        )
         logger.info("Webhook registered successfully.")
     except Exception as e:
         logger.warning(f"Webhook registration failed: {e}")
