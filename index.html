@@ -10,201 +10,103 @@
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
 /* ═══════════════════════════════════════════════
-   DESIGN TOKENS — PHOTOFLIP SAAS
+   DESIGN TOKENS — PHOTOFLIP
 ═══════════════════════════════════════════════ */
 :root{
-  /* Backgrounds */
-  --bg:#000000;
-  --bg1:#0a0a0a;
-  --bg2:#111111;
-  --bg3:#1a1a1a;
-
-  /* Surfaces */
-  --surface:#141414;
-  --surface2:#1e1e1e;
-  --surface3:#252525;
-
-  /* Borders */
-  --border:rgba(255,255,255,0.07);
-  --border2:rgba(255,255,255,0.12);
-  --border3:rgba(255,255,255,0.18);
-
-  /* Brand — Electric Blue */
-  --blue:#3b82f6;
-  --blue-dim:rgba(59,130,246,0.12);
-  --blue-glow:rgba(59,130,246,0.30);
-  --blue-dark:#1d4ed8;
-
-  /* Slate gray palette */
-  --slate:#64748b;
-  --slate-light:#94a3b8;
-  --slate-dim:rgba(100,116,139,0.15);
-
-  /* Semantic */
-  --green:#22c55e;
-  --green-dim:rgba(34,197,94,0.12);
-  --red:#ef4444;
-  --red-dim:rgba(239,68,68,0.12);
-  --amber:#f59e0b;
-  --amber-dim:rgba(245,158,11,0.12);
-
-  /* Text */
-  --text:#f1f5f9;
-  --text-2:#94a3b8;
-  --text-3:#475569;
-
-  /* Shape */
-  --radius:10px;
-  --radius-sm:7px;
-  --radius-lg:16px;
-  --transition:0.2s cubic-bezier(.4,0,.2,1);
+  --bg:#000000; --bg1:#0a0a0a; --bg2:#111111; --bg3:#1a1a1a;
+  --surface:#141414; --surface2:#1e1e1e; --surface3:#252525;
+  --border:rgba(255,255,255,0.07); --border2:rgba(255,255,255,0.12); --border3:rgba(255,255,255,0.18);
+  --blue:#3b82f6; --blue-dim:rgba(59,130,246,0.12); --blue-glow:rgba(59,130,246,0.30); --blue-dark:#1d4ed8;
+  --slate:#64748b; --slate-light:#94a3b8; --slate-dim:rgba(100,116,139,0.15);
+  --green:#22c55e; --green-dim:rgba(34,197,94,0.12);
+  --red:#ef4444; --red-dim:rgba(239,68,68,0.12);
+  --amber:#f59e0b; --amber-dim:rgba(245,158,11,0.12);
+  --text:#f1f5f9; --text-2:#94a3b8; --text-3:#475569;
+  --radius:10px; --radius-sm:7px; --radius-lg:16px;
+  --transition:0.2s cubic-bezier(.4,0,.2,1)
 }
-
-/* ═══ RESET ═══ */
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;overflow:hidden;font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--text);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
 button{cursor:pointer;border:none;outline:none;font-family:inherit}
 input,select,textarea{font-family:inherit;outline:none;border:none}
 img{display:block}
 
-/* ═══ LAYOUT ═══ */
+/* LAYOUT */
 #app{height:100vh;display:flex;flex-direction:column;max-width:480px;margin:0 auto;position:relative;overflow:hidden}
 
-/* ═══ HEADER ═══ */
-#header{
-  padding:12px 16px 10px;
-  display:flex;align-items:center;gap:10px;
-  border-bottom:1px solid var(--border);
-  flex-shrink:0;position:relative;z-index:10;
-  background:var(--bg)
-}
-#header-logo{
-  width:32px;height:32px;border-radius:8px;
-  background:var(--blue);
-  display:flex;align-items:center;justify-content:center;
-  font-size:15px;flex-shrink:0;font-weight:700;
-  box-shadow:0 0 16px var(--blue-glow)
-}
+/* HEADER */
+#header{padding:12px 16px 10px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border);flex-shrink:0;position:relative;z-index:10;background:var(--bg)}
+#header-logo{width:32px;height:32px;border-radius:8px;background:var(--blue);display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0;font-weight:700;box-shadow:0 0 16px var(--blue-glow)}
 #header-info{flex:1;min-width:0}
 #header-title{font-size:15px;font-weight:700;letter-spacing:-0.02em;color:var(--text);line-height:1.1}
 #header-sub{font-size:10px;color:var(--text-3);letter-spacing:0.04em;margin-top:1px}
-#lang-toggle{
-  background:var(--surface2);border:1px solid var(--border2);
-  border-radius:6px;padding:4px 10px;font-size:11px;font-weight:600;
-  color:var(--text-2);letter-spacing:0.04em;transition:var(--transition)
-}
+#lang-toggle{background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:4px 10px;font-size:11px;font-weight:600;color:var(--text-2);letter-spacing:0.04em;transition:var(--transition)}
 #lang-toggle:active{transform:scale(.95)}
 
-/* ═══ STATS BAR ═══ */
-#stats-bar{
-  display:flex;align-items:center;padding:10px 16px;gap:0;
-  border-bottom:1px solid var(--border);flex-shrink:0;background:var(--bg)
-}
+/* STATS BAR */
+#stats-bar{display:flex;align-items:center;padding:10px 16px;gap:0;border-bottom:1px solid var(--border);flex-shrink:0;background:var(--bg)}
 .stat-item{flex:1;text-align:center;position:relative}
 .stat-item+.stat-item::before{content:'';position:absolute;left:0;top:50%;transform:translateY(-50%);height:24px;width:1px;background:var(--border2)}
 .stat-label{font-size:9px;color:var(--text-3);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:2px;font-weight:500}
 .stat-value{font-size:17px;font-weight:700;color:var(--text);letter-spacing:-0.02em;line-height:1}
 .stat-value.blue{color:var(--blue)}
 .stat-value.green{color:var(--green)}
-#vip-pill{
-  display:flex;align-items:center;gap:5px;flex-shrink:0;margin-left:12px;
-  background:var(--blue-dim);border:1px solid rgba(59,130,246,0.3);
-  border-radius:20px;padding:4px 10px
-}
+#vip-pill{display:flex;align-items:center;gap:5px;flex-shrink:0;margin-left:12px;background:var(--blue-dim);border:1px solid rgba(59,130,246,0.3);border-radius:20px;padding:4px 10px}
 #vip-pill .vip-dot{width:6px;height:6px;border-radius:50%;background:var(--blue);box-shadow:0 0 6px var(--blue-glow)}
 #vip-pill .vip-text{font-size:10px;font-weight:700;letter-spacing:0.04em;color:var(--blue)}
 
-/* ═══ TABS ═══ */
-#tabs{
-  display:flex;gap:2px;padding:8px 16px;
-  flex-shrink:0;overflow-x:auto;scrollbar-width:none;
-  border-bottom:1px solid var(--border);background:var(--bg)
-}
+/* TABS */
+#tabs{display:flex;gap:2px;padding:8px 16px;flex-shrink:0;overflow-x:auto;scrollbar-width:none;border-bottom:1px solid var(--border);background:var(--bg)}
 #tabs::-webkit-scrollbar{display:none}
-.tab{
-  flex-shrink:0;padding:6px 10px;border-radius:var(--radius-sm);
-  font-size:11px;font-weight:600;letter-spacing:0.02em;
-  background:transparent;color:var(--text-3);transition:var(--transition);
-  white-space:nowrap;border:1px solid transparent
-}
+.tab{flex-shrink:0;padding:6px 10px;border-radius:var(--radius-sm);font-size:11px;font-weight:600;letter-spacing:0.02em;background:transparent;color:var(--text-3);transition:var(--transition);white-space:nowrap;border:1px solid transparent}
 .tab.active{background:var(--surface2);color:var(--text);border-color:var(--border2)}
 .tab:active{transform:scale(.97)}
 .tab-dot{display:inline-block;background:var(--red);border-radius:50%;width:6px;height:6px;margin-left:4px;vertical-align:middle;margin-bottom:1px}
 
-/* ═══ SCROLL AREA ═══ */
+/* SCROLL AREA */
 #content{flex:1;overflow-y:auto;overflow-x:hidden;padding:16px 16px 90px;scrollbar-width:thin;scrollbar-color:var(--surface2) transparent}
 #content::-webkit-scrollbar{width:3px}
 #content::-webkit-scrollbar-thumb{background:var(--surface2);border-radius:2px}
 
-/* ═══ PANELS ═══ */
+/* PANELS */
 .panel{display:none;animation:fadeUp .25s ease both}
 .panel.active{display:block}
 @keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
 
-/* ═══ SECTION HEADERS ═══ */
+/* SECTION HEADERS */
 .section-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
 .section-title{font-size:16px;font-weight:700;letter-spacing:-0.02em;color:var(--text)}
 .section-sub{font-size:11px;color:var(--text-3);font-weight:500}
 .section-divider{height:1px;background:var(--border);margin:16px 0}
 
-/* ═══ CARDS ═══ */
+/* CARDS */
 .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:10px}
 .card-label{font-size:10px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:var(--text-3);margin-bottom:6px}
 
-/* ═══ UPLOAD ═══ */
-#upload-drop-zone{
-  border:2px dashed var(--border2);border-radius:var(--radius-lg);
-  padding:32px 20px;text-align:center;cursor:pointer;
-  transition:var(--transition);background:var(--bg1);margin-bottom:12px;
-  position:relative;overflow:hidden
-}
-#upload-drop-zone::before{
-  content:'';position:absolute;inset:0;
-  background:radial-gradient(ellipse at 50% 0%,var(--blue-dim),transparent 70%);
-  opacity:0;transition:var(--transition)
-}
+/* UPLOAD */
+#upload-drop-zone{border:2px dashed var(--border2);border-radius:var(--radius-lg);padding:32px 20px;text-align:center;cursor:pointer;transition:var(--transition);background:var(--bg1);margin-bottom:12px;position:relative;overflow:hidden}
+#upload-drop-zone::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 50% 0%,var(--blue-dim),transparent 70%);opacity:0;transition:var(--transition)}
 #upload-drop-zone:hover::before,#upload-drop-zone.drag::before{opacity:1}
 #upload-drop-zone.drag{border-color:var(--blue)}
 #upload-drop-zone:active{transform:scale(.99)}
 .dz-icon{font-size:36px;margin-bottom:10px;display:block;line-height:1}
 .dz-title{font-size:14px;font-weight:600;color:var(--text);margin-bottom:4px}
 .dz-hint{font-size:12px;color:var(--text-3);line-height:1.5}
-#file-count-badge{
-  display:none;background:var(--blue-dim);border:1px solid rgba(59,130,246,0.3);
-  border-radius:20px;padding:2px 10px;font-size:11px;font-weight:600;color:var(--blue);
-  margin-top:8px;display:none
-}
 #upload-previews{display:none;gap:8px;flex-wrap:wrap;margin-bottom:12px}
-.preview-thumb{
-  width:72px;height:72px;object-fit:cover;border-radius:var(--radius-sm);
-  border:1px solid var(--border2);background:var(--bg2);flex-shrink:0;
-  position:relative
-}
+.preview-thumb{width:72px;height:72px;object-fit:cover;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--bg2);flex-shrink:0}
 .preview-thumb-wrap{position:relative;flex-shrink:0}
-.preview-remove{
-  position:absolute;top:-6px;right:-6px;width:18px;height:18px;
-  background:var(--red);border-radius:50%;font-size:10px;color:#fff;
-  display:flex;align-items:center;justify-content:center;
-  cursor:pointer;border:2px solid var(--bg);font-weight:700
-}
+.preview-remove{position:absolute;top:-6px;right:-6px;width:18px;height:18px;background:var(--red);border-radius:50%;font-size:10px;color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;border:2px solid var(--bg);font-weight:700}
 #file-input{display:none}
 
 /* Lock banner */
-#upload-locked-banner{
-  display:none;background:var(--red-dim);border:1px solid rgba(239,68,68,0.25);
-  border-radius:var(--radius);padding:14px;margin-bottom:12px
-}
+#upload-locked-banner{display:none;background:var(--red-dim);border:1px solid rgba(239,68,68,0.25);border-radius:var(--radius);padding:14px;margin-bottom:12px}
 .lock-header{display:flex;align-items:center;gap:8px;margin-bottom:5px}
 .lock-icon-wrap{width:28px;height:28px;border-radius:7px;background:rgba(239,68,68,0.15);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0}
 .lock-title{font-size:13px;font-weight:600;color:var(--red)}
 .lock-text{font-size:12px;color:var(--text-2);line-height:1.5}
 
 /* Slot indicator */
-#slot-indicator{
-  display:flex;align-items:center;justify-content:space-between;
-  background:var(--surface);border:1px solid var(--border);
-  border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:12px
-}
+#slot-indicator{display:flex;align-items:center;justify-content:space-between;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:12px}
 .slot-label{font-size:11px;color:var(--text-3);font-weight:500}
 .slot-bar-wrap{flex:1;margin:0 12px}
 .slot-bar-bg{height:4px;border-radius:2px;background:var(--bg2)}
@@ -213,7 +115,7 @@ img{display:block}
 .slot-bar-fill.full{background:var(--red)}
 .slot-count{font-size:11px;font-weight:700;color:var(--text-2)}
 
-/* ═══ BUTTONS ═══ */
+/* BUTTONS */
 .btn{width:100%;padding:12px;border-radius:var(--radius);font-size:13px;font-weight:600;letter-spacing:0.02em;transition:var(--transition)}
 .btn-primary{background:var(--blue);color:#fff;box-shadow:0 2px 16px var(--blue-glow)}
 .btn-primary:active{transform:scale(.98);filter:brightness(.9)}
@@ -227,15 +129,11 @@ img{display:block}
 .btn-sm{width:auto;padding:7px 14px;font-size:11px}
 .btn-icon{width:auto;padding:8px;aspect-ratio:1;border-radius:var(--radius-sm)}
 
-/* ═══ AI MODAL ═══ */
+/* AI MODAL */
 #ai-modal{display:none;position:fixed;inset:0;z-index:100;background:rgba(0,0,0,0.88);backdrop-filter:blur(16px);align-items:center;justify-content:center;padding:20px}
 #ai-modal.open{display:flex;animation:fadeIn .25s ease both}
 @keyframes fadeIn{from{opacity:0;transform:scale(.97)}to{opacity:1;transform:scale(1)}}
-#ai-card{
-  background:var(--surface);border:1px solid var(--border2);
-  border-radius:var(--radius-lg);padding:24px 20px;
-  max-width:360px;width:100%;text-align:center;position:relative
-}
+#ai-card{background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius-lg);padding:24px 20px;max-width:360px;width:100%;text-align:center;position:relative}
 .ai-thumbs-row{display:flex;gap:6px;justify-content:center;margin-bottom:16px;flex-wrap:wrap}
 .ai-thumb-img{width:72px;height:72px;object-fit:cover;border-radius:var(--radius-sm);border:1px solid var(--border2)}
 #ai-title{font-size:16px;font-weight:700;color:var(--text);margin-bottom:4px;letter-spacing:-0.02em}
@@ -252,21 +150,14 @@ img{display:block}
 .score-val{font-size:22px;font-weight:700;color:var(--text);letter-spacing:-0.03em}
 .score-badges{display:flex;gap:5px;flex-wrap:wrap;justify-content:center;margin-bottom:14px}
 .badge{font-size:10px;padding:3px 8px;border-radius:20px;background:var(--surface3);border:1px solid var(--border2);color:var(--text-2);font-weight:500}
-.ai-price-box{
-  background:var(--bg1);border:1px solid var(--border);border-radius:var(--radius-sm);
-  padding:10px 12px;margin-bottom:14px;text-align:left
-}
+.ai-price-box{background:var(--bg1);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:14px;text-align:left}
 .aipb-row{display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--text-2);margin-bottom:3px}
 .aipb-row:last-child{margin-bottom:0;font-weight:600;color:var(--text)}
 .aipb-row span{color:var(--blue);font-weight:600}
 
-/* ═══ PORTFOLIO ═══ */
+/* PORTFOLIO */
 #portfolio-list{display:flex;flex-direction:column;gap:8px}
-.photo-card{
-  background:var(--surface);border:1px solid var(--border);
-  border-radius:var(--radius);overflow:hidden;display:flex;gap:10px;
-  padding:10px;align-items:center;transition:var(--transition)
-}
+.photo-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;display:flex;gap:10px;padding:10px;align-items:center;transition:var(--transition)}
 .photo-card:active{background:var(--surface2)}
 .photo-thumb{width:60px;height:60px;object-fit:cover;border-radius:var(--radius-sm);flex-shrink:0;background:var(--bg2)}
 .photo-thumb-ph{width:60px;height:60px;border-radius:var(--radius-sm);background:var(--bg2);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
@@ -281,20 +172,13 @@ img{display:block}
 .photo-price.green{color:var(--green)}
 .countdown{font-size:9px;color:var(--blue);margin-top:2px;font-weight:500}
 
-/* ═══ LIVE FEED (Market) ═══ */
-.live-feed-header{
-  display:flex;align-items:center;gap:8px;margin-bottom:14px
-}
+/* LIVE FEED */
+.live-feed-header{display:flex;align-items:center;gap:8px;margin-bottom:14px}
 .live-dot{width:8px;height:8px;border-radius:50%;background:var(--green);animation:pulse 1.8s ease infinite}
 @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(34,197,94,0.5)}50%{box-shadow:0 0 0 6px rgba(34,197,94,0)}}
 .live-label{font-size:12px;font-weight:600;color:var(--green);letter-spacing:0.04em;text-transform:uppercase}
 .live-feed-list{display:flex;flex-direction:column;gap:6px}
-.feed-item{
-  background:var(--surface);border:1px solid var(--border);
-  border-radius:var(--radius-sm);padding:10px 12px;
-  display:flex;align-items:center;justify-content:space-between;
-  animation:feedSlide .4s ease both
-}
+.feed-item{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;display:flex;align-items:center;justify-content:space-between;animation:feedSlide .4s ease both}
 @keyframes feedSlide{from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:translateX(0)}}
 .feed-left{display:flex;flex-direction:column;gap:2px}
 .feed-user{font-size:12px;font-weight:600;color:var(--text);font-family:monospace}
@@ -302,17 +186,9 @@ img{display:block}
 .feed-amount{font-size:13px;font-weight:700;color:var(--green);letter-spacing:-0.01em}
 .feed-time{font-size:10px;color:var(--text-3)}
 
-/* ═══ WALLET (Quests + Withdraw) ═══ */
-.quest-card{
-  background:var(--surface);border:1px solid var(--border);
-  border-radius:var(--radius);padding:12px 14px;margin-bottom:8px;
-  display:flex;align-items:center;gap:12px;transition:var(--transition)
-}
-.quest-icon-wrap{
-  width:36px;height:36px;border-radius:8px;
-  background:var(--bg2);border:1px solid var(--border2);
-  display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0
-}
+/* WALLET */
+.quest-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;gap:12px;transition:var(--transition)}
+.quest-icon-wrap{width:36px;height:36px;border-radius:8px;background:var(--bg2);border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
 .quest-info{flex:1;min-width:0}
 .quest-title{font-size:13px;font-weight:600;margin-bottom:2px;color:var(--text)}
 .quest-desc{font-size:11px;color:var(--text-3)}
@@ -322,10 +198,7 @@ img{display:block}
 .quest-join:active{transform:scale(.94)}
 
 /* Referral unlock bar */
-.referral-unlock-card{
-  background:var(--surface);border:1px solid var(--border);
-  border-radius:var(--radius);padding:14px;margin:14px 0
-}
+.referral-unlock-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin:14px 0}
 .ruc-title{font-size:13px;font-weight:600;color:var(--text);margin-bottom:8px}
 .ruc-progress-row{display:flex;align-items:center;gap:10px}
 .ruc-bar-bg{flex:1;height:6px;border-radius:3px;background:var(--bg2)}
@@ -338,11 +211,7 @@ img{display:block}
 .withdraw-box.locked-state{opacity:.55;pointer-events:none}
 .withdraw-title{font-size:15px;font-weight:700;color:var(--text);margin-bottom:4px;letter-spacing:-0.02em}
 .withdraw-sub{font-size:12px;color:var(--text-2);margin-bottom:12px;line-height:1.5}
-.withdraw-warning{
-  background:var(--amber-dim);border:1px solid rgba(245,158,11,0.25);
-  border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:14px;
-  font-size:11px;color:var(--amber);line-height:1.6
-}
+.withdraw-warning{background:var(--amber-dim);border:1px solid rgba(245,158,11,0.25);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:14px;font-size:11px;color:var(--amber);line-height:1.6}
 .withdraw-warning strong{color:var(--amber)}
 .withdraw-tabs{display:flex;gap:6px;margin-bottom:12px}
 .wtab{flex:1;padding:8px;border-radius:var(--radius-sm);font-size:11px;font-weight:600;letter-spacing:0.02em;background:var(--bg2);border:1px solid var(--border2);color:var(--text-2);transition:var(--transition)}
@@ -351,17 +220,12 @@ img{display:block}
 .withdraw-amount-display{font-size:30px;font-weight:700;color:var(--text);letter-spacing:-0.03em;margin-bottom:8px;text-align:center}
 .withdraw-rate-note{font-size:11px;color:var(--text-3);text-align:center;margin-top:8px}
 
-/* ═══ VIP / REFERRALS ═══ */
+/* VIP / REFERRALS */
 .ref-link-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:12px}
-.ref-url-row{
-  display:flex;align-items:center;gap:8px;margin-top:8px;
-  background:var(--bg1);border:1px solid var(--border);border-radius:var(--radius-sm);
-  padding:8px 10px
-}
+.ref-url-row{display:flex;align-items:center;gap:8px;margin-top:8px;background:var(--bg1);border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px 10px}
 .ref-url-text{flex:1;font-size:11px;color:var(--text-2);word-break:break-all;font-family:monospace;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .ref-copy-btn{background:var(--blue-dim);border:1px solid rgba(59,130,246,0.3);color:var(--blue);border-radius:5px;padding:4px 10px;font-size:11px;font-weight:600;flex-shrink:0}
 .ref-copy-btn:active{transform:scale(.94)}
-
 .vip-progress-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:12px}
 .vip-header-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
 .vip-level-big{font-size:24px;font-weight:700;color:var(--blue);letter-spacing:-0.03em}
@@ -375,13 +239,8 @@ img{display:block}
 .vip-dot-lbl{font-size:8px;color:var(--text-3);font-weight:600;letter-spacing:0.04em}
 .vip-dot-lbl.active{color:var(--blue)}
 .vip-next-hint{font-size:11px;color:var(--text-3);text-align:center;margin-top:10px}
-
 .vip-tier-list{display:flex;flex-direction:column;gap:6px;margin-top:2px}
-.vip-tier-row{
-  background:var(--bg1);border:1px solid var(--border);
-  border-radius:var(--radius-sm);padding:10px 12px;
-  display:flex;align-items:center;gap:10px;transition:var(--transition)
-}
+.vip-tier-row{background:var(--bg1);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;display:flex;align-items:center;gap:10px;transition:var(--transition)}
 .vip-tier-row.unlocked{border-color:rgba(59,130,246,0.2);background:var(--blue-dim)}
 .vip-tier-row.current-tier{border-color:var(--blue);box-shadow:0 0 0 1px var(--blue)}
 .vtc-icon{font-size:18px;flex-shrink:0}
@@ -393,7 +252,7 @@ img{display:block}
 .vtc-status.active{color:var(--blue)}
 .vtc-status.locked{color:var(--text-3)}
 
-/* ═══ SUPPORT CHAT ═══ */
+/* SUPPORT CHAT */
 #support-chat{display:flex;flex-direction:column;height:calc(100vh - 220px);min-height:300px}
 .chat-messages{flex:1;overflow-y:auto;padding:4px 0 10px;display:flex;flex-direction:column;gap:7px;scrollbar-width:thin;scrollbar-color:var(--surface2) transparent}
 .chat-messages::-webkit-scrollbar{width:3px}
@@ -411,32 +270,28 @@ img{display:block}
 .chat-send-btn:active{transform:scale(.93)}
 .chat-send-btn:disabled{opacity:.35;pointer-events:none}
 
-/* ═══ TOAST ═══ */
+/* TOAST */
 #toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--surface2);border:1px solid var(--border2);border-radius:var(--radius);padding:9px 16px;font-size:12px;font-weight:500;color:var(--text);z-index:200;opacity:0;transition:var(--transition);pointer-events:none;white-space:nowrap;max-width:90vw;text-align:center}
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 #toast.success{border-color:rgba(34,197,94,0.35);color:var(--green)}
 #toast.error{border-color:rgba(239,68,68,0.35);color:var(--red)}
 
-/* ═══ EMPTY STATE ═══ */
+/* EMPTY STATE */
 .empty-state{text-align:center;padding:44px 20px;color:var(--text-3)}
 .empty-icon{font-size:36px;margin-bottom:10px}
 .empty-text{font-size:13px;line-height:1.6}
 
-/* ═══ SOLD FLASH ═══ */
+/* SOLD FLASH */
 #sold-flash{position:fixed;inset:0;z-index:300;display:flex;align-items:center;justify-content:center;pointer-events:none;opacity:0}
 #sold-flash.animate{animation:soldFlash 2s ease forwards}
 @keyframes soldFlash{0%{opacity:0}8%{opacity:1}80%{opacity:1}100%{opacity:0}}
-.sold-burst{
-  background:var(--surface);border:1px solid var(--border2);
-  border-radius:var(--radius-lg);padding:24px 32px;text-align:center;
-  box-shadow:0 0 40px rgba(59,130,246,0.25),0 20px 60px rgba(0,0,0,0.6)
-}
+.sold-burst{background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius-lg);padding:24px 32px;text-align:center;box-shadow:0 0 40px rgba(59,130,246,0.25),0 20px 60px rgba(0,0,0,0.6)}
 .sold-burst .sb-icon{font-size:36px;margin-bottom:8px}
 .sold-burst .sb-label{font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-3);margin-bottom:4px}
 .sold-burst .sb-amount{font-size:36px;font-weight:700;color:var(--green);letter-spacing:-0.03em;line-height:1}
 .sold-burst .sb-rub{font-size:13px;color:var(--text-3);margin-top:4px}
 
-/* ═══ MISC ═══ */
+/* MISC */
 .inline-spinner{display:inline-block;width:12px;height:12px;border:2px solid rgba(255,255,255,.2);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite;vertical-align:middle;margin-right:5px}
 @keyframes spin{to{transform:rotate(360deg)}}
 .notice{background:var(--blue-dim);border:1px solid rgba(59,130,246,0.2);border-radius:var(--radius-sm);padding:10px 12px;font-size:11px;color:var(--slate-light);line-height:1.6;margin-bottom:12px}
@@ -448,7 +303,7 @@ img{display:block}
 <div id="sold-flash">
   <div class="sold-burst">
     <div class="sb-icon">✅</div>
-    <div class="sb-label">Photo Sold</div>
+    <div class="sb-label" data-i18n="sold_label_flash">Photo Sold</div>
     <div class="sb-amount" id="sold-amount">+$0.00</div>
     <div class="sb-rub" id="sold-rub"></div>
   </div>
@@ -461,8 +316,8 @@ img{display:block}
 <div id="ai-modal">
   <div id="ai-card">
     <div class="ai-thumbs-row" id="ai-thumbs-row"></div>
-    <div id="ai-title">Analyzing Photos</div>
-    <div id="ai-sub">Running AI valuation…</div>
+    <div id="ai-title" data-i18n="ai_title">Analyzing Photos</div>
+    <div id="ai-sub" data-i18n="ai_sub">Running AI valuation…</div>
     <div class="progress-wrap"><div class="progress-bar" id="ai-bar"></div></div>
     <div class="progress-text" id="ai-pct">0%</div>
     <div class="ai-result" id="ai-result">
@@ -474,7 +329,7 @@ img{display:block}
       <p style="font-size:12px;color:var(--text-2);margin-bottom:14px;line-height:1.6" id="ai-verdict"></p>
       <div class="ai-price-box" id="ai-price-box"></div>
       <button class="btn btn-primary" id="ai-confirm" onclick="confirmUpload()">
-        <span id="ai-confirm-text">List on Auction</span>
+        <span id="ai-confirm-text" data-i18n="ai_list">List on Auction</span>
       </button>
     </div>
   </div>
@@ -490,6 +345,9 @@ img{display:block}
       <div id="header-title">PhotoFlip</div>
       <div id="header-sub" data-i18n="hdr_sub">Photo Auction Platform</div>
     </div>
+    <div id="support-notify" style="display:none;margin-right:8px">
+      <div style="width:8px;height:8px;border-radius:50%;background:var(--red);box-shadow:0 0 6px var(--red)"></div>
+    </div>
     <button id="lang-toggle" onclick="toggleLang()">RU</button>
   </div>
 
@@ -497,7 +355,7 @@ img{display:block}
   <div id="stats-bar">
     <div class="stat-item">
       <div class="stat-label" data-i18n="balance_label">Balance</div>
-      <div class="stat-value blue" id="balance-val">$0.00</div>
+      <div class="stat-value green" id="balance-val">$0.00</div>
     </div>
     <div class="stat-item">
       <div class="stat-label" data-i18n="earned_label">Earned</div>
@@ -505,7 +363,7 @@ img{display:block}
     </div>
     <div class="stat-item">
       <div class="stat-label" data-i18n="sold_label">Sold</div>
-      <div class="stat-value green" id="sold-val">0</div>
+      <div class="stat-value" id="sold-val">0</div>
     </div>
     <div id="vip-pill">
       <div class="vip-dot"></div>
@@ -515,12 +373,12 @@ img{display:block}
 
   <!-- TABS -->
   <div id="tabs">
-    <button class="tab active" data-tab="upload"    onclick="switchTab('upload')"><span data-i18n="tab_upload">Upload</span></button>
-    <button class="tab"        data-tab="portfolio" onclick="switchTab('portfolio')"><span data-i18n="tab_portfolio">Portfolio</span></button>
-    <button class="tab"        data-tab="market"    onclick="switchTab('market')"><span data-i18n="tab_market">Live Feed</span></button>
-    <button class="tab"        data-tab="wallet"    onclick="switchTab('wallet')"><span data-i18n="tab_wallet">Wallet</span></button>
-    <button class="tab"        data-tab="vip"       onclick="switchTab('vip')"><span data-i18n="tab_vip">VIP</span></button>
-    <button class="tab"        data-tab="support"   onclick="switchTab('support');loadSupportMsgs()"><span data-i18n="tab_support">Support</span><span class="tab-dot" id="support-notify" style="display:none"></span></button>
+    <button class="tab active" data-tab="upload" onclick="switchTab('upload')" data-i18n="tab_upload">Upload</button>
+    <button class="tab" data-tab="portfolio" onclick="switchTab('portfolio')" data-i18n="tab_portfolio">Portfolio</button>
+    <button class="tab" data-tab="market" onclick="switchTab('market')" data-i18n="tab_market">Market</button>
+    <button class="tab" data-tab="wallet" onclick="switchTab('wallet')" data-i18n="tab_wallet">Wallet</button>
+    <button class="tab" data-tab="vip" onclick="switchTab('vip')" data-i18n="tab_vip">VIP</button>
+    <button class="tab" data-tab="support" onclick="switchTab('support')" data-i18n="tab_support">Support</button>
   </div>
 
   <!-- CONTENT -->
@@ -528,17 +386,14 @@ img{display:block}
 
     <!-- ── UPLOAD ── -->
     <div class="panel active" id="panel-upload">
-
-      <!-- Lock banner -->
       <div id="upload-locked-banner">
         <div class="lock-header">
           <div class="lock-icon-wrap">🔒</div>
           <div class="lock-title" data-i18n="lock_title">Upload Locked</div>
         </div>
-        <div class="lock-text" id="lock-text" data-i18n="lock_text">You have an active balance. Withdraw your earnings first to unlock new upload slots.</div>
+        <div class="lock-text" id="lock-text" data-i18n="lock_text">You have an active balance. Withdraw your earnings first.</div>
       </div>
 
-      <!-- Slot indicator -->
       <div id="slot-indicator">
         <div class="slot-label" data-i18n="slots_label">Slots</div>
         <div class="slot-bar-wrap">
@@ -547,7 +402,6 @@ img{display:block}
         <div class="slot-count" id="slot-count">0 / 5</div>
       </div>
 
-      <!-- Drop zone -->
       <div id="upload-drop-zone" onclick="document.getElementById('file-input').click()">
         <span class="dz-icon">🖼</span>
         <div class="dz-title" data-i18n="upload_cta">Select up to 5 photos</div>
@@ -555,11 +409,10 @@ img{display:block}
       </div>
       <input type="file" id="file-input" accept="image/*" multiple/>
 
-      <!-- Previews -->
       <div id="upload-previews"></div>
 
       <div class="notice" id="pack-notice" style="display:none" data-i18n="pack_notice">
-        📦 Pack mode — 5 photos selected. Pack pricing applied: 1,000–3,000 ₽ total.
+        📦 Pack mode — 5 photos selected. Pack pricing applied.
       </div>
 
       <button class="btn btn-primary" id="upload-btn" onclick="startUpload()" data-i18n="upload_btn">Analyse &amp; List</button>
@@ -580,7 +433,7 @@ img{display:block}
     <div class="panel" id="panel-market">
       <div class="live-feed-header">
         <div class="live-dot"></div>
-        <div class="live-label" data-i18n="live_label">Live Feed</div>
+        <div class="live-label" data-i18n="live_label">LIVE</div>
         <div style="font-size:11px;color:var(--text-3);margin-left:auto" data-i18n="live_sub">Real-time transactions</div>
       </div>
       <div class="live-feed-list" id="live-feed-list"></div>
@@ -593,11 +446,9 @@ img{display:block}
         <div class="section-sub" id="wallet-progress">0/3 referrals</div>
       </div>
 
-      <!-- Partner channel tasks -->
       <div class="card-label" data-i18n="channels_label">Partner Channels</div>
       <div id="quests-list"></div>
 
-      <!-- Referral unlock bar -->
       <div class="referral-unlock-card">
         <div class="ruc-title" data-i18n="ruc_title">Withdrawal Unlock</div>
         <div class="ruc-progress-row">
@@ -607,18 +458,17 @@ img{display:block}
         <div class="ruc-hint" id="ruc-hint" data-i18n="ruc_hint">Invite 3 friends to unlock withdrawal.</div>
       </div>
 
-      <!-- Withdraw box -->
       <div class="withdraw-box locked-state" id="withdraw-box">
         <div class="withdraw-title" data-i18n="withdraw_title">Withdraw Earnings</div>
         <div class="withdraw-sub" id="withdraw-sub" data-i18n="withdraw_sub">Invite 3 friends via your referral link to unlock withdrawal.</div>
 
         <div class="withdraw-warning">
-          ⚠️ <strong data-i18n="warning_label">Processing time:</strong>
-          <span data-i18n="withdraw_warning">Withdrawal processing takes 1 to 7 business days. IMPORTANT: Do not unsubscribe from partner channels until the transfer is complete, or the payout will be cancelled.</span>
+          ⚠️ <strong data-i18n="warning_label">Important:</strong>
+          <span data-i18n="withdraw_warning">Withdrawal processing takes 1–7 business days. Do NOT unsubscribe from partner channels until the transfer is complete.</span>
         </div>
 
         <div class="withdraw-tabs" id="withdraw-tabs">
-          <button class="wtab active" onclick="selectWithdrawTab('usd')" id="wtab-usd" data-i18n="wtab_usd">USD</button>
+          <button class="wtab active" onclick="selectWithdrawTab('usd')" id="wtab-usd" data-i18n="wtab_usd">💵 USD</button>
           <button class="wtab" onclick="selectWithdrawTab('stars')" id="wtab-stars" data-i18n="wtab_stars">⭐ Stars</button>
         </div>
 
@@ -629,7 +479,7 @@ img{display:block}
 
         <div id="withdraw-stars-panel" style="display:none">
           <div class="withdraw-amount-display" style="color:var(--blue)" id="withdraw-stars-preview">0 ⭐</div>
-          <div class="withdraw-rate-note" data-i18n="stars_rate">100 Stars = $1.20 USD</div>
+          <div class="withdraw-rate-note" data-i18n="stars_rate">100 Stars = $1.20 · Rate: 1 USD = 83 Stars</div>
           <div style="margin-top:12px">
             <button class="btn btn-stars" id="withdraw-btn-stars" onclick="doWithdrawStars()" disabled data-i18n="withdraw_btn_locked">🔒 Locked</button>
           </div>
@@ -644,7 +494,6 @@ img{display:block}
         <div class="section-sub" id="ref-count-sub">0 referrals</div>
       </div>
 
-      <!-- Referral link -->
       <div class="ref-link-card">
         <div class="card-label" data-i18n="ref_link_label">Your Referral Link</div>
         <div class="ref-url-row">
@@ -653,7 +502,6 @@ img{display:block}
         </div>
       </div>
 
-      <!-- VIP Progress -->
       <div class="vip-progress-card">
         <div class="vip-header-row">
           <div style="font-size:13px;font-weight:600;color:var(--text-2)" data-i18n="vip_current_level">Current Level</div>
@@ -666,7 +514,6 @@ img{display:block}
         <div class="vip-next-hint" id="vip-next-hint"></div>
       </div>
 
-      <!-- Tier cards -->
       <div class="vip-tier-list" id="vip-tier-cards"></div>
     </div>
 
@@ -692,21 +539,22 @@ img{display:block}
 
 <script>
 /* ═══════════════════════════════════════════════
-   i18n
+   i18n — default: ENGLISH
 ═══════════════════════════════════════════════ */
 const TRANSLATIONS = {
   en:{
     hdr_sub:"Photo Auction Platform",
-    balance_label:"Balance",earned_label:"Earned",sold_label:"Sold",
-    tab_upload:"Upload",tab_portfolio:"Portfolio",tab_market:"Market",
-    tab_wallet:"Wallet",tab_vip:"VIP",tab_support:"Support",
-    live_label:"LIVE",live_sub:"Real-time transactions",
-    upload_cta:"Select up to 5 photos",upload_hint:"JPG, PNG, WEBP · up to 10 MB each\nUpload 5 together for pack pricing",
+    balance_label:"Balance", earned_label:"Earned", sold_label:"Sold",
+    tab_upload:"Upload", tab_portfolio:"Portfolio", tab_market:"Market",
+    tab_wallet:"Wallet", tab_vip:"VIP", tab_support:"Support",
+    live_label:"LIVE", live_sub:"Real-time transactions",
+    upload_cta:"Select up to 5 photos",
+    upload_hint:"JPG, PNG, WEBP · up to 10 MB each\nUpload 5 together for pack pricing",
     upload_btn:"Analyse & List",
-    lock_title:"Upload Locked",lock_text:"You have an active balance. Withdraw your earnings first.",
+    lock_title:"Upload Locked", lock_text:"You have an active balance. Withdraw your earnings first.",
     slots_label:"Auction Slots",
     pack_notice:"📦 Pack mode — 5 photos selected. Pack pricing: 1,000–3,000 ₽ total.",
-    portfolio_title:"My Portfolio",portfolio_empty:"No photos yet. Upload your first shot!",
+    portfolio_title:"My Portfolio", portfolio_empty:"No photos yet. Upload your first shot!",
     wallet_title:"Wallet",
     channels_label:"Partner Channels",
     ruc_title:"Withdrawal Unlock Progress",
@@ -715,11 +563,11 @@ const TRANSLATIONS = {
     withdraw_sub:"Invite 3 friends via your referral link to unlock withdrawal.",
     withdraw_unlocked_hint:"✅ Withdrawal unlocked! Select your payout method.",
     warning_label:"Important:",
-    withdraw_warning:"Withdrawal processing takes 1 to 7 business days. IMPORTANT: Do not unsubscribe from partner channels until the transfer is complete, or the payout will be cancelled.",
-    wtab_usd:"💵 USD",wtab_stars:"⭐ Stars",
-    withdraw_btn_locked:"🔒 Locked",withdraw_btn_usd:"Withdraw $",withdraw_btn_stars:"Withdraw Stars",
+    withdraw_warning:"Withdrawal processing takes 1–7 business days. IMPORTANT: Do not unsubscribe from partner channels until the transfer is complete, or the payout will be cancelled.",
+    wtab_usd:"💵 USD", wtab_stars:"⭐ Stars",
+    withdraw_btn_locked:"🔒 Locked", withdraw_btn_usd:"Withdraw $", withdraw_btn_stars:"Withdraw Stars",
     stars_rate:"100 Stars = $1.20 · Rate: 1 USD = 83 Stars (floor)",
-    vip_title:"VIP Programme",ref_link_label:"Your Referral Link",ref_copy:"Copy",
+    vip_title:"VIP Programme", ref_link_label:"Your Referral Link", ref_copy:"Copy",
     vip_current_level:"Current Level",
     vip_tier_names:["Starter","Bronze","Silver","Gold","Platinum","Diamond"],
     vip_tier_max:["60 min max","45 min max","30 min max","15 min max","5 min max","Near-instant"],
@@ -727,41 +575,45 @@ const TRANSLATIONS = {
     vip_tier_req:["0 referrals","3 referrals","5 referrals","10 referrals","25 referrals","50 referrals"],
     vip_next_hint:"Invite {n} more friend(s) to reach Level {l}",
     vip_max_hint:"Maximum VIP level reached!",
-    support_title:"Support Chat",support_sub:"Replies within 24h",
+    support_title:"Support Chat", support_sub:"Replies within 24h",
     chat_empty:"No messages yet. Send us a message!",
     chat_placeholder:"Type a message…",
-    chat_you:"You",chat_support:"Support",
+    chat_you:"You", chat_support:"Support",
     sold_label_flash:"Photo Sold",
-    status_auction:"Auction",status_sold:"Sold",status_pending:"Pending",
-    ai_title:"AI Valuation",ai_sub:"Analyzing your photos…",
+    status_auction:"Auction", status_sold:"Sold", status_pending:"Pending",
+    ai_title:"AI Valuation", ai_sub:"Analyzing your photos…",
     ai_verdict_hi:"Exceptional quality. High buyer demand expected.",
     ai_verdict_mid:"Good composition. Solid auction prospects.",
     ai_verdict_lo:"Decent shot. Niche buyers will respond.",
     ai_list:"List on Auction",
-    toast_listed:"{n} photo(s) listed on auction!",toast_err:"Upload failed. Try again.",
-    toast_withdrawn:"Withdrawn successfully!",toast_withdraw_err:"Withdrawal failed.",
+    toast_listed:"{n} photo(s) listed on auction!",
+    toast_err:"Upload failed. Try again.",
+    toast_withdrawn:"Withdrawn successfully!",
+    toast_withdraw_err:"Withdrawal failed.",
     toast_stars_ok:"Stars withdrawal requested!",
-    toast_copied:"Link copied!",toast_copy_err:"Copy failed.",
+    toast_copied:"Link copied!", toast_copy_err:"Copy failed.",
     toast_verify_fail:"You haven't joined the channel yet.",
     quest_desc:"Join this channel to support our community.",
-    quest_join:"Join",quest_done:"✓ Done",quest_verify:"Checking…",
+    quest_join:"Join", quest_done:"✓ Done", quest_verify:"Checking…",
     auction_in:"Sells in",
     err_no_file:"Select at least one photo.",
     err_too_many:"Maximum 5 photos at once.",
     err_slots_full:"Not enough auction slots. Upgrade your VIP level.",
+    ref_count_sub:"referrals",
   },
   ru:{
     hdr_sub:"Платформа аукциона фото",
-    balance_label:"Баланс",earned_label:"Заработано",sold_label:"Продано",
-    tab_upload:"Загрузка",tab_portfolio:"Портфолио",tab_market:"Лента",
-    tab_wallet:"Кошелёк",tab_vip:"VIP",tab_support:"Поддержка",
-    live_label:"ЛАЙВ",live_sub:"Сделки в реальном времени",
-    upload_cta:"Выберите до 5 фото",upload_hint:"JPG, PNG, WEBP · до 10 МБ каждое\nВыберите 5 сразу для пакетной цены",
+    balance_label:"Баланс", earned_label:"Заработано", sold_label:"Продано",
+    tab_upload:"Загрузка", tab_portfolio:"Портфолио", tab_market:"Лента",
+    tab_wallet:"Кошелёк", tab_vip:"VIP", tab_support:"Поддержка",
+    live_label:"ЛАЙВ", live_sub:"Сделки в реальном времени",
+    upload_cta:"Выберите до 5 фото",
+    upload_hint:"JPG, PNG, WEBP · до 10 МБ каждое\nВыберите 5 сразу для пакетной цены",
     upload_btn:"Анализировать и выставить",
-    lock_title:"Загрузка заблокирована",lock_text:"У вас есть активный баланс. Сначала выведите средства.",
+    lock_title:"Загрузка заблокирована", lock_text:"У вас есть активный баланс. Сначала выведите средства.",
     slots_label:"Слоты аукциона",
     pack_notice:"📦 Пакет — выбрано 5 фото. Пакетная цена: 1 000–3 000 ₽.",
-    portfolio_title:"Портфолио",portfolio_empty:"Фото нет. Загрузите первый снимок!",
+    portfolio_title:"Портфолио", portfolio_empty:"Фото нет. Загрузите первый снимок!",
     wallet_title:"Кошелёк",
     channels_label:"Партнёрские Каналы",
     ruc_title:"Прогресс разблокировки вывода",
@@ -770,11 +622,11 @@ const TRANSLATIONS = {
     withdraw_sub:"Пригласите 3 друзей, чтобы разблокировать вывод.",
     withdraw_unlocked_hint:"✅ Вывод разблокирован! Выберите способ получения.",
     warning_label:"Важно:",
-    withdraw_warning:"Обработка вывода занимает 1–7 рабочих дней. ВАЖНО: не отписывайтесь от партнёрских каналов до получения перевода, иначе выплата будет отменена.",
-    wtab_usd:"💵 USD",wtab_stars:"⭐ Звёзды",
-    withdraw_btn_locked:"🔒 Заблокировано",withdraw_btn_usd:"Вывести $",withdraw_btn_stars:"Вывести ⭐",
-    stars_rate:"100 Звёзд = $1.20 · Курс: 1 USD = 83 Звезды (floor)",
-    vip_title:"VIP Программа",ref_link_label:"Ваша реферальная ссылка",ref_copy:"Копировать",
+    withdraw_warning:"Обработка вывода занимает 1–7 рабочих дней. ВАЖНО: не отписывайтесь от партнёрских каналов до получения перевода.",
+    wtab_usd:"💵 USD", wtab_stars:"⭐ Звёзды",
+    withdraw_btn_locked:"🔒 Заблокировано", withdraw_btn_usd:"Вывести $", withdraw_btn_stars:"Вывести ⭐",
+    stars_rate:"100 Звёзд = $1.20 · Курс: 1 USD = 83 Звезды",
+    vip_title:"VIP Программа", ref_link_label:"Ваша реферальная ссылка", ref_copy:"Копировать",
     vip_current_level:"Текущий Уровень",
     vip_tier_names:["Старт","Бронза","Серебро","Золото","Платина","Алмаз"],
     vip_tier_max:["Макс. 60 мин","Макс. 45 мин","Макс. 30 мин","Макс. 15 мин","Макс. 5 мин","Мгновенно"],
@@ -782,103 +634,122 @@ const TRANSLATIONS = {
     vip_tier_req:["0 рефералов","3 реферала","5 рефералов","10 рефералов","25 рефералов","50 рефералов"],
     vip_next_hint:"Пригласите ещё {n} для Уровня {l}",
     vip_max_hint:"Максимальный VIP уровень достигнут!",
-    support_title:"Чат поддержки",support_sub:"Ответ в течение 24 часов",
+    support_title:"Чат поддержки", support_sub:"Ответ в течение 24 часов",
     chat_empty:"Сообщений нет. Напишите нам!",
     chat_placeholder:"Напишите сообщение…",
-    chat_you:"Вы",chat_support:"Поддержка",
+    chat_you:"Вы", chat_support:"Поддержка",
     sold_label_flash:"Фото продано",
-    status_auction:"Аукцион",status_sold:"Продано",status_pending:"Ожидание",
-    ai_title:"ИИ-Оценка",ai_sub:"Анализируем ваши фото…",
+    status_auction:"Аукцион", status_sold:"Продано", status_pending:"Ожидание",
+    ai_title:"ИИ-Оценка", ai_sub:"Анализируем ваши фото…",
     ai_verdict_hi:"Отличное качество. Ожидается высокий спрос.",
     ai_verdict_mid:"Хорошая композиция. Хорошие шансы на аукционе.",
     ai_verdict_lo:"Достойный кадр. Нишевые покупатели откликнутся.",
     ai_list:"Выставить на аукцион",
-    toast_listed:"Фото выставлены на аукцион!",toast_err:"Ошибка загрузки. Попробуйте снова.",
-    toast_withdrawn:"Вывод выполнен!",toast_withdraw_err:"Ошибка вывода.",
+    toast_listed:"Фото выставлены на аукцион!",
+    toast_err:"Ошибка загрузки. Попробуйте снова.",
+    toast_withdrawn:"Вывод выполнен!",
+    toast_withdraw_err:"Ошибка вывода.",
     toast_stars_ok:"Заявка на вывод Звёзд принята!",
-    toast_copied:"Ссылка скопирована!",toast_copy_err:"Ошибка копирования.",
+    toast_copied:"Ссылка скопирована!", toast_copy_err:"Ошибка копирования.",
     toast_verify_fail:"Вы ещё не вступили в канал.",
     quest_desc:"Вступите в этот канал.",
-    quest_join:"Вступить",quest_done:"✓ Готово",quest_verify:"Проверка…",
+    quest_join:"Вступить", quest_done:"✓ Готово", quest_verify:"Проверка…",
     auction_in:"Продажа через",
     err_no_file:"Выберите хотя бы одно фото.",
     err_too_many:"Максимум 5 фото за раз.",
     err_slots_full:"Нет свободных слотов. Повысьте VIP уровень.",
+    ref_count_sub:"рефералов",
   }
 };
 
-let lang = 'en';
-function t(key){ return (TRANSLATIONS[lang]||{})[key] || (TRANSLATIONS['en']||{})[key] || key }
-function applyTranslations(){
-  document.querySelectorAll('[data-i18n]').forEach(el=>{
-    const key=el.getAttribute('data-i18n');
-    el.textContent=t(key);
-  });
-  document.querySelectorAll('[data-i18n-placeholder]').forEach(el=>{
-    el.placeholder=t(el.getAttribute('data-i18n-placeholder'));
-  });
-  document.getElementById('lang-toggle').textContent=lang==='en'?'RU':'EN';
+/* ═══ LANGUAGE STATE — default: English ═══ */
+let currentLang = 'en';
+
+function t(key){
+  return (TRANSLATIONS[currentLang]||{})[key]
+      || (TRANSLATIONS['en']||{})[key]
+      || key;
 }
+
+function applyTranslations(){
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const key = el.getAttribute('data-i18n');
+    el.textContent = t(key);
+  });
+  document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+    el.placeholder = t(el.getAttribute('data-i18n-placeholder'));
+  });
+  document.getElementById('lang-toggle').textContent = currentLang === 'en' ? 'RU' : 'EN';
+}
+
 function toggleLang(){
-  lang=lang==='en'?'ru':'en';
+  currentLang = currentLang === 'en' ? 'ru' : 'en';
   applyTranslations();
-  renderPortfolio(); renderQuests(); renderReferrals(); renderLiveFeed();
-  updateUploadLock(); renderWithdrawPreviews();
+  renderPortfolio();
+  renderQuests();
+  renderReferrals();
+  renderLiveFeed();
+  updateUploadLock();
+  renderWithdrawPreviews();
   if(gameData?.player) updateHeader(gameData.player);
-  // Save to server so the bot also uses the right language
+
+  // Persist to server so bot also uses the right language
   if(userId){
-    fetch(`${BASE}/api/player/${userId}/lang`,{
-      method:'PUT',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({lang})
-    }).catch(()=>{});
+    fetch(`${BASE}/api/player/${userId}/lang`, {
+      method: 'PUT',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ lang: currentLang }),
+    }).catch(() => {});
   }
 }
 
 /* ═══ TELEGRAM INIT ═══ */
-const tg=window.Telegram?.WebApp;
-let userId=null, username='';
+const tg = window.Telegram?.WebApp;
+let userId = null, username = '';
 if(tg){
-  tg.ready(); tg.expand();
-  tg.setHeaderColor('#000000'); tg.setBackgroundColor('#000000');
-  const u=tg.initDataUnsafe?.user;
-  if(u){ userId=u.id; username=u.username||u.first_name||''; }
+  tg.ready();
+  tg.expand();
+  tg.setHeaderColor('#000000');
+  tg.setBackgroundColor('#000000');
+  const u = tg.initDataUnsafe?.user;
+  if(u){ userId = u.id; username = u.username || u.first_name || ''; }
 }
-if(!userId) userId=999999;
+if(!userId) userId = 999999; // dev fallback
 
 /* ═══ STATE ═══ */
-const BASE='';
-let gameData=null;
-let selectedFiles=[];
-let pendingUploadResult=null;
-let withdrawTab='usd';
-let supportMsgsLoaded=false, lastSupportMsgId=0;
-let lastSoldCount=0;
-const VIP_TIERS=[
-  {min:0, max_delay:3600, slots:5},
-  {min:3, max_delay:2700, slots:10},
-  {min:5, max_delay:1800, slots:15},
-  {min:10,max_delay:900,  slots:20},
-  {min:25,max_delay:300,  slots:25},
-  {min:50,max_delay:60,   slots:30},
+const BASE = '';
+let gameData = null;
+let selectedFiles = [];
+let pendingUploadResult = null;
+let withdrawTab = 'usd';
+let supportMsgsLoaded = false, lastSupportMsgId = 0;
+let lastSoldCount = 0;
+
+const VIP_TIERS = [
+  {min:0,  max_delay:3600, slots:5},
+  {min:3,  max_delay:2700, slots:10},
+  {min:5,  max_delay:1800, slots:15},
+  {min:10, max_delay:900,  slots:20},
+  {min:25, max_delay:300,  slots:25},
+  {min:50, max_delay:60,   slots:30},
 ];
-const VIP_ICONS=['🔵','🟤','⚪','🟡','⚫','💎'];
+const VIP_ICONS = ['🔵','🟤','⚪','🟡','⚫','💎'];
 
 /* ═══ INIT ═══ */
 async function init(){
   applyTranslations();
   await loadPlayer();
   buildLiveFeed();
-  setInterval(tickCountdowns,1000);
-  setInterval(()=>loadPlayer(true),30000);
-  setInterval(pollSupportReplies,15000);
-  setInterval(tickLiveFeed,7000);
+  setInterval(tickCountdowns, 1000);
+  setInterval(() => loadPlayer(true), 30000);
+  setInterval(pollSupportReplies, 15000);
+  setInterval(tickLiveFeed, 7000);
 }
 
-async function loadPlayer(silent=false){
+async function loadPlayer(silent = false){
   try{
-    const r=await fetch(`${BASE}/api/player/${userId}?username=${encodeURIComponent(username)}`);
-    gameData=await r.json();
+    const r = await fetch(`${BASE}/api/player/${userId}?username=${encodeURIComponent(username)}`);
+    gameData = await r.json();
     updateHeader(gameData.player);
     renderPortfolio();
     renderQuests();
@@ -891,256 +762,271 @@ async function loadPlayer(silent=false){
 
 /* ═══ HEADER / STATS ═══ */
 function updateHeader(p){
-  document.getElementById('balance-val').textContent='$'+fmt(p.balance);
-  document.getElementById('earned-val').textContent='$'+fmt(p.total_earned);
-  document.getElementById('sold-val').textContent=p.photos_sold||0;
-  const newSold=p.photos_sold||0;
-  if(newSold>lastSoldCount&&lastSoldCount>0){
-    const sold=(gameData?.photos||[]).filter(ph=>ph.status==='sold');
+  document.getElementById('balance-val').textContent = '$' + fmt(p.balance);
+  document.getElementById('earned-val').textContent  = '$' + fmt(p.total_earned);
+  document.getElementById('sold-val').textContent    = p.photos_sold || 0;
+
+  const newSold = p.photos_sold || 0;
+  if(newSold > lastSoldCount && lastSoldCount > 0){
+    const sold = (gameData?.photos || []).filter(ph => ph.status === 'sold');
     if(sold.length){
-      const sp=sold[0];
-      document.getElementById('sold-amount').textContent='+$'+fmt(sp.final_price||0);
-      document.getElementById('sold-rub').textContent=sp.sale_rub?`${parseInt(sp.sale_rub).toLocaleString()} ₽`:'';
-      const el=document.getElementById('sold-flash');
-      el.classList.remove('animate');void el.offsetWidth;el.classList.add('animate');
+      const sp = sold[0];
+      document.getElementById('sold-amount').textContent = '+$' + fmt(sp.final_price || 0);
+      document.getElementById('sold-rub').textContent = sp.sale_rub
+        ? `${parseInt(sp.sale_rub).toLocaleString()} ₽` : '';
+      const el = document.getElementById('sold-flash');
+      el.classList.remove('animate');
+      void el.offsetWidth;
+      el.classList.add('animate');
     }
   }
-  lastSoldCount=newSold;
-  if(p.lang&&p.lang!==lang){ lang=p.lang; applyTranslations(); }
+  lastSoldCount = newSold;
+
+  // Sync language if server has a different one
+  if(p.lang && p.lang !== currentLang){
+    currentLang = p.lang;
+    applyTranslations();
+  }
 }
-function fmt(n){ return parseFloat(n||0).toFixed(2) }
+
+function fmt(n){ return parseFloat(n || 0).toFixed(2); }
 
 function renderVipBadge(lvl){
-  const names=['Starter','Bronze','Silver','Gold','Platinum','Diamond'];
-  document.getElementById('vip-level-text').textContent=`VIP ${lvl}`;
+  document.getElementById('vip-level-text').textContent = `VIP ${lvl}`;
 }
 
 /* ═══ TABS ═══ */
 function switchTab(name){
-  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.tab===name));
-  document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('active',p.id===`panel-${name}`));
-  if(name==='vip') renderReferrals();
-  if(name==='market') renderLiveFeed();
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+  document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.id === `panel-${name}`));
+  if(name === 'vip')     renderReferrals();
+  if(name === 'market')  renderLiveFeed();
+  if(name === 'support'){ loadSupportMsgs(); }
 }
 
 /* ═══ UPLOAD LOCK ═══ */
 function updateUploadLock(){
-  const bal=parseFloat(gameData?.player?.balance||0);
-  const locked=bal>0;
-  const active=gameData?.active_slots||0;
-  const slotLimit=gameData?.slot_limit||5;
-  const banner=document.getElementById('upload-locked-banner');
-  const zone=document.getElementById('upload-drop-zone');
-  const btn=document.getElementById('upload-btn');
-  const previews=document.getElementById('upload-previews');
+  const bal       = parseFloat(gameData?.player?.balance || 0);
+  const locked    = bal > 0;
+  const active    = gameData?.active_slots || 0;
+  const slotLimit = gameData?.slot_limit || 5;
+  const banner    = document.getElementById('upload-locked-banner');
+  const zone      = document.getElementById('upload-drop-zone');
+  const btn       = document.getElementById('upload-btn');
+  const previews  = document.getElementById('upload-previews');
 
-  banner.style.display=locked?'block':'none';
-  zone.style.display=locked?'none':'';
-  previews.style.display=(locked||!selectedFiles.length)?'none':'flex';
-  btn.disabled=locked;
+  banner.style.display = locked ? 'block' : 'none';
+  zone.style.display   = locked ? 'none' : '';
+  previews.style.display = (locked || !selectedFiles.length) ? 'none' : 'flex';
+  btn.disabled = locked;
 
-  // Slot bar
-  const pct=slotLimit>0?Math.min((active/slotLimit)*100,100):0;
-  const fill=document.getElementById('slot-bar-fill');
-  fill.style.width=pct+'%';
-  fill.className='slot-bar-fill'+(pct>=100?' full':pct>=80?' warn':'');
-  document.getElementById('slot-count').textContent=`${active} / ${slotLimit}`;
+  const pct  = slotLimit > 0 ? Math.min((active / slotLimit) * 100, 100) : 0;
+  const fill = document.getElementById('slot-bar-fill');
+  fill.style.width = pct + '%';
+  fill.className   = 'slot-bar-fill' + (pct >= 100 ? ' full' : pct >= 80 ? ' warn' : '');
+  document.getElementById('slot-count').textContent = `${active} / ${slotLimit}`;
 }
 
 /* ═══ FILE SELECTION ═══ */
-document.getElementById('file-input').addEventListener('change',e=>{
-  const newFiles=Array.from(e.target.files||[]);
+document.getElementById('file-input').addEventListener('change', e => {
+  const newFiles = Array.from(e.target.files || []);
   if(!newFiles.length) return;
-  if(selectedFiles.length+newFiles.length>5){
-    showToast(t('err_too_many'),'error'); return;
+  if(selectedFiles.length + newFiles.length > 5){
+    showToast(t('err_too_many'), 'error');
+    return;
   }
-  selectedFiles=[...selectedFiles,...newFiles].slice(0,5);
+  selectedFiles = [...selectedFiles, ...newFiles].slice(0, 5);
   renderFilePreviews();
-  e.target.value='';
+  e.target.value = '';
 });
 
 function renderFilePreviews(){
-  const container=document.getElementById('upload-previews');
-  const packNotice=document.getElementById('pack-notice');
+  const container  = document.getElementById('upload-previews');
+  const packNotice = document.getElementById('pack-notice');
   if(!selectedFiles.length){
-    container.style.display='none';
-    packNotice.style.display='none';
+    container.style.display  = 'none';
+    packNotice.style.display = 'none';
     return;
   }
-  container.style.display='flex';
-  container.innerHTML=selectedFiles.map((f,i)=>{
-    const url=URL.createObjectURL(f);
+  container.style.display = 'flex';
+  container.innerHTML = selectedFiles.map((f, i) => {
+    const url = URL.createObjectURL(f);
     return `<div class="preview-thumb-wrap">
       <img class="preview-thumb" src="${url}" alt=""/>
       <div class="preview-remove" onclick="removeFile(${i})">×</div>
     </div>`;
   }).join('');
-  packNotice.style.display=selectedFiles.length===5?'block':'none';
+  packNotice.style.display = selectedFiles.length === 5 ? 'block' : 'none';
 }
 
 function removeFile(idx){
-  selectedFiles.splice(idx,1);
+  selectedFiles.splice(idx, 1);
   renderFilePreviews();
 }
 
 // Drag & drop
-const dz=document.getElementById('upload-drop-zone');
-dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('drag')});
-dz.addEventListener('dragleave',()=>dz.classList.remove('drag'));
-dz.addEventListener('drop',e=>{
-  e.preventDefault();dz.classList.remove('drag');
-  const dropped=Array.from(e.dataTransfer.files).filter(f=>f.type.startsWith('image/'));
-  const remaining=5-selectedFiles.length;
-  selectedFiles=[...selectedFiles,...dropped.slice(0,remaining)];
+const dz = document.getElementById('upload-drop-zone');
+dz.addEventListener('dragover',  e => { e.preventDefault(); dz.classList.add('drag'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('drag'));
+dz.addEventListener('drop', e => {
+  e.preventDefault();
+  dz.classList.remove('drag');
+  const dropped   = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'));
+  const remaining = 5 - selectedFiles.length;
+  selectedFiles   = [...selectedFiles, ...dropped.slice(0, remaining)];
   renderFilePreviews();
 });
 
 /* ═══ UPLOAD FLOW ═══ */
 async function startUpload(){
-  if(!selectedFiles.length){ showToast(t('err_no_file'),'error'); return; }
-  const active=gameData?.active_slots||0;
-  const limit=gameData?.slot_limit||5;
-  if(active+selectedFiles.length>limit){ showToast(t('err_slots_full'),'error'); return; }
+  if(!selectedFiles.length){ showToast(t('err_no_file'), 'error'); return; }
+  const active = gameData?.active_slots || 0;
+  const limit  = gameData?.slot_limit || 5;
+  if(active + selectedFiles.length > limit){ showToast(t('err_slots_full'), 'error'); return; }
   openAiModal();
 }
 
 function openAiModal(){
-  const modal=document.getElementById('ai-modal');
-  const thumbsRow=document.getElementById('ai-thumbs-row');
-  thumbsRow.innerHTML=selectedFiles.map(f=>`<img class="ai-thumb-img" src="${URL.createObjectURL(f)}" alt=""/>`).join('');
-  document.getElementById('ai-title').textContent=t('ai_title');
-  document.getElementById('ai-sub').textContent=t('ai_sub');
-  document.getElementById('ai-result').style.display='none';
-  document.getElementById('ai-bar').style.width='0%';
-  document.getElementById('ai-pct').textContent='0%';
+  const modal     = document.getElementById('ai-modal');
+  const thumbsRow = document.getElementById('ai-thumbs-row');
+  thumbsRow.innerHTML = selectedFiles.map(f =>
+    `<img class="ai-thumb-img" src="${URL.createObjectURL(f)}" alt=""/>`
+  ).join('');
+  document.getElementById('ai-result').style.display = 'none';
+  document.getElementById('ai-bar').style.width = '0%';
+  document.getElementById('ai-pct').textContent = '0%';
+  document.getElementById('ai-title').textContent = t('ai_title');
+  document.getElementById('ai-sub').textContent   = t('ai_sub');
+  document.getElementById('ai-confirm-text').textContent = t('ai_list');
   modal.classList.add('open');
-  runAiProgress();
+  runAiAnimation();
 }
 
-function runAiProgress(){
-  let pct=0;
-  const bar=document.getElementById('ai-bar');
-  const pctEl=document.getElementById('ai-pct');
-  const steps=[
-    {target:30,delay:300},{target:55,delay:400},
-    {target:75,delay:350},{target:90,delay:300},{target:100,delay:400}
-  ];
-  let i=0;
-  function next(){
-    if(i>=steps.length){ finishAiStage(); return; }
-    const {target,delay}=steps[i++];
-    const interval=setInterval(()=>{
-      if(pct>=target){ clearInterval(interval); setTimeout(next,delay); return; }
-      pct+=2;
-      bar.style.width=pct+'%';
-      pctEl.textContent=pct+'%';
-    },30);
-  }
-  next();
+function closeAiModal(){
+  document.getElementById('ai-modal').classList.remove('open');
 }
 
-async function finishAiStage(){
-  // Fake AI score
-  const score=Math.floor(Math.random()*30)+65;
-  const circumference=213.6;
-  const dashOffset=circumference-(score/100)*circumference;
-  document.getElementById('score-circle').style.strokeDashoffset=dashOffset;
-  document.getElementById('score-val').textContent=score;
+function runAiAnimation(){
+  const bar     = document.getElementById('ai-bar');
+  const pctEl   = document.getElementById('ai-pct');
+  const result  = document.getElementById('ai-result');
+  let pct       = 0;
+  const timer   = setInterval(() => {
+    pct += Math.random() * 8 + 2;
+    if(pct >= 100){
+      pct = 100;
+      clearInterval(timer);
+      showAiResult();
+    }
+    bar.style.width      = pct + '%';
+    pctEl.textContent    = Math.floor(pct) + '%';
+  }, 120);
+}
 
-  const tags=score>=85
-    ? ['Sharp Focus','High Contrast','Gallery-Ready']
-    : score>=72
-    ? ['Good Exposure','Clean Composition','Market-Ready']
-    : ['Authentic Shot','Niche Interest','Natural Light'];
-  document.getElementById('score-badges').innerHTML=tags.map(g=>`<span class="badge">${g}</span>`).join('');
+function showAiResult(){
+  const result  = document.getElementById('ai-result');
+  const score   = Math.floor(Math.random() * 30) + 65; // 65–95
+  const circ    = document.getElementById('score-circle');
+  const circum  = 213.6;
+  circ.style.strokeDashoffset = circum - (score / 100) * circum;
+  document.getElementById('score-val').textContent = score;
 
-  const verdictKey=score>=85?'ai_verdict_hi':score>=72?'ai_verdict_mid':'ai_verdict_lo';
-  document.getElementById('ai-verdict').textContent=t(verdictKey);
+  const badges   = score >= 85 ? ['High Demand','Top Quality','Fast Sale']
+                  : score >= 75 ? ['Good Quality','Solid Price','Active Buyers']
+                  : ['Decent Shot','Niche Market','Steady Interest'];
+  document.getElementById('score-badges').innerHTML = badges.map(b =>
+    `<span class="badge">${b}</span>`
+  ).join('');
+
+  const verdictKey = score >= 85 ? 'ai_verdict_hi'
+                   : score >= 75 ? 'ai_verdict_mid'
+                   : 'ai_verdict_lo';
+  document.getElementById('ai-verdict').textContent = t(verdictKey);
 
   // Price preview
-  const n=selectedFiles.length;
-  const isPack=(n===5);
-  let priceHtml='';
-  if(isPack){
-    const minU=(1000/92*0.98).toFixed(2);
-    const maxU=(3000/92*0.98).toFixed(2);
-    priceHtml=`
-      <div class="aipb-row"><span>Pricing mode</span> Pack (5 photos)</div>
-      <div class="aipb-row"><span>Pack price range</span> 1,000–3,000 ₽</div>
-      <div class="aipb-row"><span>Est. total (after 2% fee)</span> $${minU}–$${maxU}</div>`;
-  }else{
-    const minU=(200*n/92*0.98).toFixed(2);
-    const maxU=(600*n/92*0.98).toFixed(2);
-    priceHtml=`
-      <div class="aipb-row"><span>Photos</span> ${n} × individual pricing</div>
-      <div class="aipb-row"><span>Price range per photo</span> 200–600 ₽</div>
-      <div class="aipb-row"><span>Est. total (after 2% fee)</span> $${minU}–$${maxU}</div>`;
-  }
-  document.getElementById('ai-price-box').innerHTML=priceHtml;
-  document.getElementById('ai-confirm-text').textContent=t('ai_list');
+  const totalRub  = selectedFiles.length === 5
+    ? Math.floor(Math.random() * 2000) + 1000
+    : selectedFiles.length * (Math.floor(Math.random() * 400) + 200);
+  const grossUsd  = (totalRub / 92).toFixed(2);
+  const netUsd    = (totalRub / 92 * 0.98).toFixed(2);
 
-  document.getElementById('ai-result').style.display='block';
+  document.getElementById('ai-price-box').innerHTML = `
+    <div class="aipb-row"><span>Estimated price</span><span>${totalRub.toLocaleString()} ₽</span></div>
+    <div class="aipb-row"><span>USD gross</span><span>$${grossUsd}</span></div>
+    <div class="aipb-row"><span>Fee (2%)</span><span>−$${(grossUsd - netUsd).toFixed(2)}</span></div>
+    <div class="aipb-row"><span>You receive</span><span style="color:var(--green)">$${netUsd}</span></div>`;
+
+  result.style.display = 'block';
+
+  // Store upload data for confirm step
+  pendingUploadResult = { totalRub, netUsd };
 }
 
 async function confirmUpload(){
-  const btn=document.getElementById('ai-confirm');
-  btn.disabled=true;
-  btn.innerHTML='<span class="inline-spinner"></span> Uploading…';
+  const btn = document.getElementById('ai-confirm');
+  btn.disabled = true;
+  document.getElementById('ai-confirm-text').innerHTML =
+    '<span class="inline-spinner"></span>' + t('ai_list');
 
-  const fd=new FormData();
-  fd.append('user_id',userId);
-  fd.append('username',username);
-  selectedFiles.forEach(f=>fd.append('files',f));
+  const fd = new FormData();
+  fd.append('user_id',  userId);
+  fd.append('username', username);
+  selectedFiles.forEach(f => fd.append('files', f));
 
   try{
-    const r=await fetch(`${BASE}/api/upload`,{method:'POST',body:fd});
+    const r = await fetch(`${BASE}/api/upload`, { method:'POST', body:fd });
     if(!r.ok){
-      const err=await r.json().catch(()=>({}));
-      throw new Error(err.detail||'Upload failed');
+      const err = await r.json().catch(() => ({}));
+      throw new Error(err.detail || t('toast_err'));
     }
-    const data=await r.json();
-    pendingUploadResult=data;
-    document.getElementById('ai-modal').classList.remove('open');
-    selectedFiles=[];
+    const data = await r.json();
+    closeAiModal();
+    selectedFiles = [];
     renderFilePreviews();
-    showToast(t('toast_listed').replace('{n}',data.photos?.length||1),'success');
+    const n = data.photos?.length || 0;
+    showToast(t('toast_listed').replace('{n}', n), 'success');
     await loadPlayer(false);
     switchTab('portfolio');
   }catch(e){
-    showToast(e.message||t('toast_err'),'error');
-    btn.disabled=false;
-    btn.innerHTML=t('ai_list');
+    showToast(e.message || t('toast_err'), 'error');
+    btn.disabled = false;
+    document.getElementById('ai-confirm-text').textContent = t('ai_list');
   }
 }
 
 /* ═══ PORTFOLIO ═══ */
 function renderPortfolio(){
-  const photos=gameData?.photos||[];
-  const list=document.getElementById('portfolio-list');
-  document.getElementById('portfolio-count').textContent=photos.length+' items';
+  const photos = gameData?.photos || [];
+  const list   = document.getElementById('portfolio-list');
+  document.getElementById('portfolio-count').textContent = `${photos.length} items`;
+
   if(!photos.length){
-    list.innerHTML=`<div class="empty-state"><div class="empty-icon">📂</div><div class="empty-text">${t('portfolio_empty')}</div></div>`;
+    list.innerHTML = `<div class="empty-state"><div class="empty-icon">📂</div>
+      <div class="empty-text">${t('portfolio_empty')}</div></div>`;
     return;
   }
-  list.innerHTML=photos.map(p=>{
-    const isSold=p.status==='sold';
-    const isAuction=p.status==='on_auction';
-    const statusKey=isAuction?'status_auction':isSold?'status_sold':'status_pending';
-    const statusClass=isAuction?'status-auction':isSold?'status-sold':'status-pending';
-    const price=isSold?`+$${fmt(p.final_price)}`:p.base_price?`~$${fmt(p.base_price)}`:'';
-    const priceColor=isSold?'green':'';
-    const thumb=p.filename?`<img class="photo-thumb" src="/uploads/${p.filename}" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"/><div class="photo-thumb-ph" style="display:none">🖼</div>`
-      :`<div class="photo-thumb-ph">🖼</div>`;
-    const countdown=isAuction&&p.sell_at?`<div class="countdown" data-sell="${p.sell_at}" id="cd-${p.id}">${t('auction_in')} …</div>`:'';
-    const buyerInfo=isSold&&p.buyer?`<span style="color:var(--text-3)"> · ${p.buyer}</span>`:'';
+  list.innerHTML = photos.map(p => {
+    const isSold      = p.status === 'sold';
+    const isAuction   = p.status === 'on_auction';
+    const statusKey   = isAuction ? 'status_auction' : isSold ? 'status_sold' : 'status_pending';
+    const statusClass = isAuction ? 'status-auction' : isSold ? 'status-sold' : 'status-pending';
+    const price       = isSold ? `+$${fmt(p.final_price)}` : p.base_price ? `~$${fmt(p.base_price)}` : '';
+    const priceColor  = isSold ? 'green' : '';
+    const thumb       = p.filename
+      ? `<img class="photo-thumb" src="/uploads/${p.filename}" alt=""
+           onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"/>
+         <div class="photo-thumb-ph" style="display:none">🖼</div>`
+      : `<div class="photo-thumb-ph">🖼</div>`;
+    const countdown = isAuction && p.sell_at
+      ? `<div class="countdown" data-sell="${p.sell_at}" id="cd-${p.id}">${t('auction_in')} …</div>` : '';
+    const buyerInfo = isSold && p.buyer
+      ? `<span style="color:var(--text-3)"> · ${p.buyer}</span>` : '';
     return `<div class="photo-card">
       ${thumb}
       <div class="photo-info">
         <div class="photo-name">Photo #${p.id.slice(0,6).toUpperCase()}</div>
-        <div class="photo-meta">${p.sale_rub?parseInt(p.sale_rub).toLocaleString()+' ₽':''} ${buyerInfo}</div>
-        <div>
-          <span class="photo-status ${statusClass}">${t(statusKey)}</span>
-        </div>
+        <div class="photo-meta">${p.sale_rub ? parseInt(p.sale_rub).toLocaleString() + ' ₽' : ''} ${buyerInfo}</div>
+        <div><span class="photo-status ${statusClass}">${t(statusKey)}</span></div>
         ${countdown}
       </div>
       <div class="photo-price ${priceColor}">${price}</div>
@@ -1150,24 +1036,24 @@ function renderPortfolio(){
 
 /* ═══ COUNTDOWN ═══ */
 function tickCountdowns(){
-  document.querySelectorAll('.countdown[data-sell]').forEach(el=>{
-    const diff=Math.max(0,new Date(el.dataset.sell+'Z')-Date.now());
-    if(diff<=0){ el.textContent='Finalizing…'; return; }
-    const s=Math.floor(diff/1000)%60;
-    const m=Math.floor(diff/60000)%60;
-    const h=Math.floor(diff/3600000);
-    el.textContent=`${t('auction_in')} ${h?h+'h ':''} ${m}m ${s}s`;
+  document.querySelectorAll('.countdown[data-sell]').forEach(el => {
+    const diff = Math.max(0, new Date(el.dataset.sell + 'Z') - Date.now());
+    if(diff <= 0){ el.textContent = 'Finalizing…'; return; }
+    const s = Math.floor(diff / 1000) % 60;
+    const m = Math.floor(diff / 60000) % 60;
+    const h = Math.floor(diff / 3600000);
+    el.textContent = `${t('auction_in')} ${h ? h + 'h ' : ''}${m}m ${s}s`;
   });
 }
 
-/* ═══ LIVE FEED ═══ */
-const FAKE_USERS=[
-  // Masked-style
+/* ═══ LIVE FEED — 60+ unique names ═══ */
+const FAKE_USERS = [
+  // Masked style
   'u***r7','a***2','m***k9','p***y4','t***3','j***8','k***5','s***1',
   'x***z2','q***9','r***m3','b***6','c***w5','n***4','f***h1','d***7',
   'w***l8','e***v3','g***o6','h***i2','y***t5','o***p1','z***k4','v***s9',
   'i***b3','l***n7','R***a8','M***e2','A***i6','T***o4',
-  // Handle-style
+  // Handle style
   'PhotoNinja_7','SniperLens_3','PixelHunter_2','SnapMaster_5',
   'ArtClipper_9','LensPro_4','FrameKing_1','ShotWizard_6',
   'GoldenHour_8','NightShooter_3','UrbanLens_5','NatureSnap_7',
@@ -1176,49 +1062,67 @@ const FAKE_USERS=[
   'VintageSnap_8','ColorPop_2','DarkroomPro_6','HighRes_4',
   'LensFlare_9','ShutterBug_1','ExposureX_3','FocalPoint_7',
   'RAWmaster_5','DepthChaser_2',
+  // Extra unique names (total 70+)
+  'SkilledTrader','CryptoKing','MasterPhoto','Dimon777','Alena_V',
+  'PhotoPro99','NightOwl42','LuckyStar88','TraderMax','Sergey_K',
+  'Anna_Photo','DenisFlip','KatyaBest','VolodiaT','RuslanPro',
+  'Misha_88','Tanya2024','IgorAuction','SvetaFlip','AlexPhoto',
+  'NatalyV','PavelX','OlegMaster','VikaBoss','ArtemTrade',
+  'DashaPro','KirilPhoto','ZoyaFlip','TimurK','LenaAuction',
+  'FedorPix','GalyaX','BorisTrade','ZinaPhoto','YuraBest',
+  'MilaFlip','KostikPro','NikaAuction','Andrey777','photo_ninja',
 ];
 
-const FAKE_ACTIONS_EN=[
-  (n,usd)=>`sold ${n} photo${n>1?'s':''} for $${usd}`,
-  (n,usd)=>`listed ${n} photo${n>1?'s':''} · est. $${usd}`,
-  (n,usd)=>`received $${usd} from auction`,
-  (n,usd)=>`won auction bid · $${usd}`,
-  (n,usd)=>`uploaded ${n} photo${n>1?'s':''} · auction live`,
+const FAKE_ACTIONS_EN = [
+  (n, usd) => `sold ${n} photo${n > 1 ? 's' : ''} for $${usd}`,
+  (n, usd) => `listed ${n} photo${n > 1 ? 's' : ''} · est. $${usd}`,
+  (n, usd) => `received $${usd} from auction`,
+  (n, usd) => `won auction bid · $${usd}`,
+  (n, usd) => `uploaded ${n} photo${n > 1 ? 's' : ''} · auction live`,
 ];
-const FAKE_ACTIONS_RU=[
-  (n,usd)=>`продал ${n} фото за $${usd}`,
-  (n,usd)=>`выставил ${n} фото · оценка $${usd}`,
-  (n,usd)=>`получил $${usd} с аукциона`,
-  (n,usd)=>`выиграл торги · $${usd}`,
-  (n,usd)=>`загрузил ${n} фото на аукцион`,
+const FAKE_ACTIONS_RU = [
+  (n, usd) => `продал ${n} фото за $${usd}`,
+  (n, usd) => `выставил ${n} фото · оценка $${usd}`,
+  (n, usd) => `получил $${usd} с аукциона`,
+  (n, usd) => `выиграл торги · $${usd}`,
+  (n, usd) => `загрузил ${n} фото на аукцион`,
 ];
 
-function _pickAction(n,usd){
-  const pool=lang==='ru'?FAKE_ACTIONS_RU:FAKE_ACTIONS_EN;
-  return pool[Math.floor(Math.random()*pool.length)](n,usd);
+function _pickAction(n, usd){
+  const pool = currentLang === 'ru' ? FAKE_ACTIONS_RU : FAKE_ACTIONS_EN;
+  return pool[Math.floor(Math.random() * pool.length)](n, usd);
 }
 
-let feedItems=[];
+/* Fisher-Yates shuffle helper */
+function shuffleArray(arr){
+  const a = [...arr];
+  for(let i = a.length - 1; i > 0; i--){
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+let feedItems = [];
 
 function buildLiveFeed(){
-  feedItems=[];
-  // Shuffle the user list so initial order is randomised
-  const shuffled=[...FAKE_USERS].sort(()=>Math.random()-0.5);
-  for(let i=0;i<18;i++){
-    const user=shuffled[i % shuffled.length];
-    const n=Math.random()<0.3?5:Math.ceil(Math.random()*4);
-    const usd=(Math.random()*45+3).toFixed(2);
-    const minsAgo=Math.floor(Math.random()*59)+1;
-    feedItems.push({user,action:_pickAction(n,usd),amount:'$'+usd,time:minsAgo+'m ago'});
+  feedItems = [];
+  // Use shuffled sample so no repeats in initial build
+  const shuffled = shuffleArray(FAKE_USERS).slice(0, 18);
+  for(const user of shuffled){
+    const n    = Math.random() < 0.3 ? 5 : Math.ceil(Math.random() * 4);
+    const usd  = (Math.random() * 45 + 3).toFixed(2);
+    const minsAgo = Math.floor(Math.random() * 59) + 1;
+    feedItems.push({ user, action: _pickAction(n, usd), amount: '$' + usd, time: minsAgo + 'm ago' });
   }
   renderLiveFeed();
 }
 
 function renderLiveFeed(){
-  const list=document.getElementById('live-feed-list');
+  const list = document.getElementById('live-feed-list');
   if(!list) return;
-  list.innerHTML=feedItems.slice(0,12).map((it,i)=>`
-    <div class="feed-item" style="animation-delay:${i*0.04}s">
+  list.innerHTML = feedItems.slice(0, 14).map((it, i) => `
+    <div class="feed-item" style="animation-delay:${i * 0.04}s">
       <div class="feed-left">
         <div class="feed-user">${it.user}</div>
         <div class="feed-action">${it.action}</div>
@@ -1232,138 +1136,136 @@ function renderLiveFeed(){
 
 function tickLiveFeed(){
   if(!feedItems.length) return;
-  // Pick a user not in the last 6 entries to avoid repeats
-  const recentSet=new Set(feedItems.slice(0,6).map(i=>i.user));
-  const pool=FAKE_USERS.filter(u=>!recentSet.has(u));
-  const user=(pool.length?pool:FAKE_USERS)[Math.floor(Math.random()*(pool.length||FAKE_USERS.length))];
-  const n=Math.random()<0.3?5:Math.ceil(Math.random()*4);
-  const usd=(Math.random()*50+5).toFixed(2);
-  feedItems.unshift({user,action:_pickAction(n,usd),amount:'$'+usd,time:'just now'});
-  feedItems=feedItems.slice(0,18);
-  const active=document.querySelector('.panel.active');
-  if(active?.id==='panel-market') renderLiveFeed();
+  // Avoid repeating the last 8 entries
+  const recentSet = new Set(feedItems.slice(0, 8).map(i => i.user));
+  const pool      = FAKE_USERS.filter(u => !recentSet.has(u));
+  const candidates = pool.length ? pool : FAKE_USERS;
+  const user  = candidates[Math.floor(Math.random() * candidates.length)];
+  const n     = Math.random() < 0.3 ? 5 : Math.ceil(Math.random() * 4);
+  const usd   = (Math.random() * 50 + 5).toFixed(2);
+  feedItems.unshift({ user, action: _pickAction(n, usd), amount: '$' + usd, time: 'just now' });
+  feedItems = feedItems.slice(0, 20);
+  const active = document.querySelector('.panel.active');
+  if(active?.id === 'panel-market') renderLiveFeed();
 }
 
 /* ═══ WALLET (QUESTS + WITHDRAW) ═══ */
 async function renderQuests(){
-  const quests=gameData?.quests||[];
-  const refs=gameData?.player?.referrals_count||0;
-  const minRefs=gameData?.min_referrals_withdraw||3;
-  const unlocked=refs>=minRefs;
+  const quests  = gameData?.quests || [];
+  const refs    = gameData?.player?.referrals_count || 0;
+  const minRefs = gameData?.min_referrals_withdraw || 3;
+  const unlocked = refs >= minRefs;
 
-  // Progress display
-  document.getElementById('wallet-progress').textContent=`${refs}/${minRefs} referrals`;
+  document.getElementById('wallet-progress').textContent = `${refs}/${minRefs} ${t('ref_count_sub')}`;
 
-  // Referral unlock bar
-  const pct=Math.min((refs/minRefs)*100,100);
-  document.getElementById('ruc-bar-fill').style.width=pct+'%';
-  document.getElementById('ruc-count').textContent=`${refs}/${minRefs}`;
-  const hintEl=document.getElementById('ruc-hint');
+  const pct = Math.min((refs / minRefs) * 100, 100);
+  document.getElementById('ruc-bar-fill').style.width = pct + '%';
+  document.getElementById('ruc-count').textContent = `${refs}/${minRefs}`;
+
+  const hintEl = document.getElementById('ruc-hint');
   if(unlocked){
-    hintEl.textContent=t('withdraw_unlocked_hint');
-    hintEl.style.color='var(--green)';
-  }else{
-    const need=minRefs-refs;
-    hintEl.textContent=`Invite ${need} more friend${need!==1?'s':''} to unlock withdrawal.`;
-    hintEl.style.color='';
+    hintEl.textContent = t('withdraw_unlocked_hint');
+    hintEl.style.color = 'var(--green)';
+  } else {
+    const need = minRefs - refs;
+    hintEl.textContent = t('ruc_hint').replace('3', minRefs);
+    hintEl.style.color = '';
   }
 
-  // Quests list
-  const list=document.getElementById('quests-list');
-  list.innerHTML=quests.map(q=>`
+  const list = document.getElementById('quests-list');
+  list.innerHTML = quests.map(q => `
     <div class="quest-card">
       <div class="quest-icon-wrap">📢</div>
       <div class="quest-info">
-        <div class="quest-title">${escHtml(q.title)}</div>
+        <div class="quest-title">${escHtml(q.name || q.title || 'PhotoFlip Community')}</div>
         <div class="quest-desc">${t('quest_desc')}</div>
       </div>
       ${q.completed
-        ?`<button class="quest-btn quest-done" disabled>${t('quest_done')}</button>`
-        :`<button class="quest-btn quest-join" onclick="openChannel('${escHtml(q.url)}','${escHtml(q.id)}')">${t('quest_join')}</button>`
+        ? `<button class="quest-btn quest-done" disabled>${t('quest_done')}</button>`
+        : `<button class="quest-btn quest-join" onclick="openChannel('${escHtml(q.url)}','${escHtml(q.id)}')">${t('quest_join')}</button>`
       }
     </div>`).join('');
 
-  // Withdraw box state
-  const box=document.getElementById('withdraw-box');
-  box.classList.toggle('locked-state',!unlocked);
-  const subEl=document.getElementById('withdraw-sub');
-  if(unlocked) subEl.textContent=t('withdraw_unlocked_hint');
-  else subEl.textContent=t('withdraw_sub');
+  const box = document.getElementById('withdraw-box');
+  box.classList.toggle('locked-state', !unlocked);
+  const subEl = document.getElementById('withdraw-sub');
+  subEl.textContent = unlocked ? t('withdraw_unlocked_hint') : t('withdraw_sub');
 }
 
 async function openChannel(url, channelId){
-  window.open(url,'_blank');
-  setTimeout(async()=>{
+  window.open(url, '_blank');
+  setTimeout(async () => {
     try{
-      const r=await fetch(`${BASE}/api/quest/complete`,{
-        method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({user_id:userId,channel_id:channelId})
+      const r = await fetch(`${BASE}/api/quest/complete`, {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ user_id: userId, channel_id: channelId }),
       });
       if(!r.ok) throw new Error();
       await loadPlayer(false);
     }catch(e){
-      showToast(t('toast_verify_fail'),'error');
+      showToast(t('toast_verify_fail'), 'error');
     }
-  },3000);
+  }, 3000);
 }
 
 function renderWithdrawPreviews(){
-  const bal=parseFloat(gameData?.player?.balance||0);
-  const refs=gameData?.player?.referrals_count||0;
-  const minRefs=gameData?.min_referrals_withdraw||3;
-  const unlocked=refs>=minRefs;
+  const bal        = parseFloat(gameData?.player?.balance || 0);
+  const refs       = gameData?.player?.referrals_count || 0;
+  const minRefs    = gameData?.min_referrals_withdraw || 3;
+  const unlocked   = refs >= minRefs;
+  const canWithdraw = unlocked && bal > 0;
 
-  document.getElementById('withdraw-usd-preview').textContent='$'+fmt(bal);
-  const starsAmount=bal>0?Math.floor(bal/0.012):0;
-  document.getElementById('withdraw-stars-preview').textContent=starsAmount.toLocaleString()+' ⭐';
+  document.getElementById('withdraw-usd-preview').textContent = '$' + fmt(bal);
+  const starsAmount = bal > 0 ? Math.floor(bal / 0.012) : 0;
+  document.getElementById('withdraw-stars-preview').textContent = starsAmount.toLocaleString() + ' ⭐';
 
-  const usdBtn=document.getElementById('withdraw-btn-usd');
-  const starsBtn=document.getElementById('withdraw-btn-stars');
-  const canWithdraw=unlocked&&bal>0;
-  usdBtn.disabled=!canWithdraw;
-  starsBtn.disabled=!canWithdraw;
-  usdBtn.textContent=canWithdraw?t('withdraw_btn_usd')+'$'+fmt(bal):t('withdraw_btn_locked');
-  starsBtn.textContent=canWithdraw?t('withdraw_btn_stars'):t('withdraw_btn_locked');
+  const usdBtn   = document.getElementById('withdraw-btn-usd');
+  const starsBtn = document.getElementById('withdraw-btn-stars');
+  usdBtn.disabled   = !canWithdraw;
+  starsBtn.disabled = !canWithdraw;
+  usdBtn.textContent   = canWithdraw ? t('withdraw_btn_usd') + '$' + fmt(bal) : t('withdraw_btn_locked');
+  starsBtn.textContent = canWithdraw ? t('withdraw_btn_stars') : t('withdraw_btn_locked');
 }
 
 function selectWithdrawTab(tab){
-  withdrawTab=tab;
-  document.getElementById('wtab-usd').classList.toggle('active',tab==='usd');
-  document.getElementById('wtab-stars').classList.toggle('active',tab==='stars');
-  document.getElementById('withdraw-usd-panel').style.display=tab==='usd'?'':'none';
-  document.getElementById('withdraw-stars-panel').style.display=tab==='stars'?'':'none';
+  withdrawTab = tab;
+  document.getElementById('wtab-usd').classList.toggle('active',   tab === 'usd');
+  document.getElementById('wtab-stars').classList.toggle('active', tab === 'stars');
+  document.getElementById('withdraw-usd-panel').style.display   = tab === 'usd'   ? '' : 'none';
+  document.getElementById('withdraw-stars-panel').style.display = tab === 'stars' ? '' : 'none';
 }
 
 async function doWithdrawUSD(){
-  const btn=document.getElementById('withdraw-btn-usd');
-  btn.disabled=true; btn.textContent='Processing…';
+  const btn = document.getElementById('withdraw-btn-usd');
+  btn.disabled = true; btn.textContent = 'Processing…';
   try{
-    const r=await fetch(`${BASE}/api/withdraw`,{
-      method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({user_id:userId})
+    const r = await fetch(`${BASE}/api/withdraw`, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ user_id: userId }),
     });
-    if(!r.ok) throw new Error((await r.json().catch(()=>({}))).detail||'Error');
-    showToast(t('toast_withdrawn'),'success');
+    if(!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || t('toast_withdraw_err'));
+    showToast(t('toast_withdrawn'), 'success');
     await loadPlayer(false);
   }catch(e){
-    showToast(e.message||t('toast_withdraw_err'),'error');
+    showToast(e.message || t('toast_withdraw_err'), 'error');
     renderWithdrawPreviews();
   }
 }
 
 async function doWithdrawStars(){
-  const btn=document.getElementById('withdraw-btn-stars');
-  btn.disabled=true; btn.textContent='Processing…';
+  const btn = document.getElementById('withdraw-btn-stars');
+  btn.disabled = true; btn.textContent = 'Processing…';
   try{
-    const r=await fetch(`${BASE}/api/withdraw/stars`,{
-      method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({user_id:userId})
+    const r = await fetch(`${BASE}/api/withdraw/stars`, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ user_id: userId }),
     });
-    if(!r.ok) throw new Error((await r.json().catch(()=>({}))).detail||'Error');
-    showToast(t('toast_stars_ok'),'success');
+    if(!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || t('toast_withdraw_err'));
+    showToast(t('toast_stars_ok'), 'success');
     await loadPlayer(false);
   }catch(e){
-    showToast(e.message||t('toast_withdraw_err'),'error');
+    showToast(e.message || t('toast_withdraw_err'), 'error');
     renderWithdrawPreviews();
   }
 }
@@ -1371,57 +1273,54 @@ async function doWithdrawStars(){
 /* ═══ VIP / REFERRALS ═══ */
 function renderReferrals(){
   if(!gameData) return;
-  const refs=gameData.player?.referrals_count||0;
-  const lvl=gameData.vip_level||0;
-  document.getElementById('ref-count-sub').textContent=refs+' '+t('ref_count_sub'||'referrals');
-  document.getElementById('ref-url-display').textContent=gameData.referral_url||'Loading…';
-  document.getElementById('vip-big-badge').textContent='Lv '+lvl;
+  const refs = gameData.player?.referrals_count || 0;
+  const lvl  = gameData.vip_level || 0;
+  document.getElementById('ref-count-sub').textContent = refs + ' ' + t('ref_count_sub');
+  document.getElementById('ref-url-display').textContent = gameData.referral_url || 'Loading…';
+  document.getElementById('vip-big-badge').textContent = 'Lv ' + lvl;
 
-  const tiers=VIP_TIERS;
-  const nextTier=tiers.find(t=>refs<t.min);
-  const nextIdx=nextTier?tiers.indexOf(nextTier):tiers.length;
-  const prevMin=lvl>0?tiers[lvl].min:0;
-  const nextMin=nextTier?nextTier.min:tiers[tiers.length-1].min;
-  const pct=lvl>=tiers.length-1?100:Math.min(((refs-prevMin)/(nextMin-prevMin))*100,100);
-  document.getElementById('vip-track-fill').style.width=pct+'%';
+  const tiers   = VIP_TIERS;
+  const nextTier = tiers.find(ti => refs < ti.min);
+  const prevMin  = lvl > 0 ? tiers[lvl].min : 0;
+  const nextMin  = nextTier ? nextTier.min : tiers[tiers.length - 1].min;
+  const pct      = lvl >= tiers.length - 1
+    ? 100
+    : Math.min(((refs - prevMin) / (nextMin - prevMin)) * 100, 100);
+  document.getElementById('vip-track-fill').style.width = pct + '%';
 
-  // Milestones
-  const ms=document.getElementById('vip-milestones');
-  const tierNames=t('vip_tier_names');
-  ms.innerHTML=tiers.map((tier,i)=>{
-    const reached=refs>=tier.min;
-    const curr=i===lvl;
+  const ms = document.getElementById('vip-milestones');
+  ms.innerHTML = tiers.map((tier, i) => {
+    const reached = refs >= tier.min;
+    const curr    = i === lvl;
     return `<div class="vip-dot-wrap">
-      <div class="vip-dot ${reached?'reached':''} ${curr?'current':''}"></div>
-      <div class="vip-dot-lbl ${curr?'active':''}">${i}</div>
+      <div class="vip-dot ${reached ? 'reached' : ''} ${curr ? 'current' : ''}"></div>
+      <div class="vip-dot-lbl ${curr ? 'active' : ''}">${i}</div>
     </div>`;
   }).join('');
 
-  // Hint
-  const hint=document.getElementById('vip-next-hint');
-  if(lvl>=tiers.length-1){
-    hint.textContent=t('vip_max_hint');
-  }else{
-    const need=tiers[lvl+1].min-refs;
-    hint.textContent=t('vip_next_hint').replace('{n}',need).replace('{l}',lvl+1);
+  const hint = document.getElementById('vip-next-hint');
+  if(lvl >= tiers.length - 1){
+    hint.textContent = t('vip_max_hint');
+  } else {
+    const need = tiers[lvl + 1].min - refs;
+    hint.textContent = t('vip_next_hint').replace('{n}', need).replace('{l}', lvl + 1);
   }
 
-  // Tier cards
-  const tierNames2=t('vip_tier_names');
-  const tierMax=t('vip_tier_max');
-  const tierSlots=t('vip_tier_slots');
-  const tierReq=t('vip_tier_req');
-  document.getElementById('vip-tier-cards').innerHTML=tiers.map((tier,i)=>{
-    const unlocked=refs>=tier.min;
-    const curr=i===lvl;
-    let statusText='🔒',statusClass='locked';
-    if(curr){ statusText='● ACTIVE'; statusClass='active'; }
-    else if(unlocked){ statusText='✓'; statusClass='done'; }
-    return `<div class="vip-tier-row ${unlocked?'unlocked':''} ${curr?'current-tier':''}">
-      <div class="vtc-icon">${VIP_ICONS[i]||'●'}</div>
+  const tierNames  = t('vip_tier_names');
+  const tierMax    = t('vip_tier_max');
+  const tierSlots  = t('vip_tier_slots');
+  const tierReq    = t('vip_tier_req');
+  document.getElementById('vip-tier-cards').innerHTML = tiers.map((tier, i) => {
+    const unlocked = refs >= tier.min;
+    const curr     = i === lvl;
+    let statusText = '🔒', statusClass = 'locked';
+    if(curr)          { statusText = '● ACTIVE'; statusClass = 'active'; }
+    else if(unlocked) { statusText = '✓';        statusClass = 'done';   }
+    return `<div class="vip-tier-row ${unlocked ? 'unlocked' : ''} ${curr ? 'current-tier' : ''}">
+      <div class="vtc-icon">${VIP_ICONS[i] || '●'}</div>
       <div class="vtc-info">
-        <div class="vtc-name">${Array.isArray(tierNames2)?tierNames2[i]:('Level '+i)} — Level ${i}</div>
-        <div class="vtc-meta">${Array.isArray(tierReq)?tierReq[i]:''} · ${Array.isArray(tierMax)?tierMax[i]:''} · ${Array.isArray(tierSlots)?tierSlots[i]:''}</div>
+        <div class="vtc-name">${Array.isArray(tierNames) ? tierNames[i] : 'Level ' + i} — Level ${i}</div>
+        <div class="vtc-meta">${Array.isArray(tierReq) ? tierReq[i] : ''} · ${Array.isArray(tierMax) ? tierMax[i] : ''} · ${Array.isArray(tierSlots) ? tierSlots[i] : ''}</div>
       </div>
       <div class="vtc-status ${statusClass}">${statusText}</div>
     </div>`;
@@ -1429,108 +1328,115 @@ function renderReferrals(){
 }
 
 async function copyRefLink(){
-  const url=gameData?.referral_url||document.getElementById('ref-url-display').textContent;
+  const url = gameData?.referral_url || document.getElementById('ref-url-display').textContent;
   try{
     await navigator.clipboard.writeText(url);
-    showToast(t('toast_copied'),'success');
+    showToast(t('toast_copied'), 'success');
   }catch(e){
-    showToast(t('toast_copy_err'),'error');
+    showToast(t('toast_copy_err'), 'error');
   }
 }
 
 /* ═══ SUPPORT CHAT ═══ */
 async function loadSupportMsgs(){
   try{
-    const r=await fetch(`${BASE}/api/support/messages/${userId}`);
-    const data=await r.json();
-    const msgs=data.messages||[];
+    const r    = await fetch(`${BASE}/api/support/messages/${userId}`);
+    const data = await r.json();
+    const msgs = data.messages || [];
     renderSupportMsgs(msgs);
-    if(msgs.length) lastSupportMsgId=msgs[msgs.length-1].id;
-    supportMsgsLoaded=true;
-    document.getElementById('support-notify').style.display='none';
+    if(msgs.length) lastSupportMsgId = msgs[msgs.length - 1].id;
+    supportMsgsLoaded = true;
+    document.getElementById('support-notify').style.display = 'none';
   }catch(e){ console.error(e); }
 }
 
 function renderSupportMsgs(msgs){
-  const container=document.getElementById('chat-messages');
+  const container = document.getElementById('chat-messages');
   if(!msgs.length){
-    container.innerHTML=`<div class="chat-empty">${t('chat_empty')}</div>`;
+    container.innerHTML = `<div class="chat-empty">${t('chat_empty')}</div>`;
     return;
   }
-  container.innerHTML=msgs.map(m=>{
-    const fromUser=m.direction==='in';
-    const time=formatMsgTime(m.created_at);
-    return `<div class="chat-bubble ${fromUser?'from-user':'from-admin'}">
+  container.innerHTML = msgs.map(m => {
+    const fromUser = m.direction === 'in';
+    const time     = formatMsgTime(m.created_at);
+    return `<div class="chat-bubble ${fromUser ? 'from-user' : 'from-admin'}">
       ${escHtml(m.text)}
-      <div class="bubble-meta">${fromUser?t('chat_you'):t('chat_support')} · ${time}</div>
+      <div class="bubble-meta">${fromUser ? t('chat_you') : t('chat_support')} · ${time}</div>
     </div>`;
   }).join('');
-  container.scrollTop=container.scrollHeight;
+  container.scrollTop = container.scrollHeight;
 }
 
 function formatMsgTime(ts){
   try{
-    const d=new Date(ts+'Z');
-    return d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+    const d = new Date(ts + 'Z');
+    return d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
   }catch(e){ return ''; }
 }
 
 async function sendSupportMsg(){
-  const inp=document.getElementById('chat-input');
-  const text=inp.value.trim();
+  const inp  = document.getElementById('chat-input');
+  const text = inp.value.trim();
   if(!text) return;
-  inp.value=''; inp.style.height='';
-  document.getElementById('chat-send-btn').disabled=true;
+  inp.value = ''; inp.style.height = '';
+  document.getElementById('chat-send-btn').disabled = true;
   try{
-    const r=await fetch(`${BASE}/api/support/send`,{
-      method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({user_id:userId,text})
+    const r = await fetch(`${BASE}/api/support/send`, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ user_id: userId, text }),
     });
     if(!r.ok) throw new Error();
     await loadSupportMsgs();
   }catch(e){
-    showToast(t('toast_err'),'error');
+    showToast(t('toast_err'), 'error');
   }
-  document.getElementById('chat-send-btn').disabled=false;
+  document.getElementById('chat-send-btn').disabled = false;
 }
 
 async function pollSupportReplies(){
   if(!supportMsgsLoaded) return;
   try{
-    const r=await fetch(`${BASE}/api/support/messages/${userId}`);
-    const data=await r.json();
-    const msgs=data.messages||[];
-    if(msgs.length&&msgs[msgs.length-1].id>lastSupportMsgId){
+    const r    = await fetch(`${BASE}/api/support/messages/${userId}`);
+    const data = await r.json();
+    const msgs = data.messages || [];
+    if(msgs.length && msgs[msgs.length - 1].id > lastSupportMsgId){
       renderSupportMsgs(msgs);
-      lastSupportMsgId=msgs[msgs.length-1].id;
-      const activePanel=document.querySelector('.panel.active');
-      if(activePanel?.id!=='panel-support'){
-        document.getElementById('support-notify').style.display='';
+      lastSupportMsgId = msgs[msgs.length - 1].id;
+      const activePanel = document.querySelector('.panel.active');
+      if(activePanel?.id !== 'panel-support'){
+        document.getElementById('support-notify').style.display = '';
       }
     }
   }catch(e){}
 }
 
-document.getElementById('chat-input').addEventListener('keypress',e=>{
-  if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); sendSupportMsg(); }
+document.getElementById('chat-input').addEventListener('keypress', e => {
+  if(e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); sendSupportMsg(); }
 });
+
 function autoResize(el){
-  el.style.height='auto';
-  el.style.height=Math.min(el.scrollHeight,100)+'px';
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 100) + 'px';
 }
 
 /* ═══ TOAST ═══ */
 let toastTimer;
-function showToast(msg,type=''){
-  const el=document.getElementById('toast');
-  el.textContent=msg;
-  el.className='show'+(type?' '+type:'');
+function showToast(msg, type = ''){
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className   = 'show' + (type ? ' ' + type : '');
   clearTimeout(toastTimer);
-  toastTimer=setTimeout(()=>el.className='',3000);
+  toastTimer = setTimeout(() => el.className = '', 3000);
 }
 
 /* ═══ UTILS ═══ */
-function escHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;') }
+function escHtml(s){
+  return String(s)
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;');
+}
 
 /* ═══ BOOT ═══ */
 init();

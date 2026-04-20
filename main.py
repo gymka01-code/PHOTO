@@ -1,18 +1,18 @@
 """
-PhotoFlip — Telegram Mini App Backend  v6.0
+PhotoFlip — Telegram Mini App Backend  v7.0
 FastAPI + Aiogram 3 + aiosqlite  |  Railway edition
 
-CHANGES in v6:
- - FIXED: Referral system — bonus only for NEW users, proper deep-link extraction
- - FIXED: /lang command — toggles ru↔en and replies in new language
- - NEW:   /bonus command — daily reward with 24h cooldown
- - NEW:   /broadcast command — admin mass message with delivery report
- - NEW:   Live feed /api/feed — 50+ nicknames, random events
- - NEW:   Market news on /start for returning users
- - NEW:   💰 Bonus button in main menu
- - FIXED: Admin reply prints to logs + print(f"Admin replied to {user_id}")
- - FIXED: Subscription check ONLY at final withdrawal step
- - FIXED: HOST 0.0.0.0, PORT from env
+CHANGES in v7:
+ - FIXED: Referral — добавлена колонка referred_by в players;
+          если WebApp создал юзера раньше бота, реферал всё равно привязывается
+ - FIXED: Mandatory subscription при /start — ЛЮБАЯ команда блокируется до подписки
+ - FIXED: /api/player/{user_id}/lang — PUT эндпоинт для смены языка из фронта
+ - FIXED: /api/feed — random.sample, имена не повторяются в одном цикле
+ - FIXED: 60+ NPC-имён в FAKE_USERS
+ - FIXED: /broadcast — asyncio.sleep(0.05) между сообщениями
+ - FIXED: Admin reply — вытаскивает user_id по admin_msg_id из support_messages
+ - FIXED: set_webhook allowed_updates + PORT из env
+ - DEFAULT LANG: English
 """
 
 import asyncio
@@ -50,7 +50,7 @@ ADMIN_ID     = int(os.getenv("ADMIN_ID", "7502434760"))
 PORT         = int(os.getenv("PORT", "80"))
 
 WEBHOOK_PATH = "/webhook"
-WEBAPP_URL   = os.getenv("WEBAPP_URL", "http://YOUR_VPS_IP_OR_DOMAIN")
+WEBAPP_URL   = os.getenv("WEBAPP_URL", "http://photo-production-d5b8.up.railway.app")
 WEBHOOK_URL  = f"{WEBAPP_URL}{WEBHOOK_PATH}"
 
 DB_PATH     = "photoflip.db"
@@ -87,48 +87,46 @@ PARTNER_CHANNELS = [
 ]
 
 # ── Required subscription channel ─────────────────────────────
-REQUIRED_CHANNEL_ID  = "@dsdfsdfawer"           # public username works for get_chat_member
-REQUIRED_CHANNEL_URL = "https://t.me/dsdfsdfawer"
+REQUIRED_CHANNEL_ID   = "@dsdfsdfawer"
+REQUIRED_CHANNEL_URL  = "https://t.me/dsdfsdfawer"
 REQUIRED_CHANNEL_NAME = "PhotoFlip Community"
 
-# ── 50+ NPC names for live feed ──────────────────────────────
-NPC_NAMES = [
+# ── 60+ NPC names for live feed ──────────────────────────────
+FAKE_USERS = [
+    # Masked style
+    "u***r7", "a***2", "m***k9", "p***y4", "t***3", "j***8", "k***5", "s***1",
+    "x***z2", "q***9", "r***m3", "b***6", "c***w5", "n***4", "f***h1", "d***7",
+    "w***l8", "e***v3", "g***o6", "h***i2", "y***t5", "o***p1", "z***k4", "v***s9",
+    "i***b3", "l***n7", "R***a8", "M***e2", "A***i6", "T***o4",
+    # Handle style
+    "PhotoNinja_7", "SniperLens_3", "PixelHunter_2", "SnapMaster_5",
+    "ArtClipper_9", "LensPro_4", "FrameKing_1", "ShotWizard_6",
+    "GoldenHour_8", "NightShooter_3", "UrbanLens_5", "NatureSnap_7",
+    "MacroKing_2", "ArtFlip_6", "StreetPhoto_4", "GalleryMod_9",
+    "AuctionAce_1", "BidMaster_3", "PhotoTrader_7", "ClickBoss_5",
+    "VintageSnap_8", "ColorPop_2", "DarkroomPro_6", "HighRes_4",
+    "LensFlare_9", "ShutterBug_1", "ExposureX_3", "FocalPoint_7",
+    "RAWmaster_5", "DepthChaser_2",
+    # Extra names to ensure 60+
     "SkilledTrader", "CryptoKing", "MasterPhoto", "Dimon777", "Alena_V",
-    "User_X", "PhotoPro99", "NightOwl42", "LuckyStar88", "TraderMax",
-    "Sheikh Al-Rashid", "Victoria Chen", "Marcus Webb", "Priya Nair",
-    "Alejandro Torres", "Yuki Tanaka", "Isabella Rossi", "Omar Hassan",
-    "Sophie Laurent", "Raj Patel", "Sergey_K", "Anna_Photo", "DenisFlip",
-    "KatyaBest", "VolodiaT", "RuslanPro", "Misha_88", "Tanya2024",
-    "IgorAuction", "SvetaFlip", "AlexPhoto", "NatalyV", "PavelX",
-    "OlegMaster", "VikaBoss", "ArtemTrade", "DashaPro", "KirilPhoto",
-    "ZoyaFlip", "TimurK", "LenaAuction", "FedorPix", "GalyaX",
-    "BorisTrade", "ZinaPhoto", "YuraBest", "MilaFlip", "KostikPro",
-    "NikaAuction", "Andrey777", "photo_ninja", "snap_master", "lens_pro",
-    "click_boss", "pixel_hunter", "frame_king", "shot_wizard", "art_flipper",
+    "PhotoPro99", "NightOwl42", "LuckyStar88", "TraderMax", "Sergey_K",
+    "Anna_Photo", "DenisFlip", "KatyaBest", "VolodiaT", "RuslanPro",
+    "Misha_88", "Tanya2024", "IgorAuction", "SvetaFlip", "AlexPhoto",
+    "NatalyV", "PavelX", "OlegMaster", "VikaBoss", "ArtemTrade",
+    "DashaPro", "KirilPhoto", "ZoyaFlip", "TimurK", "LenaAuction",
+    "FedorPix", "GalyaX", "BorisTrade", "ZinaPhoto", "YuraBest",
+    "MilaFlip", "KostikPro", "NikaAuction", "Andrey777", "photo_ninja",
 ]
 
 FEED_ACTIONS = [
-    ("ru", "🖼 Купил фото у {seller}"),
-    ("ru", "💸 Продал фото за ${amount}"),
-    ("ru", "🔨 Выставил на аукцион"),
-    ("ru", "🏆 Победил в торгах за ${amount}"),
     ("en", "🖼 Bought a photo from {seller}"),
     ("en", "💸 Sold a photo for ${amount}"),
     ("en", "🔨 Listed photo on auction"),
     ("en", "🏆 Won an auction for ${amount}"),
-]
-
-MARKET_NEWS_RU = [
-    "📈 Спрос на пейзажные снимки вырос на 34% за последние сутки!",
-    "🔥 Портретная фотография бьёт рекорды — средняя цена +18%.",
-    "💡 Аналитики: уличные фото набирают популярность среди покупателей.",
-    "🌍 Международные коллекционеры активно скупают природные снимки.",
-    "⚡ Горячий тренд: фото заката — более 200 сделок за час.",
-    "📊 Рынок архитектурной фотографии стабильно растёт второй месяц.",
-    "🎨 Абстрактные снимки вошли в топ-10 продаваемых категорий.",
-    "🏙 Городские пейзажи ночью — хит недели среди покупателей.",
-    "🤖 Нейросети не могут заменить живую фотографию — рост цен на +22%.",
-    "🌊 Морские снимки пользуются огромным спросом у европейских коллекционеров.",
+    ("ru", "🖼 Купил фото у {seller}"),
+    ("ru", "💸 Продал фото за ${amount}"),
+    ("ru", "🔨 Выставил на аукцион"),
+    ("ru", "🏆 Победил в торгах за ${amount}"),
 ]
 
 MARKET_NEWS_EN = [
@@ -144,12 +142,25 @@ MARKET_NEWS_EN = [
     "🌊 Ocean photos in huge demand from European collectors.",
 ]
 
+MARKET_NEWS_RU = [
+    "📈 Спрос на пейзажные снимки вырос на 34% за последние сутки!",
+    "🔥 Портретная фотография бьёт рекорды — средняя цена +18%.",
+    "💡 Аналитики: уличные фото набирают популярность среди покупателей.",
+    "🌍 Международные коллекционеры активно скупают природные снимки.",
+    "⚡ Горячий тренд: фото заката — более 200 сделок за час.",
+    "📊 Рынок архитектурной фотографии стабильно растёт второй месяц.",
+    "🎨 Абстрактные снимки вошли в топ-10 продаваемых категорий.",
+    "🏙 Городские пейзажи ночью — хит недели среди покупателей.",
+    "🤖 Нейросети не могут заменить живую фотографию — рост цен на +22%.",
+    "🌊 Морские снимки пользуются огромным спросом у европейских коллекционеров.",
+]
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
 # ═══════════════════════════════════════════════════════════════
-#  LOCALIZATION
+#  LOCALIZATION  (default: English)
 # ═══════════════════════════════════════════════════════════════
 _T = {
     "en": {
@@ -193,8 +204,8 @@ _T = {
         ),
         "withdraw_locked":  "Invite <b>3 friends</b> to unlock withdrawal.",
         "vip_priority":     "⭐ VIP users (levels 1–5) get priority in the withdrawal queue.",
-        "sub_required_ru":  "Почти готово! Подпишитесь на каналы партнёров для верификации.",
         "sub_required_en":  "Almost there! Subscribe to partner channels to verify your account.",
+        "sub_required_ru":  "Почти готово! Подпишитесь на каналы партнёров для верификации.",
         "lang_changed":     "🌐 Language switched to <b>English</b>.",
         "bonus_received":   "🎁 Daily bonus: <b>+${amount:.2f}</b>!\n\nBalance: <b>${balance:.2f}</b>",
         "bonus_cooldown":   "⏳ Come back in <b>{hours}h {mins}m</b> for your next bonus.",
@@ -290,7 +301,7 @@ def usd_to_stars(usd: float) -> int:
 
 async def init_db():
     async with aiosqlite.connect(DB_PATH) as db:
-        # players
+        # players — NOTE: referred_by = who invited this user (fixes WebApp race condition)
         await db.execute("""
             CREATE TABLE IF NOT EXISTS players (
                 user_id         INTEGER PRIMARY KEY,
@@ -299,18 +310,22 @@ async def init_db():
                 total_earned    REAL    DEFAULT 0.0,
                 photos_sold     INTEGER DEFAULT 0,
                 referrals_count INTEGER DEFAULT 0,
+                referred_by     INTEGER DEFAULT NULL,
                 lang            TEXT    DEFAULT 'en',
                 last_seen       TEXT    DEFAULT (datetime('now')),
                 last_bonus      TEXT    DEFAULT NULL,
                 created_at      TEXT    DEFAULT (datetime('now'))
             )""")
-        # Safe migrations — add columns that may be missing in old DB
-        for col in [
+
+        # Safe migrations — add columns that may be missing in older DB
+        safe_cols = [
             "referrals_count INTEGER DEFAULT 0",
+            "referred_by INTEGER DEFAULT NULL",
             "lang TEXT DEFAULT 'en'",
             "last_seen TEXT DEFAULT (datetime('now'))",
             "last_bonus TEXT DEFAULT NULL",
-        ]:
+        ]
+        for col in safe_cols:
             try:
                 await db.execute(f"ALTER TABLE players ADD COLUMN {col}")
             except Exception:
@@ -385,23 +400,22 @@ async def init_db():
 
 # ── CRUD helpers ─────────────────────────────────────────────
 
-async def player_exists(user_id: int) -> bool:
-    """Check if player is already in DB (used BEFORE create for referral logic)."""
-    async with aiosqlite.connect(DB_PATH) as db:
-        async with db.execute("SELECT 1 FROM players WHERE user_id=?", (user_id,)) as c:
-            row = await c.fetchone()
-    return row is not None
-
-
-async def get_or_create_player(user_id: int, username: str = "") -> tuple[dict, bool]:
-    """Returns (player_dict, is_new). is_new=True if user was just created."""
+async def get_or_create_player(
+    user_id: int,
+    username: str = "",
+    referred_by: int | None = None,
+) -> tuple[dict, bool]:
+    """Returns (player_dict, is_new).
+    If referred_by is given and user is new, it is stored in the players row.
+    """
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         async with db.execute("SELECT * FROM players WHERE user_id=?", (user_id,)) as c:
             row = await c.fetchone()
         if row is None:
             await db.execute(
-                "INSERT INTO players (user_id, username) VALUES (?,?)", (user_id, username)
+                "INSERT INTO players (user_id, username, referred_by) VALUES (?,?,?)",
+                (user_id, username, referred_by),
             )
             await db.commit()
             async with db.execute("SELECT * FROM players WHERE user_id=?", (user_id,)) as c:
@@ -426,7 +440,7 @@ async def touch_last_seen(user_id: int):
         await db.commit()
 
 
-async def get_player_photos(user_id: int, lang: str = "ru") -> list:
+async def get_player_photos(user_id: int, lang: str = "en") -> list:
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         async with db.execute(
@@ -548,7 +562,7 @@ async def auction_worker():
 
                 for photo in due:
                     photo      = dict(photo)
-                    buyer      = random.choice(NPC_NAMES)
+                    buyer      = random.choice(FAKE_USERS)
                     sale_rub   = photo.get("sale_rub") or random.randint(SINGLE_MIN_RUB, SINGLE_MAX_RUB)
                     gross      = rub_to_usd(float(sale_rub))
                     net        = apply_commission(gross)
@@ -570,7 +584,7 @@ async def auction_worker():
                         player  = await get_player(photo["user_id"])
                         if not player:
                             continue
-                        lang    = player.get("lang", "ru")
+                        lang    = player.get("lang", "en")
                         new_bal = round((player["balance"] or 0) + net, 2)
                         await bot.send_message(
                             photo["user_id"],
@@ -600,7 +614,7 @@ async def reminder_worker():
                     rows = await c.fetchall()
             for row in rows:
                 uid  = row["user_id"]
-                lang = row["lang"] or "ru"
+                lang = row["lang"] or "en"
                 ref  = await referral_url(uid)
                 try:
                     await bot.send_message(
@@ -627,7 +641,7 @@ bot = Bot(token=BOT_TOKEN)
 dp  = Dispatcher()
 
 
-# ── /start ───────────────────────────────────────────────────
+# ── Subscription gate helper ──────────────────────────────────
 
 async def is_subscribed_to_channel(user_id: int) -> bool:
     """Return True if user is a member of the required channel."""
@@ -643,63 +657,196 @@ async def is_subscribed_to_channel(user_id: int) -> bool:
         return False
 
 
-async def _process_start(target: Message, user, args: str = ""):
-    """Send the main welcome menu. Called after subscription is confirmed."""
-    player, is_new = await get_or_create_player(user.id, user.username or "")
-    await touch_last_seen(user.id)
-    lang = player.get("lang", "en")
+def _sub_gate_keyboard(args_str: str) -> InlineKeyboardMarkup:
+    """Keyboard with Subscribe + Check buttons."""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(
+            text="📢 Subscribe to Channel",
+            url=REQUIRED_CHANNEL_URL,
+        )],
+        [InlineKeyboardButton(
+            text="✅ I've Subscribed",
+            callback_data=f"chksub:{args_str}",
+        )],
+    ])
 
-    # ── FIXED referral system ─────────────────────────────────
-    # We check the referrals TABLE (not is_new) so users who were
-    # auto-created by the webapp API still get their referral counted.
+
+async def _send_sub_required(target: Message, args_str: str = ""):
+    await target.answer(
+        "👋 Welcome to <b>PhotoFlip</b>!\n\n"
+        "📢 To use the bot you must subscribe to our channel first:\n"
+        f"<a href='{REQUIRED_CHANNEL_URL}'>{REQUIRED_CHANNEL_NAME}</a>\n\n"
+        "After subscribing tap <b>✅ I've Subscribed</b> to continue.",
+        parse_mode=ParseMode.HTML,
+        reply_markup=_sub_gate_keyboard(args_str),
+    )
+
+
+# ── /start ───────────────────────────────────────────────────
+
+async def _process_referral(user_id: int, user_first_name: str, args: str):
+    """
+    Handle referral logic for /start ref_XXX.
+
+    FIX v7: Works even if WebApp already created the user before the bot
+    processed the deep link. Two cases are accepted:
+      1. User is brand new (referred_by is NULL in players).
+      2. User already existed (created by WebApp) but has no referrer yet
+         AND has invited nobody themselves (referrals_count == 0).
+
+    In both cases we credit the referrer IMMEDIATELY.
+    """
+    if not args or not args.startswith("ref_"):
+        return
+    try:
+        referrer_id = int(args[4:])
+    except ValueError:
+        logger.debug(f"Could not parse referrer from args='{args}'")
+        return
+
+    if referrer_id == user_id:
+        return
+
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+
+        # Check referrer exists
+        async with db.execute("SELECT 1 FROM players WHERE user_id=?", (referrer_id,)) as c:
+            if not await c.fetchone():
+                logger.debug(f"Referrer {referrer_id} not found in DB, skipping")
+                return
+
+        # Check if this user is already counted in the referrals table
+        async with db.execute(
+            "SELECT 1 FROM referrals WHERE referred_id=?", (user_id,)
+        ) as c:
+            already_in_referrals = await c.fetchone()
+
+        if already_in_referrals:
+            logger.debug(f"Referral already counted for user {user_id}, skipping")
+            return
+
+        # Check current state of referred_by and referrals_count for this user
+        async with db.execute(
+            "SELECT referred_by, referrals_count FROM players WHERE user_id=?", (user_id,)
+        ) as c:
+            row = await c.fetchone()
+
+        if row is None:
+            # User not yet in DB — will be created later by get_or_create_player
+            # We can pre-store the link in the referrals table optimistically,
+            # but we handle this at player creation instead.
+            return
+
+        current_referred_by    = row["referred_by"]
+        current_referrals_count = row["referrals_count"]
+
+        # Only proceed if user has no referrer and hasn't invited anyone
+        if current_referred_by is not None:
+            logger.debug(f"User {user_id} already has referred_by={current_referred_by}")
+            return
+        if current_referrals_count > 0:
+            logger.debug(f"User {user_id} already has referrals, skipping referral attach")
+            return
+
+        # All checks passed — bind the referral
+        await db.execute(
+            "UPDATE players SET referred_by=? WHERE user_id=?",
+            (referrer_id, user_id),
+        )
+        await db.execute(
+            "INSERT OR IGNORE INTO referrals (referrer_id, referred_id) VALUES (?,?)",
+            (referrer_id, user_id),
+        )
+        await db.execute(
+            "UPDATE players SET referrals_count=referrals_count+1 WHERE user_id=?",
+            (referrer_id,),
+        )
+        await db.commit()
+        logger.info(f"Referral BOUND: user {user_id} → referrer {referrer_id}")
+
+    # Notify the referrer
+    try:
+        rp = await get_player(referrer_id)
+        if rp:
+            rc    = rp.get("referrals_count", 0) + 1
+            rl    = vip_level(rc)
+            rs    = vip_slot_limit(rc)
+            rlang = rp.get("lang", "en")
+            await bot.send_message(
+                referrer_id,
+                tr(rlang, "new_referral",
+                   name=user_first_name, count=rc, lvl=rl, slots=rs),
+                parse_mode=ParseMode.HTML,
+            )
+    except Exception as e:
+        logger.debug(f"Referral notify failed: {e}")
+
+
+async def _process_start(target: Message, user, args: str = ""):
+    """Send the main welcome menu. Called AFTER subscription is confirmed."""
+
+    # Determine referred_by to pass into creation (for new users)
+    referred_by_on_create: int | None = None
     if args and args.startswith("ref_"):
         try:
-            referrer_id = int(args[4:])
-            print(f"DEBUG: Referral detected: referrer={referrer_id}, uid={user.id}")
-            if referrer_id != user.id:
-                async with aiosqlite.connect(DB_PATH) as db:
-                    async with db.execute(
-                        "SELECT 1 FROM referrals WHERE referred_id=?", (user.id,)
-                    ) as c:
-                        already_referred = await c.fetchone()
-                    async with db.execute(
-                        "SELECT 1 FROM players WHERE user_id=?", (referrer_id,)
-                    ) as c:
-                        referrer_exists = await c.fetchone()
+            referred_by_on_create = int(args[4:])
+            if referred_by_on_create == user.id:
+                referred_by_on_create = None
+        except ValueError:
+            pass
 
-                    if not already_referred and referrer_exists:
-                        await db.execute(
-                            "INSERT OR IGNORE INTO referrals (referrer_id, referred_id) VALUES (?,?)",
-                            (referrer_id, user.id),
-                        )
-                        await db.execute(
-                            "UPDATE players SET referrals_count=referrals_count+1 WHERE user_id=?",
-                            (referrer_id,),
-                        )
-                        await db.commit()
-                        print(f"DEBUG: Referral COUNTED! {user.id} → {referrer_id}")
-                        try:
-                            rp = await get_player(referrer_id)
-                            if rp:
-                                rc    = rp.get("referrals_count", 0) + 1
-                                rl    = vip_level(rc)
-                                rs    = vip_slot_limit(rc)
-                                rlang = rp.get("lang", "en")
-                                await bot.send_message(
-                                    referrer_id,
-                                    tr(rlang, "new_referral",
-                                       name=user.first_name, count=rc, lvl=rl, slots=rs),
-                                    parse_mode=ParseMode.HTML,
-                                )
-                        except Exception as e:
-                            logger.debug(f"Referral notify failed: {e}")
-                    else:
-                        print(f"DEBUG: Referral skipped. already_referred="
-                              f"{bool(already_referred)}, referrer_exists={bool(referrer_exists)}")
-        except ValueError as e:
-            print(f"DEBUG: Could not parse referrer ID from args '{args}': {e}")
+    # Create or fetch player
+    player, is_new = await get_or_create_player(
+        user.id, user.username or "",
+        referred_by=referred_by_on_create,
+    )
+    await touch_last_seen(user.id)
+
+    # Handle referral for new AND existing players (fixes WebApp race)
+    await _process_referral(user.id, user.first_name or str(user.id), args)
+
+    # If user was just created with referred_by, still add referrals table entry
+    if is_new and referred_by_on_create is not None:
+        async with aiosqlite.connect(DB_PATH) as db:
+            async with db.execute(
+                "SELECT 1 FROM referrals WHERE referred_id=?", (user.id,)
+            ) as c:
+                already = await c.fetchone()
+            if not already:
+                async with db.execute(
+                    "SELECT 1 FROM players WHERE user_id=?", (referred_by_on_create,)
+                ) as c:
+                    referrer_exists = await c.fetchone()
+                if referrer_exists:
+                    await db.execute(
+                        "INSERT OR IGNORE INTO referrals (referrer_id, referred_id) VALUES (?,?)",
+                        (referred_by_on_create, user.id),
+                    )
+                    await db.execute(
+                        "UPDATE players SET referrals_count=referrals_count+1 WHERE user_id=?",
+                        (referred_by_on_create,),
+                    )
+                    await db.commit()
+                    logger.info(f"Referral CREATED (new user): {user.id} → {referred_by_on_create}")
+                    try:
+                        rp = await get_player(referred_by_on_create)
+                        if rp:
+                            rc    = rp.get("referrals_count", 0) + 1
+                            rl    = vip_level(rc)
+                            rs    = vip_slot_limit(rc)
+                            rlang = rp.get("lang", "en")
+                            await bot.send_message(
+                                referred_by_on_create,
+                                tr(rlang, "new_referral",
+                                   name=user.first_name, count=rc, lvl=rl, slots=rs),
+                                parse_mode=ParseMode.HTML,
+                            )
+                    except Exception as e:
+                        logger.debug(f"New-user referral notify failed: {e}")
 
     player = await get_player(user.id)
+    lang   = player.get("lang", "en")
     ref    = await referral_url(user.id)
     lvl    = vip_level(player.get("referrals_count", 0))
     slots  = vip_slot_limit(player.get("referrals_count", 0))
@@ -728,39 +875,22 @@ async def _process_start(target: Message, user, args: str = ""):
 
 @dp.message(CommandStart())
 async def cmd_start(message: Message, command: CommandObject):
-    user = message.from_user
-    print(f"DEBUG: /start from {user.id}, args='{command.args}'")
+    user     = message.from_user
+    args_str = command.args or ""
+    logger.info(f"/start from {user.id}, args='{args_str}'")
 
-    # ── Mandatory subscription gate ──────────────────────────
+    # ── MANDATORY subscription gate ──────────────────────────────
     subscribed = await is_subscribed_to_channel(user.id)
     if not subscribed:
-        args_str = command.args or ""
-        kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(
-                text="📢 Subscribe to Channel",
-                url=REQUIRED_CHANNEL_URL,
-            )],
-            [InlineKeyboardButton(
-                text="✅ I've Subscribed",
-                callback_data=f"chksub:{args_str}",
-            )],
-        ])
-        await message.answer(
-            "👋 Welcome to <b>PhotoFlip</b>!\n\n"
-            "📢 To use the bot you must subscribe to our channel first:\n"
-            f"<a href='{REQUIRED_CHANNEL_URL}'>{REQUIRED_CHANNEL_NAME}</a>\n\n"
-            "After subscribing tap <b>✅ I've Subscribed</b> to continue.",
-            parse_mode=ParseMode.HTML,
-            reply_markup=kb,
-        )
+        await _send_sub_required(message, args_str)
         return
 
-    await _process_start(message, user, command.args or "")
+    await _process_start(message, user, args_str)
 
 
 @dp.callback_query(F.data.startswith("chksub:"))
 async def cb_check_sub(cb: CallbackQuery):
-    args = cb.data[7:]   # remove "chksub:"
+    args       = cb.data[7:]   # remove "chksub:"
     subscribed = await is_subscribed_to_channel(cb.from_user.id)
     if not subscribed:
         await cb.answer("❌ You haven't subscribed yet! Join the channel first.", show_alert=True)
@@ -773,7 +903,17 @@ async def cb_check_sub(cb: CallbackQuery):
     await _process_start(cb.message, cb.from_user, args)
 
 
-# ── /lang — переключение языка ───────────────────────────────
+# ── All other messages — also gate on subscription ────────────
+
+@dp.message(~F.reply_to_message & ~F.text.startswith("/"))
+async def generic_message_gate(message: Message):
+    """Block any non-command message until the user is subscribed."""
+    subscribed = await is_subscribed_to_channel(message.from_user.id)
+    if not subscribed:
+        await _send_sub_required(message, "")
+
+
+# ── /lang — toggle language ──────────────────────────────────
 
 @dp.message(Command("lang"))
 async def cmd_lang(message: Message):
@@ -782,21 +922,29 @@ async def cmd_lang(message: Message):
     if not player:
         player, _ = await get_or_create_player(user.id, user.username or "")
 
-    current_lang = player.get("lang", "ru")
+    # Subscription required
+    if not await is_subscribed_to_channel(user.id):
+        await _send_sub_required(message, "")
+        return
+
+    current_lang = player.get("lang", "en")
     new_lang     = "en" if current_lang == "ru" else "ru"
 
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute("UPDATE players SET lang=? WHERE user_id=?", (new_lang, user.id))
         await db.commit()
 
-    print(f"DEBUG: User {user.id} switched language: {current_lang} → {new_lang}")
+    logger.info(f"User {user.id} switched language: {current_lang} → {new_lang}")
     await message.answer(tr(new_lang, "lang_changed"), parse_mode=ParseMode.HTML)
 
 
-# ── /bonus — ежедневная награда ──────────────────────────────
+# ── /bonus — daily reward ────────────────────────────────────
 
 @dp.message(Command("bonus"))
 async def cmd_bonus(message: Message):
+    if not await is_subscribed_to_channel(message.from_user.id):
+        await _send_sub_required(message, "")
+        return
     await _give_daily_bonus(message.from_user.id, message.from_user.username or "", message)
 
 
@@ -808,7 +956,7 @@ async def cb_daily_bonus(cb: CallbackQuery):
 
 async def _give_daily_bonus(user_id: int, username: str, target: Message):
     player, _ = await get_or_create_player(user_id, username)
-    lang      = player.get("lang", "ru")
+    lang      = player.get("lang", "en")
     last_b    = player.get("last_bonus")
 
     if last_b:
@@ -840,13 +988,13 @@ async def _give_daily_bonus(user_id: int, username: str, target: Message):
     )
 
 
-# ── Callback: рефералы ───────────────────────────────────────
+# ── Callback: referrals ──────────────────────────────────────
 
 @dp.callback_query(F.data == "show_referrals")
 async def cb_referrals(cb: CallbackQuery):
     await cb.answer()
     player = await get_player(cb.from_user.id)
-    lang   = (player or {}).get("lang", "ru")
+    lang   = (player or {}).get("lang", "en")
     ref    = await referral_url(cb.from_user.id)
     count  = (player or {}).get("referrals_count", 0)
     await cb.message.answer(
@@ -855,44 +1003,54 @@ async def cb_referrals(cb: CallbackQuery):
     )
 
 
-# ── Admin: Reply на сообщение поддержки ──────────────────────
+# ── Admin: Reply to support message ──────────────────────────
 
 @dp.message(F.reply_to_message)
 async def admin_reply(message: Message):
-    """When admin replies to a forwarded support message — send it to the user."""
+    """When admin replies to a forwarded support message — deliver to user."""
     if not ADMIN_ID or message.from_user.id != ADMIN_ID:
         return
-    replied_id = message.reply_to_message.message_id
+
+    replied_msg_id = message.reply_to_message.message_id
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
+        # Find which user sent the ticket whose admin-side message has this ID
         async with db.execute(
             "SELECT user_id FROM support_messages WHERE admin_msg_id=? AND direction='in'",
-            (replied_id,),
+            (replied_msg_id,),
         ) as c:
             row = await c.fetchone()
+
         if not row:
-            print(f"DEBUG: Admin replied to msg_id={replied_id} but no matching support ticket found")
+            logger.info(f"Admin replied to msg_id={replied_msg_id} — no matching ticket found")
             await message.reply("⚠️ No support ticket linked to this message.")
             return
-        target  = row["user_id"]
-        txt     = message.text or message.caption or ""
+
+        target_uid = row["user_id"]
+        txt        = message.text or message.caption or ""
+
         await db.execute(
-            "INSERT INTO support_messages (user_id, text, direction, admin_msg_id) VALUES (?,?,'out',?)",
-            (target, txt, replied_id),
+            "INSERT INTO support_messages (user_id, text, direction, admin_msg_id) "
+            "VALUES (?,?,'out',?)",
+            (target_uid, txt, replied_msg_id),
         )
         await db.commit()
 
-    p    = await get_player(target)
+    p    = await get_player(target_uid)
     lang = (p or {}).get("lang", "en")
     try:
-        await bot.send_message(target, tr(lang, "support_reply", text=txt),
-                               parse_mode=ParseMode.HTML)
-        print(f"Admin replied to {target}: {txt[:60]}")
-        # ← Confirm delivery back to admin
-        await message.reply(f"✅ Reply delivered to user <code>{target}</code>",
-                            parse_mode=ParseMode.HTML)
+        await bot.send_message(
+            target_uid,
+            tr(lang, "support_reply", text=txt),
+            parse_mode=ParseMode.HTML,
+        )
+        logger.info(f"Admin replied to user {target_uid}: {txt[:80]}")
+        await message.reply(
+            f"✅ Reply delivered to user <code>{target_uid}</code>",
+            parse_mode=ParseMode.HTML,
+        )
     except Exception as e:
-        logger.warning(f"support reply delivery failed: {e}")
+        logger.warning(f"Admin reply delivery failed: {e}")
         await message.reply(f"❌ Delivery failed: {e}")
 
 
@@ -900,27 +1058,28 @@ async def admin_reply(message: Message):
 
 @dp.message(Command("broadcast"))
 async def cmd_broadcast(message: Message, command: CommandObject):
-    """Только для администратора: /broadcast [текст]"""
+    """Admin only: /broadcast [text]"""
     if message.from_user.id != ADMIN_ID:
         return
 
+    # Subscription not required for admin commands, but check anyway
     text = command.args
     if not text:
-        await message.answer("Использование: /broadcast [текст рассылки]")
+        await message.answer("Usage: /broadcast [message text]")
         return
 
     user_ids  = await get_all_user_ids()
     delivered = 0
 
-    await message.answer(f"📣 Начинаю рассылку для {len(user_ids)} пользователей...")
+    await message.answer(f"📣 Starting broadcast to {len(user_ids)} users…")
 
     for uid in user_ids:
         try:
             await bot.send_message(uid, text, parse_mode=ParseMode.HTML)
             delivered += 1
         except Exception:
-            pass  # пользователь заблокировал бота — пропускаем
-        await asyncio.sleep(0.05)  # не превышаем лимит Telegram API
+            pass  # User blocked the bot — skip
+        await asyncio.sleep(0.05)   # Respect Telegram rate limits
 
     player = await get_player(ADMIN_ID)
     lang   = (player or {}).get("lang", "en")
@@ -941,6 +1100,7 @@ async def lifespan(app: FastAPI):
     print(f"\n{'='*55}")
     print(f"  🌐  App URL  : {WEBAPP_URL}")
     print(f"  🔗  Webhook  : {WEBHOOK_URL}")
+    print(f"  🚪  Port     : {PORT}")
     print(f"{'='*55}\n")
     try:
         await bot.set_webhook(
@@ -962,7 +1122,7 @@ async def lifespan(app: FastAPI):
     await bot.delete_webhook()
 
 
-app = FastAPI(title="PhotoFlip API v6", lifespan=lifespan)
+app = FastAPI(title="PhotoFlip API v7", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
@@ -975,7 +1135,7 @@ app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 async def root():
     if Path("index.html").exists():
         return FileResponse("index.html")
-    return PlainTextResponse("Загрузите интерфейс на GitHub")
+    return PlainTextResponse("Upload index.html to the project root.")
 
 
 # ── Live Feed ─────────────────────────────────────────────────
@@ -983,16 +1143,20 @@ async def root():
 @app.get("/api/feed")
 async def api_feed():
     """
-    Генератор живой ленты: 10 случайных событий.
-    Ники, суммы и типы действий выбираются случайно при каждом запросе.
+    Generate 10 live feed events.
+    Uses random.sample so names do NOT repeat within one batch.
     """
-    events = []
-    for _ in range(10):
-        user    = random.choice(NPC_NAMES)
-        seller  = random.choice([n for n in NPC_NAMES if n != user])
-        amount  = round(random.uniform(2.0, 48.0), 2)
+    batch_size  = min(10, len(FAKE_USERS))
+    sampled     = random.sample(FAKE_USERS, batch_size)   # no repeats in one cycle
+    events      = []
+
+    for user in sampled:
+        # Pick a seller that is not the buyer
+        seller_pool = [n for n in FAKE_USERS if n != user]
+        seller      = random.choice(seller_pool)
+        amount      = round(random.uniform(2.0, 48.0), 2)
         lang_ev, action_tmpl = random.choice(FEED_ACTIONS)
-        action  = action_tmpl.format(seller=seller, amount=amount)
+        action = action_tmpl.format(seller=seller, amount=amount)
         events.append({
             "user":      user,
             "action":    action,
@@ -1000,7 +1164,7 @@ async def api_feed():
             "lang":      lang_ev,
             "timestamp": (datetime.utcnow() - timedelta(seconds=random.randint(0, 600))).isoformat(),
         })
-    # Сортируем по времени (новейшие первые)
+
     events.sort(key=lambda e: e["timestamp"], reverse=True)
     return {"events": events}
 
@@ -1010,7 +1174,7 @@ async def api_feed():
 @app.get("/api/player/{user_id}")
 async def api_get_player(user_id: int, username: str = ""):
     player, _  = await get_or_create_player(user_id, username)
-    lang       = player.get("lang", "ru")
+    lang       = player.get("lang", "en")
     photos     = await get_player_photos(user_id, lang)
     quests     = await get_quest_status(user_id)
     ref_count  = player.get("referrals_count", 0)
@@ -1021,28 +1185,29 @@ async def api_get_player(user_id: int, username: str = ""):
     await touch_last_seen(user_id)
 
     return {
-        "player":               player,
-        "photos":               photos,
-        "quests":               quests,
-        "withdraw_unlocked":    ref_count >= MIN_REFERRALS_WITHDRAW,
-        "vip_level":            lvl,
-        "vip_tiers":            [{"min": t[0], "max_delay": t[1], "slots": t[2]} for t in VIP_TIERS],
-        "referral_url":         ref,
-        "rub_rate":             RUB_TO_USD_RATE,
-        "active_slots":         active,
-        "slot_limit":           slots,
+        "player":                 player,
+        "photos":                 photos,
+        "quests":                 quests,
+        "withdraw_unlocked":      ref_count >= MIN_REFERRALS_WITHDRAW,
+        "vip_level":              lvl,
+        "vip_tiers":              [{"min": t[0], "max_delay": t[1], "slots": t[2]} for t in VIP_TIERS],
+        "referral_url":           ref,
+        "rub_rate":               RUB_TO_USD_RATE,
+        "active_slots":           active,
+        "slot_limit":             slots,
         "min_referrals_withdraw": MIN_REFERRALS_WITHDRAW,
-        "withdraw_condition":   tr(lang, "withdraw_locked"),
-        "vip_priority_note":    tr(lang, "vip_priority"),
+        "withdraw_condition":     tr(lang, "withdraw_locked"),
+        "vip_priority_note":      tr(lang, "vip_priority"),
     }
 
 
 @app.put("/api/player/{user_id}/lang")
 async def api_set_lang(user_id: int, request: Request):
+    """Update player language from the Mini App language toggle."""
     data = await request.json()
-    lang = data.get("lang", "ru")
+    lang = data.get("lang", "en")
     if lang not in _T:
-        lang = "ru"
+        lang = "en"
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute("UPDATE players SET lang=? WHERE user_id=?", (lang, user_id))
         await db.commit()
@@ -1162,7 +1327,7 @@ async def api_quest_complete(request: Request):
         )
     except Exception as e:
         logger.warning(f"get_chat_member {user_id}/{channel_id}: {e}")
-        verified = True
+        verified = True   # Lenient fallback if bot can't check
 
     if not verified:
         raise HTTPException(403, "User has not joined the channel yet.")
@@ -1183,7 +1348,6 @@ async def api_quest_complete(request: Request):
 
 
 # ── Withdraw ─────────────────────────────────────────────────
-# Проверка подписки — ТОЛЬКО здесь, на финальном шаге вывода.
 
 def _build_sub_required_response(lang: str) -> JSONResponse:
     channels = [
@@ -1211,12 +1375,11 @@ async def api_withdraw(request: Request):
     if not player:
         raise HTTPException(404, "Player not found")
 
-    lang      = player.get("lang", "ru")
+    lang      = player.get("lang", "en")
     ref_count = player.get("referrals_count", 0)
     if ref_count < MIN_REFERRALS_WITHDRAW:
         raise HTTPException(403, tr(lang, "withdraw_locked"))
 
-    # ← Мягкая конверсия: подписка проверяется только здесь
     if not await channels_all_subscribed(user_id):
         return _build_sub_required_response(lang)
 
@@ -1264,7 +1427,7 @@ async def api_withdraw_stars(request: Request):
     if not player:
         raise HTTPException(404, "Player not found")
 
-    lang      = player.get("lang", "ru")
+    lang      = player.get("lang", "en")
     ref_count = player.get("referrals_count", 0)
     if ref_count < MIN_REFERRALS_WITHDRAW:
         raise HTTPException(403, tr(lang, "withdraw_locked"))
@@ -1333,7 +1496,7 @@ async def api_support_send(request: Request):
             )
             admin_msg_id = sent.message_id
         except Exception as e:
-            logger.warning(f"support forward failed: {e}")
+            logger.warning(f"Support forward failed: {e}")
 
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute(
@@ -1399,7 +1562,7 @@ async def api_admin_support_reply(request: Request):
     player = await get_player(user_id)
     if not player:
         raise HTTPException(404, "Player not found")
-    lang = player.get("lang", "ru")
+    lang = player.get("lang", "en")
 
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute(
@@ -1415,9 +1578,9 @@ async def api_admin_support_reply(request: Request):
             tr(lang, "support_reply", text=reply_text),
             parse_mode=ParseMode.HTML,
         )
-        print(f"Admin replied to {user_id}")
+        logger.info(f"Admin (API) replied to {user_id}")
     except Exception as e:
-        logger.warning(f"admin api reply delivery failed: {e}")
+        logger.warning(f"Admin API reply delivery failed: {e}")
 
     return {"success": True}
 
