@@ -1,16 +1,16 @@
 """
-PhotoFlip — Telegram Mini App Backend  v10.1
+PhotoFlip — Telegram Mini App Backend  v11.0
 FastAPI + Aiogram 3 + aiosqlite  |  Railway edition
 
-CHANGES in v10.1:
- - FIXED referral bind: notification uses real @username from DB, not first_name
- - FIXED Guard logic: detailed logging so silent failures are visible in Railway logs
- - Added make_share_url() — Telegram share button with pre-written viral message
- - Referral panel shows: copyable link block + 📤 Share button
- - Welcome message includes Share button alongside Open / Referrals
- - Anti-Loss: ref_ID written to DB before subscription gate
- - Bilingual notification (RU+EN in one message)
- - No $0.50 bonus — counter only
+CHANGES in v11.0:
+ - FIXED referral bind: accepts both `ref_123` and plain `123` start_param
+ - FIXED referral bind: works even if WebApp created the player before bot /start
+ - FIXED _bind_referral: removed Guard-4 (photo-count anti-abuse) — was blocking legit binds
+ - FIXED REFERRAL_NOTIFY_TMPL: bilingual RU+EN in one message
+ - FIXED DB_PATH: uses os.path.join (Railway Volume compatible)
+ - FIXED cmd_start order: player created → referral bound → subscription check
+ - referrals_count in /api/player uses live COUNT(*) FROM players WHERE referred_by=?
+ - No $0.50 bonus — counter + notification only
 """
 
 import asyncio
@@ -56,10 +56,12 @@ WEBHOOK_PATH = "/webhook"
 WEBAPP_URL   = os.getenv("WEBAPP_URL", "https://photo-production-d5b8.up.railway.app")
 WEBHOOK_URL  = f"{WEBAPP_URL}{WEBHOOK_PATH}"
 
-# ── Persistent storage ───────────────────────────────────────
-_DATA_DIR   = Path(os.getenv("RAILWAY_VOLUME_MOUNT_PATH", "."))
-DB_PATH     = str(_DATA_DIR / "photoflip.db")
-UPLOADS_DIR = _DATA_DIR / "uploads"
+# ── Persistent storage (Railway Volume compatible) ────────────
+# RAILWAY_VOLUME_MOUNT_PATH is set automatically when a Volume is attached.
+# Falls back to "." (current dir) for local dev.
+_VOLUME     = os.getenv("RAILWAY_VOLUME_MOUNT_PATH", ".")
+DB_PATH     = os.path.join(_VOLUME, "photoflip.db")
+UPLOADS_DIR = Path(os.path.join(_VOLUME, "uploads"))
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 
 # ── File upload limits ────────────────────────────────────────
@@ -284,34 +286,43 @@ logger = logging.getLogger(__name__)
 
 
 # ═══════════════════════════════════════════════════════════════
-#  REFERRAL NOTIFICATION TEMPLATE  (bilingual, sent once)
-# ═══════════════════════════════════════════════════════════════
-#  {username} — @handle or user_id if no username
+#  REFERRAL NOTIFICATION TEMPLATE
+#  Bilingual (RU + EN) — sent to the referrer once per new user.
+#  {username} — @handle or plain user_id if no username
 #  {user_id}  — numeric Telegram ID
+# ═══════════════════════════════════════════════════════════════
 REFERRAL_NOTIFY_TMPL = (
-    "🔔 <b>Новый реферал!</b>\n\n"
-    "👤 {username} (ID: <code>{user_id}</code>)\n"
-    "присоединился по твоей ссылке! 🎉\n\n"
-    "Твой прогресс вывода обновлён."
+    "🔔 <b>New Referral / Новый реферал!</b>\n\n"
+    "👤 User / Пользователь: {username} (ID: <code>{user_id}</code>)\n"
+    "✅ Status: Added to your team / Добавлен в команду."
 )
 
 
 # ── Viral share message & Telegram share URL ─────────────────
 _SHARE_TEXT = (
-    "Твоя камера теперь печатает деньги. Серьёзно. 🖼💰\n\n"
+    "Твоя камера теперь печатает деньги. Серьезно. 🖼💰\n"
     "PhotoFlip — это как биржа, только вместо акций — твои фото. "
-    "Флипай лоты, лови профит в баксах и выводи.\n\n"
-    "Залетай по моей ссылке (дают бонус к охватам): 🔗 {ref_url}\n\n"
+    "Флипай лоты, лови профит в баксах и выводи.\n"
+    "Залетай по моей ссылке: 🔗 {ref_url}\n"
     "Проверим, чей лот купят быстрее? 😉"
 )
 
 
 def make_share_url(ref_url: str) -> str:
-    """Returns a t.me/share/url link that opens Telegram's forward dialog
-    with a pre-filled viral message. Only ?text= is used — no ?url= —
-    to avoid two separate clickable links in the shared message."""
-    text = _SHARE_TEXT.format(ref_url=ref_url)
-    return "https://t.me/share/url?text=" + urllib.parse.quote(text, safe="")
+    """Returns a t.me/share/url link with pre-filled viral message.
+    Uses ?url= so Telegram renders a proper link preview card."""
+    text = (
+        "Твоя камера теперь печатает деньги. Серьезно. 🖼💰\n"
+        "PhotoFlip — это как биржа, только вместо акций — твои фото. "
+        "Флипай лоты, лови профит в баксах и выводи.\n"
+        "Залетай по моей ссылке: 🔗\n"
+        "Проверим, чей лот купят быстрее? 😉"
+    )
+    return (
+        "https://t.me/share/url"
+        "?url=" + urllib.parse.quote(ref_url, safe="") +
+        "&text=" + urllib.parse.quote(text, safe="")
+    )
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -371,8 +382,8 @@ _T = {
         "withdraw_processing": (
             "✅ Withdrawal requested!\n\n"
             "Your request is being processed.\n"
-            "Payouts take from 1 to 7 business days / "
-            "Выплаты занимают от 1 до 7 рабочих дней."
+            "Payouts take 1–7 business days / "
+            "Выплаты занимают 1–7 рабочих дней."
         ),
     },
     "ru": {
@@ -420,8 +431,8 @@ _T = {
         "withdraw_processing": (
             "✅ Заявка принята!\n\n"
             "Ваша заявка обрабатывается.\n"
-            "Payouts take from 1 to 7 business days / "
-            "Выплаты занимают от 1 до 7 рабочих дней."
+            "Payouts take 1–7 business days / "
+            "Выплаты занимают 1–7 рабочих дней."
         ),
     },
 }
@@ -551,8 +562,6 @@ async def init_db():
         """)
 
         # ── admin_msg_map ─────────────────────────────────────────
-        # Maps every admin's forwarded message_id to the originating user_id.
-        # Required so ALL admins (not just the super-admin) can use legacy reply.
         await db.execute("""
             CREATE TABLE IF NOT EXISTS admin_msg_map (
                 admin_msg_id INTEGER,
@@ -615,7 +624,7 @@ async def get_or_create_player(
                 row = await cur.fetchone()
             return dict(row), True
 
-        # Update username if it changed (e.g. user set/changed Telegram handle)
+        # Update username if it changed
         if username and username != (row["username"] or ""):
             await db.execute(
                 "UPDATE players SET username=? WHERE user_id=?", (username, user_id)
@@ -683,7 +692,7 @@ async def get_referral_count(user_id: int) -> int:
     """
     Live referral count — always computed from the source of truth:
     SELECT COUNT(*) FROM players WHERE referred_by = user_id.
-    Used by all API endpoints exposed to the frontend.
+    This is the only value exposed to the frontend.
     """
     async with aiosqlite.connect(DB_PATH) as db:
         async with db.execute(
@@ -838,12 +847,6 @@ async def list_admins() -> list[dict]:
 async def forward_support_to_admins(
     user_id: int, username: str, text: str
 ) -> int | None:
-    """
-    Sends the support message to every admin.
-    Stores each admin's message_id in admin_msg_map so the legacy Reply handler
-    works for ALL admins, not just the super-admin.
-    Returns the message_id sent to the super-admin (for legacy compat).
-    """
     admin_ids = await get_admin_ids()
     primary_msg_id: int | None = None
     uname = username or str(user_id)
@@ -865,7 +868,6 @@ async def forward_support_to_admins(
                     parse_mode=ParseMode.HTML,
                     reply_markup=kb,
                 )
-                # Store mapping: this admin's message_id → originating user_id
                 await db.execute(
                     "INSERT OR REPLACE INTO admin_msg_map "
                     "(admin_msg_id, admin_id, user_id) VALUES (?,?,?)",
@@ -998,10 +1000,6 @@ async def is_subscribed_to_channel(user_id: int) -> bool:
 
 
 async def check_subscription(user_id: int) -> bool:
-    """
-    Returns True if the user may proceed.
-    Admins always pass. Regular users must be subscribed to REQUIRED_CHANNEL_ID.
-    """
     if await is_admin(user_id):
         return True
     return await is_subscribed_to_channel(user_id)
@@ -1027,9 +1025,13 @@ async def _send_sub_required(target: Message, args_str: str = ""):
 
 # ═══════════════════════════════════════════════════════════════
 #  REFERRAL LOGIC
+#
 #  Key rule: referred_by is saved to DB *before* the subscription
-#  check so the inviter always gets their counter and notification
+#  check so the inviter always gets their counter + notification
 #  even if the new user never completes the subscription gate.
+#
+#  Handles the case where WebApp created the player before bot
+#  /start fired: Guard-3 checks referred_by IS NULL and proceeds.
 # ═══════════════════════════════════════════════════════════════
 
 async def _bind_referral(new_user_id: int, referrer_id: int, first_name: str) -> bool:
@@ -1037,12 +1039,11 @@ async def _bind_referral(new_user_id: int, referrer_id: int, first_name: str) ->
     Binds a referral. No monetary bonus — counter + bilingual notification only.
     Returns True if a new referral was successfully bound, False otherwise.
 
-    Guards (each logs why it blocks so Railway logs show exactly what happened):
-      1. referrer != new_user (no self-referral)
-      2. referrer exists in DB
+    Guards:
+      1. referrer != new_user  (no self-referral)
+      2. referrer exists in players table
       3. new_user NOT already in referrals table
-      4. new_user.referred_by IS NULL  (not yet bound)
-      5. new_user has 0 photos (anti-abuse for retroactive binding)
+      4. new_user.referred_by IS NULL  (not yet bound, handles WebApp pre-create)
     """
     logger.info(
         f"[REFERRAL] Attempt: new_user={new_user_id} referrer={referrer_id} name='{first_name}'"
@@ -1077,6 +1078,8 @@ async def _bind_referral(new_user_id: int, referrer_id: int, first_name: str) ->
                 return False
 
         # Guard 3: referred_by column must be NULL
+        # This handles the case where WebApp created the player before bot /start:
+        # the player exists with referred_by=NULL, so we bind it now.
         async with db.execute(
             "SELECT referred_by FROM players WHERE user_id=?", (new_user_id,)
         ) as cur:
@@ -1094,19 +1097,7 @@ async def _bind_referral(new_user_id: int, referrer_id: int, first_name: str) ->
             )
             return False
 
-        # Guard 4: anti-abuse — 0 uploaded photos
-        async with db.execute(
-            "SELECT COUNT(*) AS cnt FROM photos WHERE user_id=?", (new_user_id,)
-        ) as cur:
-            cnt_row = await cur.fetchone()
-        photo_cnt = cnt_row["cnt"] if cnt_row else 0
-        if photo_cnt > 0:
-            logger.info(
-                f"[REFERRAL] Skip Guard-4: {new_user_id} has {photo_cnt} photo(s) — anti-abuse"
-            )
-            return False
-
-        # ── All guards passed: commit the bind ───────────────
+        # ── All guards passed: commit the bind ───────────────────
         await db.execute(
             "UPDATE players SET referred_by=? WHERE user_id=?",
             (referrer_id, new_user_id),
@@ -1124,8 +1115,7 @@ async def _bind_referral(new_user_id: int, referrer_id: int, first_name: str) ->
             f"[REFERRAL] ✅ BOUND: {new_user_id} → referrer {referrer_id}"
         )
 
-    # ── Bilingual notification to referrer ───────────────────
-    # Use the stored @username if available; otherwise fall back to first_name
+    # ── Instant bilingual notification to referrer ────────────
     try:
         new_player = await get_player(new_user_id)
         if new_player and new_player.get("username"):
@@ -1134,7 +1124,7 @@ async def _bind_referral(new_user_id: int, referrer_id: int, first_name: str) ->
             raw_display = first_name
         else:
             raw_display = str(new_user_id)
-        display = html.escape(raw_display)   # prevent HTML-injection breaking send_message
+        display = html.escape(raw_display)
 
         rp = await get_player(referrer_id)
         if rp:
@@ -1145,7 +1135,7 @@ async def _bind_referral(new_user_id: int, referrer_id: int, first_name: str) ->
             )
             logger.info(
                 f"[REFERRAL] Notification sent to {referrer_id} "
-                f"(new user @{display}/{new_user_id})"
+                f"(new user {display}/{new_user_id})"
             )
         else:
             logger.warning(
@@ -1158,18 +1148,13 @@ async def _bind_referral(new_user_id: int, referrer_id: int, first_name: str) ->
 
 
 async def _process_start(target: Message, user, args: str = ""):
-    """
-    Send the main welcome menu.
-    Called AFTER subscription is confirmed.
-    Referral binding has already been done in cmd_start before this is called.
-    """
+    """Send the main welcome menu. Called AFTER subscription is confirmed."""
     player, _ = await get_or_create_player(user.id, user.username or "")
     await touch_last_seen(user.id)
 
     player    = await get_player(user.id)
     lang      = player.get("lang", "en")
     ref       = await referral_url(user.id)
-    # Use live count for VIP calculations
     ref_count = await get_referral_count(user.id)
     lvl       = vip_level(ref_count)
     slots     = vip_slot_limit(ref_count)
@@ -1199,13 +1184,10 @@ async def _process_start(target: Message, user, args: str = ""):
 
 # ════════════════════════════════════════════════════════════════
 #  FSM: ADMIN REPLY FLOW
-#  Flow: admin clicks "💬 Reply" button → FSM state set →
-#        admin types reply → bot delivers to user → state cleared
 # ════════════════════════════════════════════════════════════════
 
 @dp.callback_query(F.data.startswith("adm_reply:"))
 async def cb_admin_reply_start(cb: CallbackQuery, state: FSMContext):
-    """Admin clicks the Reply button on a forwarded support message."""
     if not await is_admin(cb.from_user.id):
         await cb.answer("❌ Not authorised.", show_alert=True)
         return
@@ -1229,7 +1211,6 @@ async def admin_reply_cancel(message: Message, state: FSMContext):
 
 @dp.message(AdminReply.waiting_reply)
 async def admin_reply_send(message: Message, state: FSMContext):
-    """Admin has typed the reply — deliver it to the target user."""
     if not await is_admin(message.from_user.id):
         await state.clear()
         return
@@ -1242,7 +1223,6 @@ async def admin_reply_send(message: Message, state: FSMContext):
         await message.answer("⚠️ Empty message — please type the reply text.")
         return
 
-    # Save reply to DB
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute(
             "INSERT INTO support_messages (user_id, text, direction) VALUES (?,?,'out')",
@@ -1276,36 +1256,42 @@ async def admin_reply_send(message: Message, state: FSMContext):
 @dp.message(CommandStart())
 async def cmd_start(message: Message, command: CommandObject):
     user     = message.from_user
-    args_str = command.args or ""
+    args_str = (command.args or "").strip()
     logger.info(f"/start from {user.id}, args='{args_str}'")
 
-    # ── Step 1: Extract referrer ID ───────────────────────────
+    # ── Step 1: Extract referrer ID (FIRST — before everything else) ─
+    # Accepts both formats: "ref_123456789" and plain "123456789"
     referrer_id: int | None = None
-    if args_str.startswith("ref_"):
+    raw_arg = args_str
+    if raw_arg.startswith("ref_"):
+        raw_arg = raw_arg[4:]
+    if raw_arg:
         try:
-            rid = int(args_str[4:])
+            rid = int(raw_arg)
             if rid != user.id:
                 referrer_id = rid
+                logger.info(f"[REFERRAL] Parsed referrer_id={referrer_id} from args='{args_str}'")
         except ValueError:
-            pass
+            logger.debug(f"[REFERRAL] Non-numeric start param ignored: '{args_str}'")
 
-    # ── Step 2: Ensure player exists in DB ───────────────────
-    # Create record BEFORE subscription check so the referral bind
-    # works even if the user never completes subscription.
+    # ── Step 2: Ensure player exists in DB ──────────────────────────
+    # Must run BEFORE _bind_referral so the new player row exists.
+    # Also handles the case where WebApp already created the player
+    # (get_or_create_player is idempotent — safe to call again).
     await get_or_create_player(user.id, user.username or "")
 
-    # ── Step 3: Bind referral (Anti-Loss) ────────────────────
-    # This runs before the subscription gate so the referrer always
-    # receives their notification and counter increment.
+    # ── Step 3: Bind referral (Anti-Loss) ───────────────────────────
+    # Runs BEFORE subscription check — referrer gets credit even if
+    # new user never completes the subscription gate.
     if referrer_id is not None:
         await _bind_referral(user.id, referrer_id, user.first_name or str(user.id))
 
-    # ── Step 4: Subscription check ────────────────────────────
+    # ── Step 4: Subscription check ──────────────────────────────────
     if not await check_subscription(user.id):
         await _send_sub_required(message, args_str)
         return
 
-    # ── Step 5: Show welcome ──────────────────────────────────
+    # ── Step 5: Show welcome ─────────────────────────────────────────
     await _process_start(message, user, args_str)
 
 
@@ -1316,7 +1302,6 @@ async def cb_check_sub(cb: CallbackQuery):
         await cb.answer("❌ You haven't subscribed yet! Join the channel first.", show_alert=True)
         return
 
-    # Write quest record so WebApp DB-check also passes
     user_id = cb.from_user.id
     async with aiosqlite.connect(DB_PATH) as db:
         for ch in PARTNER_CHANNELS:
@@ -1374,17 +1359,13 @@ async def cb_referrals(cb: CallbackQuery):
     lang   = (player or {}).get("lang", "en")
     ref    = await referral_url(cb.from_user.id)
     count  = await get_referral_count(cb.from_user.id)
-
     need   = max(0, MIN_REFERRALS_WITHDRAW - count)
     share_url = make_share_url(ref) if ref else None
 
     rows = []
     if share_url:
         rows.append([
-            InlineKeyboardButton(
-                text=tr(lang, "btn_share"),
-                url=share_url,
-            )
+            InlineKeyboardButton(text=tr(lang, "btn_share"), url=share_url)
         ])
 
     kb = InlineKeyboardMarkup(inline_keyboard=rows) if rows else None
@@ -1396,14 +1377,10 @@ async def cb_referrals(cb: CallbackQuery):
     )
 
 
-# ── Admin: Legacy reply (plain Telegram reply to forwarded message) ──────────
-# An admin can reply to any forwarded support message by just hitting Reply
-# in Telegram. We look up the target user via admin_msg_map so ALL admins
-# (not just the super-admin) can use this flow.
+# ── Admin: Legacy reply (plain Telegram reply to forwarded message) ──
 
 @dp.message(F.reply_to_message)
 async def admin_reply_legacy(message: Message):
-    """Legacy: admin replies by directly replying to a forwarded support message."""
     if not await is_admin(message.from_user.id):
         return
 
@@ -1413,7 +1390,6 @@ async def admin_reply_legacy(message: Message):
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
 
-        # Primary lookup: admin_msg_map (covers all admins)
         async with db.execute(
             "SELECT user_id FROM admin_msg_map "
             "WHERE admin_msg_id=? AND admin_id=?",
@@ -1421,7 +1397,6 @@ async def admin_reply_legacy(message: Message):
         ) as cur:
             row = await cur.fetchone()
 
-        # Fallback: legacy support_messages table (for rows created before v10)
         if not row:
             async with db.execute(
                 "SELECT user_id FROM support_messages "
@@ -1469,7 +1444,6 @@ async def admin_reply_legacy(message: Message):
 
 @dp.message(Command("addadmin"))
 async def cmd_addadmin(message: Message, command: CommandObject):
-    """Super-admin only: /addadmin <user_id> [username]"""
     if message.from_user.id != ADMIN_ID:
         return
     args = (command.args or "").split()
@@ -1493,7 +1467,6 @@ async def cmd_addadmin(message: Message, command: CommandObject):
 
 @dp.message(Command("removeadmin"))
 async def cmd_removeadmin(message: Message, command: CommandObject):
-    """Super-admin only: /removeadmin <user_id>"""
     if message.from_user.id != ADMIN_ID:
         return
     args = command.args or ""
@@ -1520,7 +1493,6 @@ async def cmd_removeadmin(message: Message, command: CommandObject):
 
 @dp.message(Command("admins"))
 async def cmd_admins(message: Message):
-    """Any admin: /admins — list all current admins."""
     if not await is_admin(message.from_user.id):
         return
     admins = await list_admins()
@@ -1567,11 +1539,9 @@ async def cmd_broadcast(message: Message, command: CommandObject):
 
 
 # ── Block non-command messages for unsubscribed users ────────
-# Must come LAST so FSM handlers and command handlers fire first.
 
 @dp.message(~F.text.startswith("/"))
 async def generic_message_gate(message: Message):
-    # Skip if it's a reply (handled by admin_reply_legacy)
     if message.reply_to_message:
         return
     if not await check_subscription(message.from_user.id):
@@ -1590,6 +1560,7 @@ async def lifespan(app: FastAPI):
     print(f"  🌐  App URL  : {WEBAPP_URL}")
     print(f"  🔗  Webhook  : {WEBHOOK_URL}")
     print(f"  🚪  Port     : {PORT}")
+    print(f"  💾  DB path  : {DB_PATH}")
     print(f"{'='*55}\n")
 
     try:
@@ -1622,14 +1593,14 @@ async def lifespan(app: FastAPI):
         pass
 
 
-app = FastAPI(title="PhotoFlip API v10", lifespan=lifespan)
+app = FastAPI(title="PhotoFlip API v11", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
-app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+app.mount("/uploads", StaticFiles(directory=str(UPLOADS_DIR)), name="uploads")
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -1715,7 +1686,8 @@ async def api_get_player(user_id: int, username: str = ""):
 
     photos    = await get_player_photos(user_id, lang)
     quests    = await get_quest_status(user_id)
-    # Live referral count via COUNT(*) — this is the source of truth for the frontend
+    # Live referral count via COUNT(*) FROM players WHERE referred_by=?
+    # This is the single source of truth for the frontend counter.
     ref_count = await get_referral_count(user_id)
     lvl       = vip_level(ref_count)
     slots     = vip_slot_limit(ref_count)
@@ -1723,7 +1695,7 @@ async def api_get_player(user_id: int, username: str = ""):
     ref       = await referral_url(user_id)
     await touch_last_seen(user_id)
 
-    # Inject live count into player dict so frontend gets the correct value
+    # Inject live count so frontend always shows the correct number
     player["referrals_count"] = ref_count
 
     return {
@@ -1759,18 +1731,13 @@ async def api_set_lang(user_id: int, request: Request):
 
 @app.get("/api/referrals/{user_id}")
 async def api_referrals(user_id: int):
-    """
-    Returns the referral list and live count.
-    Count is computed via SELECT COUNT(*) FROM players WHERE referred_by=?
-    so it always matches the actual DB state shown on the frontend withdrawal button.
-    """
     player = await get_player(user_id)
     if not player:
         raise HTTPException(404, "Player not found")
 
     refs  = await get_referral_list(user_id)
     ref   = await referral_url(user_id)
-    count = await get_referral_count(user_id)  # Live COUNT(*)
+    count = await get_referral_count(user_id)
     return {
         "referrals":       refs,
         "referrals_count": count,
@@ -1925,7 +1892,7 @@ async def api_withdraw(request: Request):
         raise HTTPException(404, "Player not found")
 
     lang      = player.get("lang", "en")
-    ref_count = await get_referral_count(user_id)   # Live COUNT(*)
+    ref_count = await get_referral_count(user_id)
 
     if ref_count < MIN_REFERRALS_WITHDRAW:
         raise HTTPException(403, tr(lang, "withdraw_locked"))
@@ -1958,8 +1925,8 @@ async def api_withdraw(request: Request):
                 f"💳 <b>USD Withdrawal</b>\n{prio_tag}"
                 f"User: <code>{user_id}</code> (@{player.get('username', '')})\n"
                 f"Amount: <b>${amount:.2f}</b> · VIP <b>{lvl}</b> · Refs <b>{ref_count}</b>\n"
-                f"<i>Payouts take from 1 to 7 business days / "
-                f"Выплаты занимают от 1 до 7 рабочих дней.</i>",
+                f"<i>Payouts take 1–7 business days / "
+                f"Выплаты занимают 1–7 рабочих дней.</i>",
                 parse_mode=ParseMode.HTML,
             )
         except Exception:
@@ -1985,7 +1952,7 @@ async def api_withdraw_stars(request: Request):
         raise HTTPException(404, "Player not found")
 
     lang      = player.get("lang", "en")
-    ref_count = await get_referral_count(user_id)   # Live COUNT(*)
+    ref_count = await get_referral_count(user_id)
 
     if ref_count < MIN_REFERRALS_WITHDRAW:
         raise HTTPException(403, tr(lang, "withdraw_locked"))
@@ -2019,8 +1986,8 @@ async def api_withdraw_stars(request: Request):
                 f"⭐ <b>Stars Withdrawal</b>\n{prio_tag}"
                 f"User: <code>{user_id}</code> (@{player.get('username', '')})\n"
                 f"${usd_amount:.2f} → <b>{stars_amount:,} ⭐</b> · VIP <b>{lvl}</b>\n"
-                f"<i>Payouts take from 1 to 7 business days / "
-                f"Выплаты занимают от 1 до 7 рабочих дней.</i>",
+                f"<i>Payouts take 1–7 business days / "
+                f"Выплаты занимают 1–7 рабочих дней.</i>",
                 parse_mode=ParseMode.HTML,
             )
         except Exception:
@@ -2138,15 +2105,15 @@ async def api_admin_support_reply(request: Request):
 @app.post("/api/referral/bind")
 async def api_referral_bind(request: Request):
     """
-    Frontend-side referral binding.
+    Frontend-side referral binding (double-safety).
     Called by the WebApp on init when Telegram.WebApp.initDataUnsafe.start_param
-    contains a ref_ token. This is a fallback / double-safety so referrals are
-    captured even when the bot /start handler is missed (e.g. user already has
-    a chat with the bot and Telegram does not re-fire /start).
+    contains a ref_ token. Captures referrals even when the bot /start handler
+    was missed (user already has a chat with the bot).
+    Accepts both "ref_123" and plain "123" formats.
     """
     data        = await request.json()
     new_user_id = data.get("user_id")
-    ref_param   = str(data.get("ref_param") or "")
+    ref_param   = str(data.get("ref_param") or "").strip()
     first_name  = str(data.get("first_name") or "")
     username    = str(data.get("username") or "")
 
@@ -2155,21 +2122,19 @@ async def api_referral_bind(request: Request):
 
     # Accept both "ref_123" and plain "123"
     referrer_id: int | None = None
-    if ref_param.startswith("ref_"):
+    raw = ref_param
+    if raw.startswith("ref_"):
+        raw = raw[4:]
+    if raw:
         try:
-            referrer_id = int(ref_param[4:])
-        except ValueError:
-            pass
-    else:
-        try:
-            referrer_id = int(ref_param)
+            referrer_id = int(raw)
         except ValueError:
             pass
 
     if not referrer_id or referrer_id == new_user_id:
         return {"bound": False, "reason": "invalid_ref"}
 
-    # Make sure new user exists in DB
+    # Make sure new user exists in DB before binding
     await get_or_create_player(new_user_id, username)
 
     bound = await _bind_referral(new_user_id, referrer_id, first_name or str(new_user_id))
