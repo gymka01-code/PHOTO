@@ -748,8 +748,17 @@ async function init(){
 
 async function loadPlayer(silent = false){
   try{
-    const r = await fetch(`${BASE}/api/player/${userId}?username=${encodeURIComponent(username)}`);
-    gameData = await r.json();
+    const r    = await fetch(`${BASE}/api/player/${userId}?username=${encodeURIComponent(username)}`);
+    const data = await r.json();
+    // If API returns 402 (subscription_required) or any error — do NOT overwrite gameData
+    // This prevents portfolio/referrals from going blank on a transient API error
+    if(!r.ok){
+      if(data.error === 'subscription_required'){
+        showSubGate(data);
+      }
+      return; // keep existing gameData intact
+    }
+    gameData = data;
     updateHeader(gameData.player);
     renderPortfolio();
     renderQuests();
@@ -758,6 +767,47 @@ async function loadPlayer(silent = false){
     renderVipBadge(gameData.vip_level);
     if(!silent) renderReferrals();
   }catch(e){ if(!silent) console.error(e); }
+}
+
+function showSubGate(data){
+  const ch  = (data.channels || []);
+  const url = ch.length ? ch[0].url : 'https://t.me/dsdfsdfawer';
+  const name = ch.length ? ch[0].name : 'PhotoFlip Community';
+  // Show a full-screen overlay instead of silently breaking the UI
+  let overlay = document.getElementById('sub-gate-overlay');
+  if(!overlay){
+    overlay = document.createElement('div');
+    overlay.id = 'sub-gate-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;background:#000;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px;text-align:center;gap:16px';
+    document.body.appendChild(overlay);
+  }
+  overlay.innerHTML = `
+    <div style="font-size:40px">📸</div>
+    <div style="font-size:18px;font-weight:700;color:#f1f5f9">Welcome to PhotoFlip</div>
+    <div style="font-size:14px;color:#94a3b8;max-width:280px">${data.message || 'Subscribe to our channel to access the app.'}</div>
+    <a href="${url}" target="_blank" style="margin-top:8px;padding:12px 24px;background:#3b82f6;color:#fff;border-radius:10px;font-weight:600;font-size:14px;text-decoration:none">📢 Subscribe to ${name}</a>
+    <button onclick="recheckSub()" style="padding:10px 20px;background:#1e1e1e;border:1px solid rgba(255,255,255,0.12);color:#94a3b8;border-radius:10px;font-size:13px;font-weight:600">✅ I've Subscribed — Check</button>
+  `;
+}
+
+async function recheckSub(){
+  const btn = document.querySelector('#sub-gate-overlay button');
+  if(btn) btn.textContent = 'Checking…';
+  const r = await fetch(`${BASE}/api/player/${userId}?username=${encodeURIComponent(username)}`).catch(()=>null);
+  if(!r || !r.ok){ if(btn) btn.textContent = '✅ I've Subscribed — Check'; return; }
+  const data = await r.json();
+  if(data.error){ if(btn) btn.textContent = '✅ I've Subscribed — Check'; return; }
+  // Subscribed! Remove overlay and load
+  const ov = document.getElementById('sub-gate-overlay');
+  if(ov) ov.remove();
+  gameData = data;
+  updateHeader(gameData.player);
+  renderPortfolio();
+  renderQuests();
+  updateUploadLock();
+  renderWithdrawPreviews();
+  renderVipBadge(gameData.vip_level);
+  renderReferrals();
 }
 
 /* ═══ HEADER / STATS ═══ */

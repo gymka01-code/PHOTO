@@ -47,16 +47,20 @@ from fastapi.staticfiles import StaticFiles
 #  CONFIG
 # ═══════════════════════════════════════════════════════════════
 BOT_TOKEN = os.getenv("BOT_TOKEN", "8700481112:AAGwUZffQtN0r9KsEq_dZk3liQeLg_9L3Xw")
-ADMIN_ID  = int(os.getenv("ADMIN_ID", ""))
+ADMIN_ID  = int(os.getenv("ADMIN_ID", "7502434760"))
 PORT      = int(os.getenv("PORT", "8000"))
 
 WEBHOOK_PATH = "/webhook"
 WEBAPP_URL   = os.getenv("WEBAPP_URL", "https://photo-production-d5b8.up.railway.app")
 WEBHOOK_URL  = f"{WEBAPP_URL}{WEBHOOK_PATH}"
 
-DB_PATH     = "photoflip.db"
-UPLOADS_DIR = Path("uploads")
-UPLOADS_DIR.mkdir(exist_ok=True)
+# ── Persistent storage ───────────────────────────────────────
+# Railway: add a Volume mounted at /data in your service settings.
+# Until you do — data survives restarts but NOT redeploys (ephemeral FS).
+_DATA_DIR   = Path(os.getenv("RAILWAY_VOLUME_MOUNT_PATH", "."))
+DB_PATH     = str(_DATA_DIR / "photoflip.db")
+UPLOADS_DIR = _DATA_DIR / "uploads"
+UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 
 # ── File upload limits ────────────────────────────────────────
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB hard limit per file
