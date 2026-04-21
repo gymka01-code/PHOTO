@@ -691,6 +691,9 @@ function toggleLang(){
   renderLiveFeed();
   updateUploadLock();
   renderWithdrawPreviews();
+  // Patch the cached player lang BEFORE calling updateHeader.
+  // Without this, updateHeader sees p.lang !== currentLang and reverts the language.
+  if(gameData?.player) gameData.player.lang = currentLang;
   if(gameData?.player) updateHeader(gameData.player);
 
   // Persist to server so bot also uses the right language

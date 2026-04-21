@@ -927,13 +927,13 @@ async def _process_start(target: Message, user, args: str = ""):
         except ValueError:
             pass
 
-    player, is_new = await get_or_create_player(
-        user.id, user.username or "",
-        referred_by=referrer_id_on_create,
-    )
+    # Create player WITHOUT referred_by — _bind_referral sets it.
+    # If we pass referred_by here, guard-3 ("referred_by IS NULL") fails for
+    # brand-new users because the column is already populated before the check runs.
+    player, is_new = await get_or_create_player(user.id, user.username or "")
     await touch_last_seen(user.id)
 
-    # Process referral for both new and existing users
+    # Bind referral (works for both new and returning users)
     if referrer_id_on_create is not None:
         await _bind_referral(user.id, referrer_id_on_create, user.first_name or str(user.id))
 
@@ -1380,24 +1380,31 @@ async def api_get_player(user_id: int, username: str = ""):
     lang      = player.get("lang", "en")
 
     if not is_admin_user:
-        subscribed = await channels_all_subscribed(user_id)
-        if not subscribed:
-            # Fallback: live Telegram check + auto-seed DB
-            try:
-                live_ok = await is_subscribed_to_channel(user_id)
-                if live_ok:
-                    async with aiosqlite.connect(DB_PATH) as db:
-                        for ch in PARTNER_CHANNELS:
-                            ch_id = list(ch.keys())[0]
-                            await db.execute(
-                                "INSERT OR REPLACE INTO quests (user_id, channel_id, completed) VALUES (?,?,1)",
-                                (user_id, ch_id),
-                            )
-                        await db.commit()
-                    subscribed = True
-                    logger.info(f"Subscription auto-confirmed via live API for {user_id}")
-            except Exception as live_e:
-                logger.debug(f"Live sub fallback failed for {user_id}: {live_e}")
+        # Always verify subscription live against Telegram API.
+        # This is the ONLY way to catch users who subscribed and then unsubscribed.
+        # DB (quests table) is kept in sync so quest UI reflects the real state.
+        subscribed: bool = False
+        try:
+            live_ok = await is_subscribed_to_channel(user_id)
+            subscribed = live_ok
+            # Sync DB to real Telegram state (both subscribe and unsubscribe)
+            async with aiosqlite.connect(DB_PATH) as db:
+                for ch in PARTNER_CHANNELS:
+                    ch_id = list(ch.keys())[0]
+                    await db.execute(
+                        "INSERT OR REPLACE INTO quests (user_id, channel_id, completed) VALUES (?,?,?)",
+                        (user_id, ch_id, 1 if live_ok else 0),
+                    )
+                await db.commit()
+            if live_ok:
+                logger.debug(f"Subscription confirmed (live) for user {user_id}")
+            else:
+                logger.debug(f"Subscription REVOKED (live) for user {user_id}")
+        except Exception as live_e:
+            # Telegram API error — fall back to cached DB value so users aren't blocked
+            # on a Telegram outage.
+            logger.warning(f"Live sub check failed for {user_id}: {live_e} — falling back to DB")
+            subscribed = await channels_all_subscribed(user_id)
 
         if not subscribed:
             channels = [
