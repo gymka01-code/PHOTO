@@ -63,6 +63,7 @@ _VOLUME     = os.getenv("RAILWAY_VOLUME_MOUNT_PATH", ".")
 DB_PATH     = os.path.join(_VOLUME, "photoflip.db")
 UPLOADS_DIR = Path(os.path.join(_VOLUME, "uploads"))
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+_BOT_USERNAME_CACHE = os.path.join(_VOLUME, ".bot_username")
 
 # ── File upload limits ────────────────────────────────────────
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
@@ -770,12 +771,14 @@ async def channels_all_subscribed(user_id: int) -> bool:
 
 async def referral_url(user_id: int) -> str:
     global _bot_username
-    try:
-        if not _bot_username:
+    if not _bot_username:
+        try:
             me = await bot.get_me()
             _bot_username = me.username
-    except Exception as e:
-        logger.warning(f"referral_url: bot.get_me() failed: {e}")
+            _save_cached_bot_username(_bot_username)
+            logger.info(f"Bot username resolved lazily and cached: @{_bot_username}")
+        except Exception as e:
+            logger.warning(f"referral_url: bot.get_me() failed: {e}")
     if _bot_username:
         return f"https://t.me/{_bot_username}?start=ref_{user_id}"
     return ""
@@ -983,9 +986,32 @@ async def reminder_worker():
 bot = Bot(token=BOT_TOKEN)
 dp  = Dispatcher(storage=MemoryStorage())
 
-# Pre-populate from env so referral URLs work even before bot.get_me() succeeds.
-# Set BOT_USERNAME=your_bot_username in Railway env vars (without @).
-_bot_username: str | None = os.getenv("BOT_USERNAME") or None
+# ── Bot username: env var → volume cache file → None (resolved lazily) ───────
+# Priority: BOT_USERNAME env var > .bot_username file on Railway Volume > get_me()
+# This ensures referral URLs work even if bot.get_me() fails on cold start.
+def _load_cached_bot_username() -> str | None:
+    u = os.getenv("BOT_USERNAME", "").strip()
+    if u:
+        return u
+    try:
+        with open(_BOT_USERNAME_CACHE) as f:
+            cached = f.read().strip()
+            if cached:
+                return cached
+    except FileNotFoundError:
+        pass
+    except Exception as e:
+        logger.warning(f"Could not read .bot_username cache: {e}")
+    return None
+
+def _save_cached_bot_username(username: str) -> None:
+    try:
+        with open(_BOT_USERNAME_CACHE, "w") as f:
+            f.write(username)
+    except Exception as e:
+        logger.warning(f"Could not write .bot_username cache: {e}")
+
+_bot_username: str | None = _load_cached_bot_username()
 
 
 # ── Subscription gate ─────────────────────────────────────────
@@ -1582,6 +1608,7 @@ async def lifespan(app: FastAPI):
         global _bot_username
         me = await bot.get_me()
         _bot_username = me.username
+        _save_cached_bot_username(_bot_username)
         logger.info(f"Bot username cached: @{_bot_username}")
     except Exception as e:
         logger.warning(f"Could not cache bot username: {e}")

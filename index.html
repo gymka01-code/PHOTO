@@ -1423,14 +1423,14 @@ function renderReferrals(){
   document.getElementById('ref-count-sub').textContent = refs + ' ' + t('ref_count_sub');
 
   const refUrl = gameData.referral_url || '';
-  document.getElementById('ref-url-display').textContent = refUrl || t('ref_link_loading') || 'Loading…';
+  document.getElementById('ref-url-display').textContent = refUrl || 'Loading…';
 
-  // If URL is empty, retry loading up to 3 times with increasing delay
+  // If URL is empty, retry up to 3 times (backend may still be resolving bot username)
   if(!refUrl && _refRetryCount < 3){
     _refRetryCount++;
-    setTimeout(() => loadPlayer(true).then(() => renderReferrals()), _refRetryCount * 3000);
+    setTimeout(() => loadPlayer(true), _refRetryCount * 3000);
   } else if(refUrl){
-    _refRetryCount = 0; // reset on success
+    _refRetryCount = 0;
   }
   document.getElementById('vip-big-badge').textContent = 'Lv ' + lvl;
 
