@@ -774,9 +774,11 @@ async def referral_url(user_id: int) -> str:
         if not _bot_username:
             me = await bot.get_me()
             _bot_username = me.username
+    except Exception as e:
+        logger.warning(f"referral_url: bot.get_me() failed: {e}")
+    if _bot_username:
         return f"https://t.me/{_bot_username}?start=ref_{user_id}"
-    except Exception:
-        return ""
+    return ""
 
 
 async def get_all_user_ids() -> list[int]:
@@ -981,7 +983,9 @@ async def reminder_worker():
 bot = Bot(token=BOT_TOKEN)
 dp  = Dispatcher(storage=MemoryStorage())
 
-_bot_username: str | None = None
+# Pre-populate from env so referral URLs work even before bot.get_me() succeeds.
+# Set BOT_USERNAME=your_bot_username in Railway env vars (without @).
+_bot_username: str | None = os.getenv("BOT_USERNAME") or None
 
 
 # ── Subscription gate ─────────────────────────────────────────
