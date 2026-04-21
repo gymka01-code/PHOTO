@@ -469,7 +469,7 @@ async def get_player_photos(user_id: int, lang: str = "en") -> list:
     result = []
     for r in rows:
         p = dict(r)
-        p.pop("sell_at", None)
+        # sell_at intentionally kept — frontend countdown timer needs it
         if p.get("status") == "on_auction":
             p["status_label"] = tr(lang, "status_auction")
         result.append(p)
@@ -563,9 +563,12 @@ async def channels_all_subscribed(user_id: int) -> bool:
 
 
 async def referral_url(user_id: int) -> str:
+    global _bot_username
     try:
-        me = await bot.get_me()
-        return f"https://t.me/{me.username}?start=ref_{user_id}"
+        if not _bot_username:
+            me = await bot.get_me()
+            _bot_username = me.username
+        return f"https://t.me/{_bot_username}?start=ref_{user_id}"
     except Exception:
         return ""
 
@@ -680,6 +683,9 @@ async def reminder_worker():
 
 bot = Bot(token=BOT_TOKEN)
 dp  = Dispatcher()
+
+# Cached bot username — populated at startup, avoids get_me() on every referral_url() call
+_bot_username: str | None = None
 
 
 # ── Subscription gate helper ──────────────────────────────────
@@ -1194,6 +1200,15 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"Webhook registration failed: {e}")
 
+    # Pre-warm bot username cache so first referral_url() call is instant
+    try:
+        global _bot_username
+        me = await bot.get_me()
+        _bot_username = me.username
+        logger.info(f"Bot username cached: @{_bot_username}")
+    except Exception as e:
+        logger.warning(f"Could not cache bot username: {e}")
+
     t1 = asyncio.create_task(auction_worker())
     t2 = asyncio.create_task(reminder_worker())
 
@@ -1262,46 +1277,44 @@ async def api_feed():
 @app.get("/api/player/{user_id}")
 async def api_get_player(user_id: int, username: str = ""):
     """
-    WebApp entry point. Checks mandatory subscription before returning player data.
-    Admin always bypasses the subscription gate (avoids broken UI on admin account).
-    Regular users that are not subscribed get 402 with channel info.
+    WebApp entry point.
+    Subscription is checked via the DB (quests table) — NOT via a live Telegram API call.
+    Live Telegram calls happen only in /api/quest/complete (where user actively verifies).
+    This avoids gameData corruption on every 30-second poll due to transient Telegram API errors.
+    Admin always bypasses the subscription gate.
     """
-    # Admin always bypasses subscription gate
     is_admin = (user_id == ADMIN_ID)
 
-    # Mandatory subscription check for WebApp access (skip for admin)
+    # Create/fetch player first so we always have lang for error messages
+    player, _ = await get_or_create_player(user_id, username)
+    lang      = player.get("lang", "en")
+
+    # Subscription gate — DB check only, no live Telegram call here
     if not is_admin:
-        subscribed = await is_subscribed_to_channel(user_id)
-    else:
-        subscribed = True
+        subscribed = await channels_all_subscribed(user_id)
+        if not subscribed:
+            channels = [
+                {"id": list(ch.keys())[0], "url": ch.get("url", ""), "name": ch.get("name", "")}
+                for ch in PARTNER_CHANNELS
+            ]
+            msg = tr(lang, "sub_required_ru") if lang == "ru" else tr(lang, "sub_required_en")
+            return JSONResponse(
+                status_code=402,
+                content={
+                    "error":            "subscription_required",
+                    "channels":         channels,
+                    "message":          msg,
+                    "required_channel": REQUIRED_CHANNEL_URL,
+                },
+            )
 
-    if not subscribed:
-        player = await get_player(user_id)
-        lang   = (player or {}).get("lang", "en")
-        channels = [
-            {"id": list(ch.keys())[0], "url": ch.get("url", ""), "name": ch.get("name", "")}
-            for ch in PARTNER_CHANNELS
-        ]
-        msg = tr(lang, "sub_required_ru") if lang == "ru" else tr(lang, "sub_required_en")
-        return JSONResponse(
-            status_code=402,
-            content={
-                "error":              "subscription_required",
-                "channels":           channels,
-                "message":            msg,
-                "required_channel":   REQUIRED_CHANNEL_URL,
-            },
-        )
-
-    player, _  = await get_or_create_player(user_id, username)
-    lang       = player.get("lang", "en")
-    photos     = await get_player_photos(user_id, lang)
-    quests     = await get_quest_status(user_id)
-    ref_count  = player.get("referrals_count", 0)
-    lvl        = vip_level(ref_count)
-    slots      = vip_slot_limit(ref_count)
-    active     = await get_active_photo_count(user_id)
-    ref        = await referral_url(user_id)
+    photos    = await get_player_photos(user_id, lang)
+    quests    = await get_quest_status(user_id)
+    ref_count = player.get("referrals_count", 0)
+    lvl       = vip_level(ref_count)
+    slots     = vip_slot_limit(ref_count)
+    active    = await get_active_photo_count(user_id)
+    ref       = await referral_url(user_id)
     await touch_last_seen(user_id)
 
     return {
