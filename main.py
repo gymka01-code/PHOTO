@@ -975,6 +975,22 @@ async def cb_check_sub(cb: CallbackQuery):
             "❌ You haven't subscribed yet! Join the channel first.", show_alert=True
         )
         return
+
+    # ── FIX: persist subscription to quests table so WebApp also unlocks ──
+    # Without this, WebApp's channels_all_subscribed() stays False forever
+    # because api_get_player checks the DB, not Telegram API directly.
+    user_id = cb.from_user.id
+    async with aiosqlite.connect(DB_PATH) as db:
+        for ch in PARTNER_CHANNELS:
+            channel_id = list(ch.keys())[0]
+            await db.execute(
+                "INSERT OR REPLACE INTO quests (user_id, channel_id, completed) VALUES (?,?,1)",
+                (user_id, channel_id),
+            )
+        await db.commit()
+    logger.info(f"Quest records seeded for user {user_id} via bot subscription gate")
+    # ──────────────────────────────────────────────────────────────────────
+
     await cb.answer("✅ Subscription confirmed!")
     try:
         await cb.message.delete()
@@ -1293,9 +1309,34 @@ async def api_get_player(user_id: int, username: str = ""):
     player, _ = await get_or_create_player(user_id, username)
     lang      = player.get("lang", "en")
 
-    # Subscription gate — DB check only, no live Telegram call here
+    # Subscription gate — DB check first; live Telegram fallback only when DB says no.
+    # This means the 30-second polling never hits Telegram API (avoiding transient errors),
+    # but a user who subscribed via Telegram (not through the WebApp "quest" button)
+    # will still get through on their first visit.
     if not is_admin:
         subscribed = await channels_all_subscribed(user_id)
+        if not subscribed:
+            # ── Fallback: one-time live Telegram check ───────────────────
+            # Covers the case where the user subscribed via the bot (cb_check_sub)
+            # but the quest record wasn't written (e.g. old bot version), or
+            # the user subscribed directly in Telegram without going through the bot.
+            try:
+                live_ok = await is_subscribed_to_channel(user_id)
+                if live_ok:
+                    async with aiosqlite.connect(DB_PATH) as db:
+                        for ch in PARTNER_CHANNELS:
+                            ch_id = list(ch.keys())[0]
+                            await db.execute(
+                                "INSERT OR REPLACE INTO quests (user_id, channel_id, completed) VALUES (?,?,1)",
+                                (user_id, ch_id),
+                            )
+                        await db.commit()
+                    subscribed = True
+                    logger.info(f"Subscription auto-confirmed via live Telegram API for user {user_id}")
+            except Exception as live_e:
+                logger.debug(f"Live subscription fallback failed for {user_id}: {live_e}")
+            # ─────────────────────────────────────────────────────────────
+
         if not subscribed:
             channels = [
                 {"id": list(ch.keys())[0], "url": ch.get("url", ""), "name": ch.get("name", "")}

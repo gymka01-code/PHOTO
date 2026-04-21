@@ -724,6 +724,7 @@ let pendingUploadResult = null;
 let withdrawTab = 'usd';
 let supportMsgsLoaded = false, lastSupportMsgId = 0;
 let lastSoldCount = 0;
+let _subGateChannelIds = []; // channel IDs from last 402 response — used by recheckSub
 
 const VIP_TIERS = [
   {min:0,  max_delay:3600, slots:5},
@@ -771,35 +772,98 @@ async function loadPlayer(silent = false){
 
 function showSubGate(data){
   const ch  = (data.channels || []);
-  const url = ch.length ? ch[0].url : 'https://t.me/dsdfsdfawer';
+  _subGateChannelIds = ch.map(c => c.id).filter(Boolean);  // store for recheckSub
+  window._lastSubGateData = data;                           // store for lang toggle re-render
+
+  const url  = ch.length ? ch[0].url  : 'https://t.me/dsdfsdfawer';
   const name = ch.length ? ch[0].name : 'PhotoFlip Community';
-  // Show a full-screen overlay instead of silently breaking the UI
+
+  // Localised strings (so the lang toggle button inside the overlay works)
+  const isRu       = currentLang === 'ru';
+  const welcomeHdr = isRu ? 'Добро пожаловать в PhotoFlip' : 'Welcome to PhotoFlip';
+  const subText    = isRu
+    ? 'Подпишитесь на наш канал для доступа к PhotoFlip.'
+    : (data.message || 'Subscribe to our channel to access the app.');
+  const joinLabel  = isRu ? `📢 Подписаться на ${name}` : `📢 Subscribe to ${name}`;
+  const checkLabel = isRu ? '✅ Я подписался — Проверить' : "✅ I've Subscribed — Check";
+  const langLabel  = isRu ? 'EN' : 'RU';
+
   let overlay = document.getElementById('sub-gate-overlay');
   if(!overlay){
     overlay = document.createElement('div');
     overlay.id = 'sub-gate-overlay';
-    overlay.style.cssText = 'position:fixed;inset:0;background:#000;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px;text-align:center;gap:16px';
     document.body.appendChild(overlay);
   }
+  // position:relative so the lang button can be absolutely placed inside
+  overlay.style.cssText = 'position:fixed;inset:0;background:#000;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px;text-align:center;gap:16px';
+
   overlay.innerHTML = `
+    <button
+      onclick="toggleSubGateLang()"
+      style="position:absolute;top:16px;right:16px;background:#1e1e1e;border:1px solid rgba(255,255,255,0.12);color:#94a3b8;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:600;cursor:pointer"
+    >${langLabel}</button>
     <div style="font-size:40px">📸</div>
-    <div style="font-size:18px;font-weight:700;color:#f1f5f9">Welcome to PhotoFlip</div>
-    <div style="font-size:14px;color:#94a3b8;max-width:280px">${data.message || 'Subscribe to our channel to access the app.'}</div>
-    <a href="${url}" target="_blank" style="margin-top:8px;padding:12px 24px;background:#3b82f6;color:#fff;border-radius:10px;font-weight:600;font-size:14px;text-decoration:none">📢 Subscribe to ${name}</a>
-    <button onclick="recheckSub()" style="padding:10px 20px;background:#1e1e1e;border:1px solid rgba(255,255,255,0.12);color:#94a3b8;border-radius:10px;font-size:13px;font-weight:600">✅ I've Subscribed — Check</button>
+    <div style="font-size:18px;font-weight:700;color:#f1f5f9">${welcomeHdr}</div>
+    <div style="font-size:14px;color:#94a3b8;max-width:280px">${subText}</div>
+    <a href="${url}" target="_blank"
+      style="margin-top:8px;padding:12px 24px;background:#3b82f6;color:#fff;border-radius:10px;font-weight:600;font-size:14px;text-decoration:none"
+    >${joinLabel}</a>
+    <button id="sub-gate-check-btn"
+      onclick="recheckSub()"
+      style="padding:10px 20px;background:#1e1e1e;border:1px solid rgba(255,255,255,0.12);color:#94a3b8;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer"
+    >${checkLabel}</button>
   `;
 }
 
+function toggleSubGateLang(){
+  currentLang = currentLang === 'en' ? 'ru' : 'en';
+  applyTranslations();
+  // Re-render overlay with new language (data is still the same 402 payload)
+  if(window._lastSubGateData) showSubGate(window._lastSubGateData);
+}
+
 async function recheckSub(){
-  const btn = document.querySelector('#sub-gate-overlay button');
-  if(btn) btn.textContent = 'Checking…';
+  const btn = document.getElementById('sub-gate-check-btn');
+  const isRu = currentLang === 'ru';
+  if(btn) btn.textContent = isRu ? 'Проверяем…' : 'Checking…';
+
+  // ── FIX: register subscription in DB FIRST via /api/quest/complete ──────────
+  // Without this, api_get_player only checks the quests DB table, which is
+  // never populated → infinite 402 loop. quest/complete calls the Telegram API
+  // internally and writes to quests on success.
+  // The live-Telegram fallback in api_get_player is a second safety net.
+  for(const channelId of _subGateChannelIds){
+    try{
+      await fetch(`${BASE}/api/quest/complete`, {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ user_id: userId, channel_id: channelId }),
+      });
+      // 403 just means user hasn't joined yet — that's fine, we'll get a 402 below
+    }catch(e){}
+  }
+  // ────────────────────────────────────────────────────────────────────────────
+
   const r = await fetch(`${BASE}/api/player/${userId}?username=${encodeURIComponent(username)}`).catch(()=>null);
-  if(!r || !r.ok){ if(btn) btn.textContent = "✅ I've Subscribed — Check"; return; }
+  if(!r || !r.ok){
+    // Still not subscribed (or network error)
+    if(btn) btn.textContent = isRu ? '✅ Я подписался — Проверить' : "✅ I've Subscribed — Check";
+    if(r){
+      const d = await r.json().catch(() => ({}));
+      if(d?.error === 'subscription_required') showSubGate(d);
+    }
+    return;
+  }
   const data = await r.json();
-  if(data.error){ if(btn) btn.textContent = "✅ I've Subscribed — Check"; return; }
-  // Subscribed! Remove overlay and load
+  if(data.error){
+    if(btn) btn.textContent = isRu ? '✅ Я подписался — Проверить' : "✅ I've Subscribed — Check";
+    return;
+  }
+
+  // ✅ Subscribed — remove gate and load the app
   const ov = document.getElementById('sub-gate-overlay');
   if(ov) ov.remove();
+  window._lastSubGateData = null;
   gameData = data;
   updateHeader(gameData.player);
   renderPortfolio();
