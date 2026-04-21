@@ -794,9 +794,9 @@ async function recheckSub(){
   const btn = document.querySelector('#sub-gate-overlay button');
   if(btn) btn.textContent = 'Checking…';
   const r = await fetch(`${BASE}/api/player/${userId}?username=${encodeURIComponent(username)}`).catch(()=>null);
-  if(!r || !r.ok){ if(btn) btn.textContent = '✅ I've Subscribed — Check'; return; }
+  if(!r || !r.ok){ if(btn) btn.textContent = "✅ I've Subscribed — Check"; return; }
   const data = await r.json();
-  if(data.error){ if(btn) btn.textContent = '✅ I've Subscribed — Check'; return; }
+  if(data.error){ if(btn) btn.textContent = "✅ I've Subscribed — Check"; return; }
   // Subscribed! Remove overlay and load
   const ov = document.getElementById('sub-gate-overlay');
   if(ov) ov.remove();
