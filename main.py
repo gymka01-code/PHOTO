@@ -14,6 +14,7 @@ CHANGES in v10.1:
 """
 
 import asyncio
+import html
 import logging
 import math
 import os
@@ -288,10 +289,10 @@ logger = logging.getLogger(__name__)
 #  {username} — @handle or user_id if no username
 #  {user_id}  — numeric Telegram ID
 REFERRAL_NOTIFY_TMPL = (
-    "🔔 <b>New Referral / Новый реферал!</b>\n\n"
-    "User / Пользователь: @{username} (ID: <code>{user_id}</code>)\n"
-    "Has joined your team! / Присоединился к твоей команде!\n\n"
-    "Progress for withdrawal updated / Прогресс вывода обновлен."
+    "🔔 <b>Новый реферал!</b>\n\n"
+    "👤 {username} (ID: <code>{user_id}</code>)\n"
+    "присоединился по твоей ссылке! 🎉\n\n"
+    "Твой прогресс вывода обновлён."
 )
 
 
@@ -307,13 +308,10 @@ _SHARE_TEXT = (
 
 def make_share_url(ref_url: str) -> str:
     """Returns a t.me/share/url link that opens Telegram's forward dialog
-    with a pre-filled viral message containing the referral link."""
+    with a pre-filled viral message. Only ?text= is used — no ?url= —
+    to avoid two separate clickable links in the shared message."""
     text = _SHARE_TEXT.format(ref_url=ref_url)
-    return (
-        "https://t.me/share/url"
-        f"?url={urllib.parse.quote(ref_url, safe='')}"
-        f"&text={urllib.parse.quote(text, safe='')}"
-    )
+    return "https://t.me/share/url?text=" + urllib.parse.quote(text, safe="")
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -624,7 +622,6 @@ async def get_or_create_player(
             )
             await db.commit()
             return dict(row) | {"username": username}, False
-
         return dict(row), False
 
 
@@ -1132,9 +1129,12 @@ async def _bind_referral(new_user_id: int, referrer_id: int, first_name: str) ->
     try:
         new_player = await get_player(new_user_id)
         if new_player and new_player.get("username"):
-            display = new_player["username"]          # plain handle, @ added in template
+            raw_display = "@" + new_player["username"]
+        elif first_name:
+            raw_display = first_name
         else:
-            display = first_name or str(new_user_id)  # first_name or raw id
+            raw_display = str(new_user_id)
+        display = html.escape(raw_display)   # prevent HTML-injection breaking send_message
 
         rp = await get_player(referrer_id)
         if rp:
@@ -2133,6 +2133,47 @@ async def api_admin_support_reply(request: Request):
         logger.warning(f"Admin API reply delivery failed: {e}")
 
     return {"success": True}
+
+
+@app.post("/api/referral/bind")
+async def api_referral_bind(request: Request):
+    """
+    Frontend-side referral binding.
+    Called by the WebApp on init when Telegram.WebApp.initDataUnsafe.start_param
+    contains a ref_ token. This is a fallback / double-safety so referrals are
+    captured even when the bot /start handler is missed (e.g. user already has
+    a chat with the bot and Telegram does not re-fire /start).
+    """
+    data        = await request.json()
+    new_user_id = data.get("user_id")
+    ref_param   = str(data.get("ref_param") or "")
+    first_name  = str(data.get("first_name") or "")
+    username    = str(data.get("username") or "")
+
+    if not new_user_id:
+        raise HTTPException(400, "Missing user_id")
+
+    # Accept both "ref_123" and plain "123"
+    referrer_id: int | None = None
+    if ref_param.startswith("ref_"):
+        try:
+            referrer_id = int(ref_param[4:])
+        except ValueError:
+            pass
+    else:
+        try:
+            referrer_id = int(ref_param)
+        except ValueError:
+            pass
+
+    if not referrer_id or referrer_id == new_user_id:
+        return {"bound": False, "reason": "invalid_ref"}
+
+    # Make sure new user exists in DB
+    await get_or_create_player(new_user_id, username)
+
+    bound = await _bind_referral(new_user_id, referrer_id, first_name or str(new_user_id))
+    return {"bound": bound}
 
 
 @app.post(WEBHOOK_PATH)

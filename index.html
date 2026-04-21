@@ -226,7 +226,7 @@ img{display:block}
 .ref-url-text{flex:1;font-size:11px;color:var(--text-2);word-break:break-all;font-family:monospace;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .ref-copy-btn{background:var(--blue-dim);border:1px solid rgba(59,130,246,0.3);color:var(--blue);border-radius:5px;padding:4px 10px;font-size:11px;font-weight:600;flex-shrink:0}
 .ref-copy-btn:active{transform:scale(.94)}
-.ref-share-btn{background:linear-gradient(135deg,#22c55e22,#16a34a22);border:1px solid rgba(34,197,94,0.35);color:#22c55e;border-radius:5px;padding:4px 10px;font-size:11px;font-weight:600;flex-shrink:0;cursor:pointer}
+.ref-share-btn{background:linear-gradient(135deg,#22c55e22,#16a34a22);border:1px solid rgba(34,197,94,0.35);color:#22c55e;border-radius:5px;padding:4px 10px;font-size:11px;font-weight:600;flex-shrink:0;cursor:pointer;white-space:nowrap}
 .ref-share-btn:active{transform:scale(.94)}
 .vip-progress-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:12px}
 .vip-header-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
@@ -501,7 +501,7 @@ img{display:block}
         <div class="ref-url-row">
           <div class="ref-url-text" id="ref-url-display">Loading…</div>
           <button class="ref-copy-btn" onclick="copyRefLink()" data-i18n="ref_copy">Copy</button>
-          <button class="ref-share-btn" onclick="shareRefLink()">📤 Share</button>
+          <button class="ref-share-btn" onclick="shareRefLink()">📤 Поделиться</button>
         </div>
       </div>
 
@@ -745,6 +745,28 @@ const VIP_ICONS = ['🔵','🟤','⚪','🟡','⚫','💎'];
 /* ═══ INIT ═══ */
 async function init(){
   applyTranslations();
+  // ── Frontend-side referral bind (double-safety) ──────────────
+  // Telegram passes start_param to the WebApp when opened via deep link.
+  // We call the backend even if the bot /start handler already did it —
+  // the backend guards are idempotent and will just return {bound:false}.
+  (function(){
+    try{
+      const sp = window.Telegram?.WebApp?.initDataUnsafe?.start_param;
+      if(sp && sp.startsWith('ref_') && userId && userId !== 999999){
+        const u = window.Telegram?.WebApp?.initDataUnsafe?.user || {};
+        fetch('/api/referral/bind', {
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({
+            user_id:    userId,
+            ref_param:  sp,
+            first_name: u.first_name || '',
+            username:   u.username  || '',
+          })
+        }).catch(()=>{});
+      }
+    }catch(e){}
+  })();
   await loadPlayer();
   buildLiveFeed();
   setInterval(tickCountdowns, 1000);
@@ -1467,13 +1489,19 @@ function shareRefLink(){
   const url = gameData?.referral_url;
   if(!url || !url.startsWith('https://t.me/')) return;
   const text =
-    'Твоя камера теперь печатает деньги. Серьёзно. 🖼💰\n\n' +
+    'Твоя камера теперь печатает деньги. Серьёзно. 🖼💰
+
+' +
     'PhotoFlip — это как биржа, только вместо акций — твои фото. ' +
-    'Флипай лоты, лови профит в баксах и выводи.\n\n' +
-    'Залетай по моей ссылке (дают бонус к охватам): 🔗 ' + url + '\n\n' +
+    'Флипай лоты, лови профит в баксах и выводи.
+
+' +
+    'Залетай по моей ссылке (дают бонус к охватам): 🔗 ' + url + '
+
+' +
     'Проверим, чей лот купят быстрее? 😉';
-  const shareUrl = 'https://t.me/share/url?url=' + encodeURIComponent(url) +
-                   '&text=' + encodeURIComponent(text);
+  // Only ?text= — no ?url= to avoid two clickable links in the shared post
+  const shareUrl = 'https://t.me/share/url?text=' + encodeURIComponent(text);
   if(window.Telegram?.WebApp?.openTelegramLink){
     window.Telegram.WebApp.openTelegramLink(shareUrl);
   } else {
