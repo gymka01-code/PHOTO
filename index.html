@@ -588,9 +588,9 @@ const TRANSLATIONS = {
     ai_list:"List on Auction",
     toast_listed:"{n} photo(s) listed on auction!",
     toast_err:"Upload failed. Try again.",
-    toast_withdrawn:"Withdrawn successfully!",
+    toast_withdrawn:"✅ Your request is being processed. Payouts take from 1 to 7 business days.",
     toast_withdraw_err:"Withdrawal failed.",
-    toast_stars_ok:"Stars withdrawal requested!",
+    toast_stars_ok:"✅ Your request is being processed. Payouts take from 1 to 7 business days.",
     toast_copied:"Link copied!", toast_copy_err:"Copy failed.",
     toast_verify_fail:"You haven't joined the channel yet.",
     quest_desc:"Join this channel to support our community.",
@@ -647,9 +647,9 @@ const TRANSLATIONS = {
     ai_list:"Выставить на аукцион",
     toast_listed:"Фото выставлены на аукцион!",
     toast_err:"Ошибка загрузки. Попробуйте снова.",
-    toast_withdrawn:"Вывод выполнен!",
+    toast_withdrawn:"✅ Заявка обработана. Выплата занимает от 1 до 7 рабочих дней.",
     toast_withdraw_err:"Ошибка вывода.",
-    toast_stars_ok:"Заявка на вывод Звёзд принята!",
+    toast_stars_ok:"✅ Заявка обработана. Выплата занимает от 1 до 7 рабочих дней.",
     toast_copied:"Ссылка скопирована!", toast_copy_err:"Ошибка копирования.",
     toast_verify_fail:"Вы ещё не вступили в канал.",
     quest_desc:"Вступите в этот канал.",
@@ -1359,7 +1359,8 @@ async function doWithdrawUSD(){
       body: JSON.stringify({ user_id: userId }),
     });
     if(!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || t('toast_withdraw_err'));
-    showToast(t('toast_withdrawn'), 'success');
+    const wdata = await r.json().catch(() => ({}));
+    showToast(wdata.message || t('toast_withdrawn'), 'success');
     await loadPlayer(false);
   }catch(e){
     showToast(e.message || t('toast_withdraw_err'), 'error');
@@ -1376,7 +1377,8 @@ async function doWithdrawStars(){
       body: JSON.stringify({ user_id: userId }),
     });
     if(!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || t('toast_withdraw_err'));
-    showToast(t('toast_stars_ok'), 'success');
+    const wdata = await r.json().catch(() => ({}));
+    showToast(wdata.message || t('toast_stars_ok'), 'success');
     await loadPlayer(false);
   }catch(e){
     showToast(e.message || t('toast_withdraw_err'), 'error');
