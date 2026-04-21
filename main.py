@@ -1,17 +1,16 @@
 """
-PhotoFlip — Telegram Mini App Backend  v10.0
+PhotoFlip — Telegram Mini App Backend  v10.1
 FastAPI + Aiogram 3 + aiosqlite  |  Railway edition
 
-CHANGES in v10:
- - REMOVED referral monetary bonus ($0.50) — counter + notifications only
- - Bilingual (RU/EN) referral notification (fixed template, sent once in both langs)
- - Anti-Loss referral binding: ref_ID saved to DB BEFORE subscription check
- - Returning users with referred_by=NULL and 0 photos can be retroactively bound
- - API endpoints use live SELECT COUNT(*) FROM players WHERE referred_by=?
- - Admin reply (legacy): user_id lookup via admin_msg_map table (all admins supported)
- - forward_support_to_admins stores every admin's msg_id in admin_msg_map
- - Withdrawal response includes bilingual "1–7 business days" message
- - PORT from env; no hardcoded BOT_TOKEN; 10 MB upload limit
+CHANGES in v10.1:
+ - FIXED referral bind: notification uses real @username from DB, not first_name
+ - FIXED Guard logic: detailed logging so silent failures are visible in Railway logs
+ - Added make_share_url() — Telegram share button with pre-written viral message
+ - Referral panel shows: copyable link block + 📤 Share button
+ - Welcome message includes Share button alongside Open / Referrals
+ - Anti-Loss: ref_ID written to DB before subscription gate
+ - Bilingual notification (RU+EN in one message)
+ - No $0.50 bonus — counter only
 """
 
 import asyncio
@@ -19,6 +18,7 @@ import logging
 import math
 import os
 import random
+import urllib.parse
 import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
@@ -295,6 +295,27 @@ REFERRAL_NOTIFY_TMPL = (
 )
 
 
+# ── Viral share message & Telegram share URL ─────────────────
+_SHARE_TEXT = (
+    "Твоя камера теперь печатает деньги. Серьёзно. 🖼💰\n\n"
+    "PhotoFlip — это как биржа, только вместо акций — твои фото. "
+    "Флипай лоты, лови профит в баксах и выводи.\n\n"
+    "Залетай по моей ссылке (дают бонус к охватам): 🔗 {ref_url}\n\n"
+    "Проверим, чей лот купят быстрее? 😉"
+)
+
+
+def make_share_url(ref_url: str) -> str:
+    """Returns a t.me/share/url link that opens Telegram's forward dialog
+    with a pre-filled viral message containing the referral link."""
+    text = _SHARE_TEXT.format(ref_url=ref_url)
+    return (
+        "https://t.me/share/url"
+        f"?url={urllib.parse.quote(ref_url, safe='')}"
+        f"&text={urllib.parse.quote(text, safe='')}"
+    )
+
+
 # ═══════════════════════════════════════════════════════════════
 #  FSM STATES
 # ═══════════════════════════════════════════════════════════════
@@ -319,11 +340,13 @@ _T = {
         ),
         "btn_open":      "📸 Open PhotoFlip",
         "btn_referrals": "🤝 Referrals",
+        "btn_share":     "📤 Share & Invite",
         "referrals_msg": (
             "🤝 <b>Your referrals: {count}</b>\n\n"
-            "Share your link — each friend unlocks faster sales "
-            "and higher VIP level.\n\n"
-            "🔗 <code>{ref_url}</code>"
+            "Invite <b>{need}</b> more friend(s) to unlock withdrawal.\n\n"
+            "Share your link — each friend raises your VIP level.\n\n"
+            "🔗 Your referral link (tap to copy):\n"
+            "<code>{ref_url}</code>"
         ),
         "sold": (
             "✅ <b>Photo sold!</b>\n\n"
@@ -366,11 +389,13 @@ _T = {
         ),
         "btn_open":      "📸 Открыть PhotoFlip",
         "btn_referrals": "🤝 Рефералы",
+        "btn_share":     "📤 Поделиться ссылкой",
         "referrals_msg": (
-            "🤝 <b>Ваши рефералы: {count}</b>\n\n"
-            "Делитесь ссылкой — каждый друг ускоряет продажи "
-            "и повышает VIP-уровень.\n\n"
-            "🔗 <code>{ref_url}</code>"
+            "🤝 <b>Ваших рефералов: {count}</b>\n\n"
+            "Пригласите ещё <b>{need}</b> чел., чтобы разблокировать вывод.\n\n"
+            "Делитесь ссылкой — каждый друг повышает VIP-уровень.\n\n"
+            "🔗 Ваша реферальная ссылка (нажмите, чтобы скопировать):\n"
+            "<code>{ref_url}</code>"
         ),
         "sold": (
             "✅ <b>Ваше фото продано!</b>\n\n"
@@ -1007,59 +1032,76 @@ async def _bind_referral(new_user_id: int, referrer_id: int, first_name: str) ->
     Binds a referral. No monetary bonus — counter + bilingual notification only.
     Returns True if a new referral was successfully bound, False otherwise.
 
-    Guards:
+    Guards (each logs why it blocks so Railway logs show exactly what happened):
       1. referrer != new_user (no self-referral)
       2. referrer exists in DB
       3. new_user NOT already in referrals table
       4. new_user.referred_by IS NULL  (not yet bound)
       5. new_user has 0 photos (anti-abuse for retroactive binding)
     """
+    logger.info(
+        f"[REFERRAL] Attempt: new_user={new_user_id} referrer={referrer_id} name='{first_name}'"
+    )
+
     if referrer_id == new_user_id:
+        logger.info(f"[REFERRAL] Skip — self-referral (user {new_user_id})")
         return False
 
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
 
-        # Guard 1: referrer exists
+        # Guard 1: referrer must exist in players
         async with db.execute(
             "SELECT 1 FROM players WHERE user_id=?", (referrer_id,)
         ) as cur:
             if not await cur.fetchone():
-                logger.debug(f"Referrer {referrer_id} not found — skipping")
+                logger.warning(
+                    f"[REFERRAL] FAIL Guard-1: referrer {referrer_id} not in DB. "
+                    "They must /start the bot at least once."
+                )
                 return False
 
-        # Guard 2: not already counted
+        # Guard 2: new_user not already in referrals table
         async with db.execute(
             "SELECT 1 FROM referrals WHERE referred_id=?", (new_user_id,)
         ) as cur:
             if await cur.fetchone():
-                logger.debug(f"Referral already counted for {new_user_id}")
+                logger.info(
+                    f"[REFERRAL] Skip Guard-2: {new_user_id} already in referrals table"
+                )
                 return False
 
-        # Guard 3: new_user.referred_by must be NULL
+        # Guard 3: referred_by column must be NULL
         async with db.execute(
             "SELECT referred_by FROM players WHERE user_id=?", (new_user_id,)
         ) as cur:
-            row = await cur.fetchone()
-        if row is None or row["referred_by"] is not None:
-            logger.debug(
-                f"User {new_user_id} already has referred_by="
-                f"{row['referred_by'] if row else '?'}"
+            prow = await cur.fetchone()
+        if prow is None:
+            logger.warning(
+                f"[REFERRAL] FAIL Guard-3: {new_user_id} not in players "
+                "(get_or_create_player should have run first)"
+            )
+            return False
+        if prow["referred_by"] is not None:
+            logger.info(
+                f"[REFERRAL] Skip Guard-3: {new_user_id} already bound "
+                f"to referrer {prow['referred_by']}"
             )
             return False
 
-        # Guard 4: anti-abuse — must have 0 uploaded photos
+        # Guard 4: anti-abuse — 0 uploaded photos
         async with db.execute(
             "SELECT COUNT(*) AS cnt FROM photos WHERE user_id=?", (new_user_id,)
         ) as cur:
             cnt_row = await cur.fetchone()
-        if (cnt_row["cnt"] if cnt_row else 0) > 0:
-            logger.debug(
-                f"Anti-abuse: user {new_user_id} already has photos — referral blocked"
+        photo_cnt = cnt_row["cnt"] if cnt_row else 0
+        if photo_cnt > 0:
+            logger.info(
+                f"[REFERRAL] Skip Guard-4: {new_user_id} has {photo_cnt} photo(s) — anti-abuse"
             )
             return False
 
-        # All guards passed — bind
+        # ── All guards passed: commit the bind ───────────────
         await db.execute(
             "UPDATE players SET referred_by=? WHERE user_id=?",
             (referrer_id, new_user_id),
@@ -1068,29 +1110,41 @@ async def _bind_referral(new_user_id: int, referrer_id: int, first_name: str) ->
             "INSERT OR IGNORE INTO referrals (referrer_id, referred_id) VALUES (?,?)",
             (referrer_id, new_user_id),
         )
-        # Increment cached counter (no balance credit — counter only)
         await db.execute(
             "UPDATE players SET referrals_count=referrals_count+1 WHERE user_id=?",
             (referrer_id,),
         )
         await db.commit()
-        logger.info(f"Referral BOUND: user {new_user_id} → referrer {referrer_id}")
+        logger.info(
+            f"[REFERRAL] ✅ BOUND: {new_user_id} → referrer {referrer_id}"
+        )
 
-    # ── Bilingual notification to referrer ────────────────────
+    # ── Bilingual notification to referrer ───────────────────
+    # Use the stored @username if available; otherwise fall back to first_name
     try:
+        new_player = await get_player(new_user_id)
+        if new_player and new_player.get("username"):
+            display = new_player["username"]          # plain handle, @ added in template
+        else:
+            display = first_name or str(new_user_id)  # first_name or raw id
+
         rp = await get_player(referrer_id)
         if rp:
-            uname = first_name or str(new_user_id)
             await bot.send_message(
                 referrer_id,
-                REFERRAL_NOTIFY_TMPL.format(
-                    username=uname,
-                    user_id=new_user_id,
-                ),
+                REFERRAL_NOTIFY_TMPL.format(username=display, user_id=new_user_id),
                 parse_mode=ParseMode.HTML,
             )
+            logger.info(
+                f"[REFERRAL] Notification sent to {referrer_id} "
+                f"(new user @{display}/{new_user_id})"
+            )
+        else:
+            logger.warning(
+                f"[REFERRAL] Could not notify referrer {referrer_id} — player not found"
+            )
     except Exception as e:
-        logger.debug(f"Referral notify failed: {e}")
+        logger.warning(f"[REFERRAL] Notification to {referrer_id} FAILED: {e}")
 
     return True
 
@@ -1112,17 +1166,20 @@ async def _process_start(target: Message, user, args: str = ""):
     lvl       = vip_level(ref_count)
     slots     = vip_slot_limit(ref_count)
 
-    kb = InlineKeyboardMarkup(inline_keyboard=[
+    share_url = make_share_url(ref) if ref else None
+    share_btn = tr(lang, "btn_share")
+
+    rows = [
         [InlineKeyboardButton(text=tr(lang, "btn_open"), web_app=WebAppInfo(url=WEBAPP_URL))],
         [InlineKeyboardButton(text=tr(lang, "btn_referrals"), callback_data="show_referrals")],
-    ])
+    ]
+    if share_url:
+        rows.append([InlineKeyboardButton(text=share_btn, url=share_url)])
 
-    # Show a random market headline for returning users
-    is_new    = False
-    news_suffix = ""
-    if not is_new:
-        news_list   = MARKET_NEWS_RU if lang == "ru" else MARKET_NEWS_EN
-        news_suffix = f"\n\n{random.choice(news_list)}"
+    kb = InlineKeyboardMarkup(inline_keyboard=rows)
+
+    news_list   = MARKET_NEWS_RU if lang == "ru" else MARKET_NEWS_EN
+    news_suffix = f"\n\n{random.choice(news_list)}"
 
     await target.answer(
         tr(lang, "welcome",
@@ -1308,10 +1365,26 @@ async def cb_referrals(cb: CallbackQuery):
     player = await get_player(cb.from_user.id)
     lang   = (player or {}).get("lang", "en")
     ref    = await referral_url(cb.from_user.id)
-    count  = await get_referral_count(cb.from_user.id)   # live count
+    count  = await get_referral_count(cb.from_user.id)
+
+    need   = max(0, MIN_REFERRALS_WITHDRAW - count)
+    share_url = make_share_url(ref) if ref else None
+
+    rows = []
+    if share_url:
+        rows.append([
+            InlineKeyboardButton(
+                text=tr(lang, "btn_share"),
+                url=share_url,
+            )
+        ])
+
+    kb = InlineKeyboardMarkup(inline_keyboard=rows) if rows else None
+
     await cb.message.answer(
-        tr(lang, "referrals_msg", count=count, ref_url=ref),
+        tr(lang, "referrals_msg", count=count, ref_url=ref, need=need),
         parse_mode=ParseMode.HTML,
+        reply_markup=kb,
     )
 
 
