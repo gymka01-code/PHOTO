@@ -1489,13 +1489,16 @@ function shareRefLink(){
   const url = gameData?.referral_url;
   if(!url || !url.startsWith('https://t.me/')) return;
   const text =
-    'Твоя камера теперь печатает деньги. Серьёзно. 🖼💰\n\n' +
-    'PhotoFlip — это как биржа, только вместо акций — твои фото. ' +
-    'Флипай лоты, лови профит в баксах и выводи.\n\n' +
-    'Залетай по моей ссылке (дают бонус к охватам): 🔗 ' + url + '\n\n' +
+    'Твоя камера теперь печатает деньги. Серьезно. 🖼💰\n' +
+    'PhotoFlip — это как биржа, только вместо акций — твои фото. Флипай лоты, лови профит в баксах и выводи.\n' +
+    'Залетай по моей ссылке: 🔗 ' + url + '\n' +
     'Проверим, чей лот купят быстрее? 😉';
-  // Only ?text= — no ?url= to avoid two clickable links in the shared post
-  const shareUrl = 'https://t.me/share/url?text=' + encodeURIComponent(text);
+  const shareUrl = 'https://t.me/share/url?url=' + encodeURIComponent(url) + '&text=' + encodeURIComponent(
+    'Твоя камера теперь печатает деньги. Серьезно. 🖼💰\n' +
+    'PhotoFlip — это как биржа, только вместо акций — твои фото. Флипай лоты, лови профит в баксах и выводи.\n' +
+    'Залетай по моей ссылке: 🔗\n' +
+    'Проверим, чей лот купят быстрее? 😉'
+  );
   if(window.Telegram?.WebApp?.openTelegramLink){
     window.Telegram.WebApp.openTelegramLink(shareUrl);
   } else {
