@@ -1,16 +1,17 @@
 """
-PhotoFlip — Telegram Mini App Backend  v9.0
+PhotoFlip — Telegram Mini App Backend  v10.0
 FastAPI + Aiogram 3 + aiosqlite  |  Railway edition
 
-CHANGES in v9:
- - REMOVED daily bonus system entirely
- - FIXED referral links (simplified, robust, anti-abuse preserved)
- - Withdrawal response includes "1–7 business days" message
- - Subscription check in EVERY handler and callback (admins exempt)
- - Admin reply system: inline "💬 Reply" buttons + FSM workflow
- - Support messages forwarded to ALL admins simultaneously
- - Multiple admins: DB-based, /addadmin /removeadmin /admins commands
- - Only ADMIN_ID (super admin) can manage other admins
+CHANGES in v10:
+ - REMOVED referral monetary bonus ($0.50) — counter + notifications only
+ - Bilingual (RU/EN) referral notification (fixed template, sent once in both langs)
+ - Anti-Loss referral binding: ref_ID saved to DB BEFORE subscription check
+ - Returning users with referred_by=NULL and 0 photos can be retroactively bound
+ - API endpoints use live SELECT COUNT(*) FROM players WHERE referred_by=?
+ - Admin reply (legacy): user_id lookup via admin_msg_map table (all admins supported)
+ - forward_support_to_admins stores every admin's msg_id in admin_msg_map
+ - Withdrawal response includes bilingual "1–7 business days" message
+ - PORT from env; no hardcoded BOT_TOKEN; 10 MB upload limit
 """
 
 import asyncio
@@ -44,10 +45,10 @@ from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 
 # ═══════════════════════════════════════════════════════════════
-#  CONFIG
+#  CONFIG  — no defaults for secrets; use env vars only
 # ═══════════════════════════════════════════════════════════════
-BOT_TOKEN = os.getenv("BOT_TOKEN", "8700481112:AAGwUZffQtN0r9KsEq_dZk3liQeLg_9L3Xw")
-ADMIN_ID  = int(os.getenv("ADMIN_ID", "7502434760"))   # Super-admin (env)
+BOT_TOKEN = os.environ["BOT_TOKEN"]                          # REQUIRED — no fallback
+ADMIN_ID  = int(os.getenv("ADMIN_ID", "0"))                 # Super-admin user_id
 PORT      = int(os.getenv("PORT", "8000"))
 
 WEBHOOK_PATH = "/webhook"
@@ -95,10 +96,12 @@ REQUIRED_CHANNEL_URL  = "https://t.me/dsdfsdfawer"
 REQUIRED_CHANNEL_NAME = "PhotoFlip Community"
 
 FAKE_USERS = [
+    # --- Закрытые имена ---
     "u***r7", "a***2", "m***k9", "p***y4", "t***3", "j***8", "k***5", "s***1",
     "x***z2", "q***9", "r***m3", "b***6", "c***w5", "n***4", "f***h1", "d***7",
     "w***l8", "e***v3", "g***o6", "h***i2", "y***t5", "o***p1", "z***k4", "v***s9",
     "i***b3", "l***n7", "R***a8", "M***e2", "A***i6", "T***o4",
+    # --- Имена новые на англ ---
     "PhotoNinja_7", "SniperLens_3", "PixelHunter_2", "SnapMaster_5",
     "ArtClipper_9", "LensPro_4", "FrameKing_1", "ShotWizard_6",
     "GoldenHour_8", "NightShooter_3", "UrbanLens_5", "NatureSnap_7",
@@ -115,6 +118,127 @@ FAKE_USERS = [
     "DashaPro", "KirilPhoto", "ZoyaFlip", "TimurK", "LenaAuction",
     "FedorPix", "GalyaX", "BorisTrade", "ZinaPhoto", "YuraBest",
     "MilaFlip", "KostikPro", "NikaAuction", "Andrey777", "photo_ninja",
+    # --- Имена РФ ---
+    "Дмитрий Волков", "Артем Степанов", "Сергей Карпов", "Никита Миронов", "Максим Шульга",
+    "Данил Казаков", "Кирилл Федоров", "Андрей Волков", "Павел Дуров", "Михаил Завьялов",
+    "Рустам Кантемиров", "Антон Тарасов", "Илья Новиков", "Григорий Виноградов", "Станислав Маркелов",
+    "Денис Лебедев", "Влад Королев", "Роман Филатов", "Тимур Хасанов", "Артур Дзагоев",
+    "Евгений Пономарев", "Марат Бикмаев", "Руслан Гарипов", "Олег Тиньков", "Владимир Соколов",
+    "Александр Волков", "Дмитрий Козлов", "Артемий Павлов", "Сергей Филатов", "Никита Меньшов",
+    "Макс Шишкин", "Даня Кузнецов", "Кирилл Фролов", "Андрей Воронин", "Павел Терентьев",
+    "Михаил Зубов", "Руслан Кулик", "Антон Воронов", "Илья Семенов", "Григорий Абрамов",
+    "Стас Пьеха", "Денис Титов", "Влад Кашин", "Роман Измайлов", "Тимур Алиев",
+    "Артем Васильев", "Марат Сафин", "Руслан Гусейнов", "Олег Петров", "Вова Фадеев",
+    "Алексей Макаров", "Иван Носков", "Константин Воронин", "Юрий Поляков", "Николай Соболев",
+    "Жора Крыжовников", "Валерий Карпин", "Игнат Макаров", "Кондрат Тарасов", "Прохор Шаляпин",
+    "Савва Морозов", "Ефим Шифрин", "Аркадий Укупник", "Филипп Киркоров", "Степан Меньшиков",
+    "Тихон Дзядко", "Семен Слепаков", "Ярослав Дронов", "Петр Первый", "Гера Громов",
+    "Владислав Новиков", "Евгений Крид", "Станислав Поздняков", "Анатолий Вассерман", "Валентин Стрыкало",
+    "Валерий Меладзе", "Аркадий Новиков", "Геннадий Горин", "Борис Ельцин", "Леонид Якубович",
+    "Николай Басков", "Алексей Навальный", "Павел Воля", "Михаил Галустян", "Роман Абрамович",
+    "Иван Ургант", "Сергей Безруков", "Дмитрий Нагиев", "Андрей Малахов", "Константин Хабенский",
+    "Алена Водонаева", "Екатерина Варнава", "Дарья Клюкина", "Ольга Бузова", "Марина Федункив",
+    "Татьяна Навка", "Светлана Лобода", "Виктория Боня", "Юлия Зиверт", "Анастасия Ивлеева",
+    "Людмила Соколова", "Ирина Шейк", "Мария Шарапова", "Ксения Собчак", "Валерия Лукьянова",
+    "Софья Таюрская", "Маргарита Симоньян", "Анна Седокова", "Галина Юдашкина", "Зинаида Прокофьевна",
+    "Альбина Джанабаева", "Белла Ахмадулина", "Вера Брежнева", "Диана Гурцкая", "Ева Польна",
+    "Жанна Фриске", "Инна Чурикова", "Карина Кросс", "Лариса Гузеева", "Майя Плисецкая",
+    "Нина Добрев", "Оксана Самойлова", "Полина Гагарина", "Роза Сябитова", "Стелла Барановская",
+    "Тамара Гвердцители", "Ульяна Лоткова", "Фаина Раневская", "Кристина Асмус", "Эля Глызина",
+    "Яна Рудковская", "Борислав Козлов", "Владимир Путин", "Глеб Самойлов", "Данила Багров",
+    "Егор Летов", "Захар Прилепин", "Иван Грозный", "Кирилл Лавров", "Лев Толстой",
+    "Матвей Мельников", "Назар Бабаев", "Остап Бендер", "Потап Потапов", "Родион Раскольников",
+    "Сергей Есенин", "Тарас Бульба", "Устим Кармалюк", "Федор Достоевский", "Харитон Устинов",
+    # --- Имена Англ ---
+    "John Doe", "Mark Anthony", "Steve Parker", "Lucas Fisher", "Henry White",
+    "Sam Taylor", "Oliver Gold", "Jack Cash", "Thomas Vince", "William Pratt",
+    "Karl Marks", "Eric Finance", "David Scalp", "Kevin Moon", "Adam Top",
+    "Bob Marley", "Alex Pro", "Mike Ross", "Chris Low", "Ryan Blake",
+    "Nick Vujicic", "Jason Kidd", "Matt Stone", "Luke Perry", "Tomas Ford",
+    "Ben Jerry", "Paul Walker", "Dan Marvel", "Scott Green", "Leo Vinci",
+    "Oscar Isaac", "Felix Rover", "Hugo Boss", "Arthur Peak", "Harry Flash",
+    "George Bush", "Noah White", "Liam Moon", "Mason King", "Logan Vince",
+    "Ethan Hunt", "James Bond", "Jacob Fry", "Lucas Black", "Noah Grey",
+    "Will Smith", "James Vice", "Logan Paul", "Oliver Kahn", "Mason Scott",
+    "Seth Mac", "Toby Fox", "Finn Wolf", "Riley Page", "Cody King",
+    "Blake Stone", "Jake Moon", "Brody Flash", "Zane Vince", "Cole Pratt",
+    "Bryce King", "Grant Scott", "Trent Moon", "Jude Flash", "Miles Vince",
+    "Max Power", "Ace King", "Jax Stone", "Dash Moon", "Flint Flash",
+    "Emma Watson", "Olivia Moon", "Ava King", "Sophia Stone", "Isabella Flash",
+    "Mia Vince", "Charlotte Pratt", "Amelia Scott", "Harper Moon", "Evelyn Flash",
+    "Abigail Vince", "Emily Pratt", "Elizabeth Scott", "Mila Moon", "Ella Flash",
+    "Avery Vince", "Sofia Pratt", "Camila Scott", "Aria Moon", "Scarlett Flash",
+    "Victoria Vince", "Madison Pratt", "Luna Scott", "Grace Moon", "Chloe Flash",
+    "Penelope Vince", "Layla Pratt", "Riley Scott", "Zoey Moon", "Nora Flash",
+    "Lily Vince", "Eleanor Pratt", "Hannah Scott", "Lillian Moon", "Addison Flash",
+    "Aubrey Vince", "Ellie Pratt", "Stella Scott", "Natalie Moon", "Leah Flash",
+    "Hazel Vince", "Violet Pratt", "Aurora Scott", "Savannah Moon", "Audrey Flash",
+    "Brooklyn Vince", "Bella Scott", "Claire Moon", "Skylar Flash", "Lucy Vince",
+    "Paisley Pratt", "Everly Scott", "Anna Moon", "Caroline Flash", "Nova Vince",
+    "Genesis Pratt", "Emilia Scott", "Kennedy Moon", "Samantha Flash", "Maya Vince",
+    "Willow Pratt", "Kinsley Scott", "Naomi Moon", "Aaliyah Flash", "Elena Vince",
+    "Sarah Pratt", "Ariana Scott", "Allison Moon", "Gabriella Flash", "Alice Vince",
+    "Madelyn Pratt", "Cora Scott", "Ruby Moon", "Eva Flash", "Serenity Vince",
+    "Autumn Pratt", "Adeline Scott", "Hailey Moon", "Gianna Flash", "Valentina Vince",
+    # --- Реальные RU (Имя + Фамилия/Буква) ---
+    "dmitry_vlk", "artem_pavlov", "sergey.karpov", "nikita_mironov", "maxim_shulga",
+    "danil_kazakov", "kirill.fed", "andrey_volkov", "pavel_durov_fan", "mihail_zavyalov",
+    "rustam_kant", "anton_pro_trade", "ilya_novikov", "grigoriy_v", "stanislav_m",
+    "denis_lebedev", "vlad_korol", "roman_filatov", "timur_kh", "artur_dzagoev",
+    "evgeniy_p", "marat_bik", "ruslan_arbitrazh", "oleg_tinkoff_style", "vladimir_s",
+    # --- Женские RU ---
+    "alena_v_photo", "ekaterina_m", "darya_koshkina", "olga_invest", "marina_flip",
+    "tatyana_n", "svetlana_pro", "viktoria_trade", "yulia_gold", "anastasia_v",
+    # --- Крипто / Арбитражные ники ---
+    "crypto_king_77", "usdt_master", "p2p_shark", "arbitrage_pro", "solana_whale",
+    "dex_trader", "binance_top", "liquid_expert", "moon_catcher", "scalp_god",
+    "volume_maker", "trend_follower", "high_roi_guy", "bull_market_only", "fud_destroyer",
+    "whales_watch", "smart_money_flow", "grid_trader", "margin_king", "leverage_god",
+    "hodl_warrior", "satoshi_friend", "eth_maximalist", "defi_wizard", "nft_flipper_pro",
+    # --- Геймерские / Технические ---
+    "faceit_god", "aim_master_99", "fps_booster", "low_latency_man", "custom_pc_build",
+    "magnetic_switch", "wooting_enjoyer", "hall_effect_pro", "overclock_king", "setup_expert",
+    "fragger_top", "global_elite_trade", "skin_flipper", "steam_market_bot", "case_opener",
+    # --- Имена с цифрами ---
+    "alex_98", "ivan_2004", "mister_x_22", "user_4491", "lucky_man_7",
+    "boss_vlad", "the_one_999", "dark_side_00", "fast_money_1", "pro_flip_88",
+    "king_pavel", "super_mario_btc", "v_for_vendetta", "agent_007_pro", "neo_trader",
+    # --- Англоязычные / International ---
+    "john_crypto", "mark_arbitrage", "steven_pro", "lucas_flip", "henry_winner",
+    "sam_trade", "oliver_gold", "jack_cash", "thomas_v", "william_photo",
+    "karl_marks_invest", "eric_finance", "david_scalp", "kevin_m", "adam_top",
+    # --- Короткие / Скрытые ---
+    "a***m", "v***d", "s***y", "m***x", "r***n", "k***l", "d***s", "t***r",
+    "j***k", "l***o", "p***t", "q***e", "z***x", "b***s", "n***o",
+    # --- Комбинации для массы ---
+    "arbitrage_traff", "traffic_lord", "lead_gen_pro", "cpa_master", "fb_ads_king",
+    "google_ads_pro", "cloaking_expert", "proxy_master", "anti_detect_man", "farm_accs",
+    "shutter_king", "lens_master", "frame_pro", "pixel_perfect", "focus_shot",
+    "raw_expert", "iso_master", "aperture_pro", "bokeh_king", "flash_expert",
+    "digital_nomad", "laptop_lifestyle", "beach_trader", "dubai_investor", "bali_vibes",
+    "money_printer", "cash_flow_pro", "passive_income_guru", "rich_kid_99", "young_investor",
+    "gold_digger_pro", "diamond_hands", "paper_hands_killer", "fomo_victim", "no_risk_no_fun",
+    "all_in_boy", "safe_bet_pro", "kelly_criterion", "risk_manager", "portfolio_lead",
+    "vlad_arbitrazh", "dimon_p2p", "sanya_flip", "zheka_invest", "tolya_trade",
+    "yarik_pro", "kostya_master", "vovan_king", "andryukha_v", "pashok_trade",
+    "artem_flipper", "kirill_photo", "maks_usdt", "egor_crypto", "slava_pro",
+    "grisha_invest", "denis_trade", "stas_flip", "vanya_photo", "misha_master",
+    "roma_invest", "olezhka_pro", "vitelya_flip", "arkasha_trade", "petya_gold",
+    "gera_photo", "filya_invest", "boris_trade", "stepan_flip", "tikhon_pro",
+    "semen_master", "yura_invest", "kolya_trade", "zhora_flip", "valera_photo",
+    "ignat_invest", "kondrat_pro", "prokhor_flip", "savva_trade", "efim_gold",
+    "artem_vladimirovich", "sergey_alexandrovich", "dmitry_igorevich", "alex_sergeevich",
+    "vlad_andreevich", "pavel_maximovich", "ivan_denisovich", "denis_romanovich",
+    "nikita_pavlovich", "roman_vladislavovich", "kirill_artemovich", "maxim_nikitich",
+    "andrey_igorevich", "ilya_sergeevich", "stanislav_pavlovich", "anton_vladimirovich",
+    "grigoriy_alexandrovich", "mikhail_pashkov", "vladislav_novikov", "timur_arbitrazhnik",
+    "evgeniy_kravtsov", "ruslan_gimalov", "marat_safin_fan", "artur_pirirozhkov",
+    "denis_dorokhov_style", "vladimir_volfovich", "dmitry_steshin", "alex_venev",
+    "pavel_milyakov", "ivan_panteleev", "sergey_bezrukov_fan", "nikita_jigurda_pro",
+    "arbitrage_ninja", "traff_monster", "cpa_killer", "offer_master", "land_pro",
+    "preland_king", "creative_god", "spy_service_pro", "binom_expert", "keitaro_king",
+    "track_master", "api_expert", "postback_pro", "pixel_fb_king", "tiktok_ads_pro",
+    "youtube_shorts_master", "reels_king", "insta_traff", "tg_ads_pro", "vk_ads_expert",
 ]
 
 FEED_ACTIONS = [
@@ -159,6 +283,19 @@ logger = logging.getLogger(__name__)
 
 
 # ═══════════════════════════════════════════════════════════════
+#  REFERRAL NOTIFICATION TEMPLATE  (bilingual, sent once)
+# ═══════════════════════════════════════════════════════════════
+#  {username} — @handle or user_id if no username
+#  {user_id}  — numeric Telegram ID
+REFERRAL_NOTIFY_TMPL = (
+    "🔔 <b>New Referral / Новый реферал!</b>\n\n"
+    "User / Пользователь: @{username} (ID: <code>{user_id}</code>)\n"
+    "Has joined your team! / Присоединился к твоей команде!\n\n"
+    "Progress for withdrawal updated / Прогресс вывода обновлен."
+)
+
+
+# ═══════════════════════════════════════════════════════════════
 #  FSM STATES
 # ═══════════════════════════════════════════════════════════════
 
@@ -188,11 +325,6 @@ _T = {
             "and higher VIP level.\n\n"
             "🔗 <code>{ref_url}</code>"
         ),
-        "new_referral": (
-            "👥 <b>New referral!</b> {name} joined via your link.\n"
-            "Referrals: <b>{count}</b> · VIP Level: <b>{lvl}</b> · Slots: <b>{slots}</b>\n"
-            "💵 Bonus: <b>+$0.50</b> credited to your balance!"
-        ),
         "sold": (
             "✅ <b>Photo sold!</b>\n\n"
             "💴 Price: <b>{rub:,} ₽</b> → <b>${gross}</b>\n"
@@ -217,8 +349,9 @@ _T = {
         "broadcast_done":   "📣 Broadcast complete. Delivered: <b>{ok}</b> users.",
         "withdraw_processing": (
             "✅ Withdrawal requested!\n\n"
-            "Your request is being processed. "
-            "Payouts take from 1 to 7 business days."
+            "Your request is being processed.\n"
+            "Payouts take from 1 to 7 business days / "
+            "Выплаты занимают от 1 до 7 рабочих дней."
         ),
     },
     "ru": {
@@ -238,11 +371,6 @@ _T = {
             "Делитесь ссылкой — каждый друг ускоряет продажи "
             "и повышает VIP-уровень.\n\n"
             "🔗 <code>{ref_url}</code>"
-        ),
-        "new_referral": (
-            "👥 <b>Новый реферал!</b> {name} зарегистрировался по вашей ссылке.\n"
-            "Рефералов: <b>{count}</b> · VIP Уровень: <b>{lvl}</b> · Слотов: <b>{slots}</b>\n"
-            "💵 Бонус: <b>+$0.50</b> начислен на ваш баланс!"
         ),
         "sold": (
             "✅ <b>Ваше фото продано!</b>\n\n"
@@ -268,8 +396,9 @@ _T = {
         "broadcast_done":   "📣 Рассылка завершена. Доставлено: <b>{ok}</b> пользователей.",
         "withdraw_processing": (
             "✅ Заявка принята!\n\n"
-            "Заявка обработана. "
-            "Выплата занимает от 1 до 7 рабочих дней."
+            "Ваша заявка обрабатывается.\n"
+            "Payouts take from 1 to 7 business days / "
+            "Выплаты занимают от 1 до 7 рабочих дней."
         ),
     },
 }
@@ -335,7 +464,7 @@ async def init_db():
             "referred_by INTEGER",
             "lang TEXT DEFAULT 'en'",
             "last_seen TEXT DEFAULT (datetime('now'))",
-            "last_bonus TEXT DEFAULT NULL",   # keep for migration compat, unused
+            "last_bonus TEXT DEFAULT NULL",  # migration compat, unused
         ]:
             try:
                 await db.execute(f"ALTER TABLE players ADD COLUMN {col_def}")
@@ -395,6 +524,19 @@ async def init_db():
                 direction    TEXT,
                 admin_msg_id INTEGER,
                 created_at   TEXT DEFAULT (datetime('now'))
+            )
+        """)
+
+        # ── admin_msg_map ─────────────────────────────────────────
+        # Maps every admin's forwarded message_id to the originating user_id.
+        # Required so ALL admins (not just the super-admin) can use legacy reply.
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS admin_msg_map (
+                admin_msg_id INTEGER,
+                admin_id     INTEGER,
+                user_id      INTEGER,
+                created_at   TEXT DEFAULT (datetime('now')),
+                PRIMARY KEY (admin_msg_id, admin_id)
             )
         """)
 
@@ -502,6 +644,20 @@ async def get_total_photo_count(user_id: int) -> int:
     async with aiosqlite.connect(DB_PATH) as db:
         async with db.execute(
             "SELECT COUNT(*) FROM photos WHERE user_id=?", (user_id,)
+        ) as cur:
+            row = await cur.fetchone()
+        return row[0] if row else 0
+
+
+async def get_referral_count(user_id: int) -> int:
+    """
+    Live referral count — always computed from the source of truth:
+    SELECT COUNT(*) FROM players WHERE referred_by = user_id.
+    Used by all API endpoints exposed to the frontend.
+    """
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute(
+            "SELECT COUNT(*) FROM players WHERE referred_by=?", (user_id,)
         ) as cur:
             row = await cur.fetchone()
         return row[0] if row else 0
@@ -640,7 +796,9 @@ async def remove_admin(user_id: int) -> bool:
 async def list_admins() -> list[dict]:
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
-        async with db.execute("SELECT user_id, username, added_by, created_at FROM admins") as cur:
+        async with db.execute(
+            "SELECT user_id, username, added_by, created_at FROM admins"
+        ) as cur:
             rows = await cur.fetchall()
     return [dict(r) for r in rows]
 
@@ -652,7 +810,9 @@ async def forward_support_to_admins(
 ) -> int | None:
     """
     Sends the support message to every admin.
-    Returns the message_id sent to the *super* admin (for DB storage / legacy compat).
+    Stores each admin's message_id in admin_msg_map so the legacy Reply handler
+    works for ALL admins, not just the super-admin.
+    Returns the message_id sent to the super-admin (for legacy compat).
     """
     admin_ids = await get_admin_ids()
     primary_msg_id: int | None = None
@@ -665,20 +825,30 @@ async def forward_support_to_admins(
         )
     ]])
 
-    for aid in admin_ids:
-        try:
-            sent = await bot.send_message(
-                aid,
-                f"🎧 <b>Support — PhotoFlip</b>\n"
-                f"From: <code>{user_id}</code> (@{uname})\n\n{text}",
-                parse_mode=ParseMode.HTML,
-                reply_markup=kb,
-            )
-            if aid == ADMIN_ID:
-                primary_msg_id = sent.message_id
-            logger.info(f"Support ticket forwarded to admin {aid}, msg_id={sent.message_id}")
-        except Exception as e:
-            logger.error(f"Forward to admin {aid} failed: {e}")
+    async with aiosqlite.connect(DB_PATH) as db:
+        for aid in admin_ids:
+            try:
+                sent = await bot.send_message(
+                    aid,
+                    f"🎧 <b>Support — PhotoFlip</b>\n"
+                    f"From: <code>{user_id}</code> (@{uname})\n\n{text}",
+                    parse_mode=ParseMode.HTML,
+                    reply_markup=kb,
+                )
+                # Store mapping: this admin's message_id → originating user_id
+                await db.execute(
+                    "INSERT OR REPLACE INTO admin_msg_map "
+                    "(admin_msg_id, admin_id, user_id) VALUES (?,?,?)",
+                    (sent.message_id, aid, user_id),
+                )
+                if aid == ADMIN_ID:
+                    primary_msg_id = sent.message_id
+                logger.info(
+                    f"Support ticket forwarded to admin {aid}, msg_id={sent.message_id}"
+                )
+            except Exception as e:
+                logger.error(f"Forward to admin {aid} failed: {e}")
+        await db.commit()
 
     return primary_msg_id
 
@@ -699,11 +869,11 @@ async def auction_worker():
                     due = await cur.fetchall()
 
                 for photo in due:
-                    photo    = dict(photo)
-                    buyer    = random.choice(FAKE_USERS)
-                    sale_rub = photo.get("sale_rub") or random.randint(SINGLE_MIN_RUB, SINGLE_MAX_RUB)
-                    gross    = rub_to_usd(float(sale_rub))
-                    net      = apply_commission(gross)
+                    photo      = dict(photo)
+                    buyer      = random.choice(FAKE_USERS)
+                    sale_rub   = photo.get("sale_rub") or random.randint(SINGLE_MIN_RUB, SINGLE_MAX_RUB)
+                    gross      = rub_to_usd(float(sale_rub))
+                    net        = apply_commission(gross)
                     commission = round(gross - net, 2)
 
                     await db.execute(
@@ -762,7 +932,8 @@ async def reminder_worker():
                     )
                     async with aiosqlite.connect(DB_PATH) as db:
                         await db.execute(
-                            "UPDATE players SET last_seen=datetime('now') WHERE user_id=?", (uid,)
+                            "UPDATE players SET last_seen=datetime('now') WHERE user_id=?",
+                            (uid,),
                         )
                         await db.commit()
                 except Exception as e:
@@ -824,21 +995,24 @@ async def _send_sub_required(target: Message, args_str: str = ""):
     )
 
 
-# ── Referral logic ────────────────────────────────────────────
-
-REFERRAL_BONUS_USD = 0.50
+# ═══════════════════════════════════════════════════════════════
+#  REFERRAL LOGIC
+#  Key rule: referred_by is saved to DB *before* the subscription
+#  check so the inviter always gets their counter and notification
+#  even if the new user never completes the subscription gate.
+# ═══════════════════════════════════════════════════════════════
 
 async def _bind_referral(new_user_id: int, referrer_id: int, first_name: str) -> bool:
     """
-    Binds a referral and credits the referrer.
+    Binds a referral. No monetary bonus — counter + bilingual notification only.
     Returns True if a new referral was successfully bound, False otherwise.
 
     Guards:
       1. referrer != new_user (no self-referral)
       2. referrer exists in DB
-      3. new_user not already in referrals table
-      4. new_user.referred_by IS NULL
-      5. new_user has 0 photos uploaded (anti-abuse)
+      3. new_user NOT already in referrals table
+      4. new_user.referred_by IS NULL  (not yet bound)
+      5. new_user has 0 photos (anti-abuse for retroactive binding)
     """
     if referrer_id == new_user_id:
         return False
@@ -854,7 +1028,7 @@ async def _bind_referral(new_user_id: int, referrer_id: int, first_name: str) ->
                 logger.debug(f"Referrer {referrer_id} not found — skipping")
                 return False
 
-        # Guard 2: already counted
+        # Guard 2: not already counted
         async with db.execute(
             "SELECT 1 FROM referrals WHERE referred_id=?", (new_user_id,)
         ) as cur:
@@ -862,22 +1036,27 @@ async def _bind_referral(new_user_id: int, referrer_id: int, first_name: str) ->
                 logger.debug(f"Referral already counted for {new_user_id}")
                 return False
 
-        # Guard 3: already has a referrer
+        # Guard 3: new_user.referred_by must be NULL
         async with db.execute(
             "SELECT referred_by FROM players WHERE user_id=?", (new_user_id,)
         ) as cur:
             row = await cur.fetchone()
         if row is None or row["referred_by"] is not None:
-            logger.debug(f"User {new_user_id} already has referred_by={row['referred_by'] if row else '?'}")
+            logger.debug(
+                f"User {new_user_id} already has referred_by="
+                f"{row['referred_by'] if row else '?'}"
+            )
             return False
 
-        # Guard 4: anti-abuse — has not uploaded any photos yet
+        # Guard 4: anti-abuse — must have 0 uploaded photos
         async with db.execute(
             "SELECT COUNT(*) AS cnt FROM photos WHERE user_id=?", (new_user_id,)
         ) as cur:
             cnt_row = await cur.fetchone()
         if (cnt_row["cnt"] if cnt_row else 0) > 0:
-            logger.debug(f"Anti-abuse: user {new_user_id} already has photos — referral blocked")
+            logger.debug(
+                f"Anti-abuse: user {new_user_id} already has photos — referral blocked"
+            )
             return False
 
         # All guards passed — bind
@@ -889,25 +1068,25 @@ async def _bind_referral(new_user_id: int, referrer_id: int, first_name: str) ->
             "INSERT OR IGNORE INTO referrals (referrer_id, referred_id) VALUES (?,?)",
             (referrer_id, new_user_id),
         )
+        # Increment cached counter (no balance credit — counter only)
         await db.execute(
-            "UPDATE players SET referrals_count=referrals_count+1, "
-            "balance=balance+?, total_earned=total_earned+? WHERE user_id=?",
-            (REFERRAL_BONUS_USD, REFERRAL_BONUS_USD, referrer_id),
+            "UPDATE players SET referrals_count=referrals_count+1 WHERE user_id=?",
+            (referrer_id,),
         )
         await db.commit()
-        logger.info(f"Referral BOUND: user {new_user_id} → referrer {referrer_id}, +${REFERRAL_BONUS_USD}")
+        logger.info(f"Referral BOUND: user {new_user_id} → referrer {referrer_id}")
 
-    # Notify referrer
+    # ── Bilingual notification to referrer ────────────────────
     try:
         rp = await get_player(referrer_id)
         if rp:
-            rc    = rp.get("referrals_count", 0) + 1
-            rl    = vip_level(rc)
-            rs    = vip_slot_limit(rc)
-            rlang = rp.get("lang", "en")
+            uname = first_name or str(new_user_id)
             await bot.send_message(
                 referrer_id,
-                tr(rlang, "new_referral", name=first_name, count=rc, lvl=rl, slots=rs),
+                REFERRAL_NOTIFY_TMPL.format(
+                    username=uname,
+                    user_id=new_user_id,
+                ),
                 parse_mode=ParseMode.HTML,
             )
     except Exception as e:
@@ -917,37 +1096,29 @@ async def _bind_referral(new_user_id: int, referrer_id: int, first_name: str) ->
 
 
 async def _process_start(target: Message, user, args: str = ""):
-    """Send the main welcome menu. Called AFTER subscription is confirmed."""
-    referrer_id_on_create: int | None = None
-    if args and args.startswith("ref_"):
-        try:
-            rid = int(args[4:])
-            if rid != user.id:
-                referrer_id_on_create = rid
-        except ValueError:
-            pass
-
-    # Create player WITHOUT referred_by — _bind_referral sets it.
-    # If we pass referred_by here, guard-3 ("referred_by IS NULL") fails for
-    # brand-new users because the column is already populated before the check runs.
-    player, is_new = await get_or_create_player(user.id, user.username or "")
+    """
+    Send the main welcome menu.
+    Called AFTER subscription is confirmed.
+    Referral binding has already been done in cmd_start before this is called.
+    """
+    player, _ = await get_or_create_player(user.id, user.username or "")
     await touch_last_seen(user.id)
 
-    # Bind referral (works for both new and returning users)
-    if referrer_id_on_create is not None:
-        await _bind_referral(user.id, referrer_id_on_create, user.first_name or str(user.id))
-
-    player = await get_player(user.id)
-    lang   = player.get("lang", "en")
-    ref    = await referral_url(user.id)
-    lvl    = vip_level(player.get("referrals_count", 0))
-    slots  = vip_slot_limit(player.get("referrals_count", 0))
+    player    = await get_player(user.id)
+    lang      = player.get("lang", "en")
+    ref       = await referral_url(user.id)
+    # Use live count for VIP calculations
+    ref_count = await get_referral_count(user.id)
+    lvl       = vip_level(ref_count)
+    slots     = vip_slot_limit(ref_count)
 
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text=tr(lang, "btn_open"), web_app=WebAppInfo(url=WEBAPP_URL))],
         [InlineKeyboardButton(text=tr(lang, "btn_referrals"), callback_data="show_referrals")],
     ])
 
+    # Show a random market headline for returning users
+    is_new    = False
     news_suffix = ""
     if not is_new:
         news_list   = MARKET_NEWS_RU if lang == "ru" else MARKET_NEWS_EN
@@ -1043,10 +1214,33 @@ async def cmd_start(message: Message, command: CommandObject):
     args_str = command.args or ""
     logger.info(f"/start from {user.id}, args='{args_str}'")
 
+    # ── Step 1: Extract referrer ID ───────────────────────────
+    referrer_id: int | None = None
+    if args_str.startswith("ref_"):
+        try:
+            rid = int(args_str[4:])
+            if rid != user.id:
+                referrer_id = rid
+        except ValueError:
+            pass
+
+    # ── Step 2: Ensure player exists in DB ───────────────────
+    # Create record BEFORE subscription check so the referral bind
+    # works even if the user never completes subscription.
+    await get_or_create_player(user.id, user.username or "")
+
+    # ── Step 3: Bind referral (Anti-Loss) ────────────────────
+    # This runs before the subscription gate so the referrer always
+    # receives their notification and counter increment.
+    if referrer_id is not None:
+        await _bind_referral(user.id, referrer_id, user.first_name or str(user.id))
+
+    # ── Step 4: Subscription check ────────────────────────────
     if not await check_subscription(user.id):
         await _send_sub_required(message, args_str)
         return
 
+    # ── Step 5: Show welcome ──────────────────────────────────
     await _process_start(message, user, args_str)
 
 
@@ -1114,33 +1308,53 @@ async def cb_referrals(cb: CallbackQuery):
     player = await get_player(cb.from_user.id)
     lang   = (player or {}).get("lang", "en")
     ref    = await referral_url(cb.from_user.id)
-    count  = (player or {}).get("referrals_count", 0)
+    count  = await get_referral_count(cb.from_user.id)   # live count
     await cb.message.answer(
         tr(lang, "referrals_msg", count=count, ref_url=ref),
         parse_mode=ParseMode.HTML,
     )
 
 
-# ── Admin: Old-style reply (reply to a forwarded message) ────
-#   Kept as fallback alongside the new button system.
+# ── Admin: Legacy reply (plain Telegram reply to forwarded message) ──────────
+# An admin can reply to any forwarded support message by just hitting Reply
+# in Telegram. We look up the target user via admin_msg_map so ALL admins
+# (not just the super-admin) can use this flow.
 
 @dp.message(F.reply_to_message)
 async def admin_reply_legacy(message: Message):
-    """Legacy: admin replies to a forwarded support message in chat."""
+    """Legacy: admin replies by directly replying to a forwarded support message."""
     if not await is_admin(message.from_user.id):
         return
 
     replied_msg_id = message.reply_to_message.message_id
+    admin_id       = message.from_user.id
+
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
+
+        # Primary lookup: admin_msg_map (covers all admins)
         async with db.execute(
-            "SELECT user_id FROM support_messages WHERE admin_msg_id=? AND direction='in'",
-            (replied_msg_id,),
+            "SELECT user_id FROM admin_msg_map "
+            "WHERE admin_msg_id=? AND admin_id=?",
+            (replied_msg_id, admin_id),
         ) as cur:
             row = await cur.fetchone()
 
+        # Fallback: legacy support_messages table (for rows created before v10)
         if not row:
-            await message.reply("⚠️ No support ticket linked to this message.")
+            async with db.execute(
+                "SELECT user_id FROM support_messages "
+                "WHERE admin_msg_id=? AND direction='in'",
+                (replied_msg_id,),
+            ) as cur:
+                row = await cur.fetchone()
+
+        if not row:
+            await message.reply(
+                "⚠️ No support ticket linked to this message.\n"
+                "Use the inline <b>💬 Reply</b> button instead.",
+                parse_mode=ParseMode.HTML,
+            )
             return
 
         target_uid = row["user_id"]
@@ -1161,7 +1375,7 @@ async def admin_reply_legacy(message: Message):
             tr(lang, "support_reply", text=txt),
             parse_mode=ParseMode.HTML,
         )
-        logger.info(f"Legacy reply to user {target_uid}: {txt[:80]}")
+        logger.info(f"Legacy reply from admin {admin_id} to user {target_uid}: {txt[:80]}")
         await message.reply(
             f"✅ Reply delivered to <code>{target_uid}</code>",
             parse_mode=ParseMode.HTML,
@@ -1327,7 +1541,7 @@ async def lifespan(app: FastAPI):
         pass
 
 
-app = FastAPI(title="PhotoFlip API v9", lifespan=lifespan)
+app = FastAPI(title="PhotoFlip API v10", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -1380,14 +1594,10 @@ async def api_get_player(user_id: int, username: str = ""):
     lang      = player.get("lang", "en")
 
     if not is_admin_user:
-        # Always verify subscription live against Telegram API.
-        # This is the ONLY way to catch users who subscribed and then unsubscribed.
-        # DB (quests table) is kept in sync so quest UI reflects the real state.
         subscribed: bool = False
         try:
-            live_ok = await is_subscribed_to_channel(user_id)
+            live_ok    = await is_subscribed_to_channel(user_id)
             subscribed = live_ok
-            # Sync DB to real Telegram state (both subscribe and unsubscribe)
             async with aiosqlite.connect(DB_PATH) as db:
                 for ch in PARTNER_CHANNELS:
                     ch_id = list(ch.keys())[0]
@@ -1401,9 +1611,9 @@ async def api_get_player(user_id: int, username: str = ""):
             else:
                 logger.debug(f"Subscription REVOKED (live) for user {user_id}")
         except Exception as live_e:
-            # Telegram API error — fall back to cached DB value so users aren't blocked
-            # on a Telegram outage.
-            logger.warning(f"Live sub check failed for {user_id}: {live_e} — falling back to DB")
+            logger.warning(
+                f"Live sub check failed for {user_id}: {live_e} — falling back to DB"
+            )
             subscribed = await channels_all_subscribed(user_id)
 
         if not subscribed:
@@ -1424,12 +1634,16 @@ async def api_get_player(user_id: int, username: str = ""):
 
     photos    = await get_player_photos(user_id, lang)
     quests    = await get_quest_status(user_id)
-    ref_count = player.get("referrals_count", 0)
+    # Live referral count via COUNT(*) — this is the source of truth for the frontend
+    ref_count = await get_referral_count(user_id)
     lvl       = vip_level(ref_count)
     slots     = vip_slot_limit(ref_count)
     active    = await get_active_photo_count(user_id)
     ref       = await referral_url(user_id)
     await touch_last_seen(user_id)
+
+    # Inject live count into player dict so frontend gets the correct value
+    player["referrals_count"] = ref_count
 
     return {
         "player":                 player,
@@ -1464,14 +1678,21 @@ async def api_set_lang(user_id: int, request: Request):
 
 @app.get("/api/referrals/{user_id}")
 async def api_referrals(user_id: int):
+    """
+    Returns the referral list and live count.
+    Count is computed via SELECT COUNT(*) FROM players WHERE referred_by=?
+    so it always matches the actual DB state shown on the frontend withdrawal button.
+    """
     player = await get_player(user_id)
     if not player:
         raise HTTPException(404, "Player not found")
-    refs = await get_referral_list(user_id)
-    ref  = await referral_url(user_id)
+
+    refs  = await get_referral_list(user_id)
+    ref   = await referral_url(user_id)
+    count = await get_referral_count(user_id)  # Live COUNT(*)
     return {
         "referrals":       refs,
-        "referrals_count": player.get("referrals_count", 0),
+        "referrals_count": count,
         "referral_url":    ref,
     }
 
@@ -1497,11 +1718,11 @@ async def api_upload(
             raise HTTPException(
                 400,
                 f"File '{file.filename}' exceeds the 10 MB limit "
-                f"({len(raw) // (1024*1024):.1f} MB). Please compress it and retry.",
+                f"({len(raw) / (1024*1024):.1f} MB). Please compress it and retry.",
             )
         files_data.append((file.filename or "photo.jpg", raw))
 
-    ref_count  = player.get("referrals_count", 0)
+    ref_count  = await get_referral_count(user_id)
     slot_limit = vip_slot_limit(ref_count)
     active     = await get_active_photo_count(user_id)
     num_files  = len(files_data)
@@ -1514,7 +1735,7 @@ async def api_upload(
             f"You can upload {avail} more. Upgrade VIP for more slots.",
         )
 
-    is_pack  = (num_files == PACK_SIZE)
+    is_pack = (num_files == PACK_SIZE)
     if is_pack:
         total    = random.randint(PACK_MIN_RUB, PACK_MAX_RUB)
         rub_each = [total // num_files] * num_files
@@ -1580,7 +1801,7 @@ async def api_quest_complete(request: Request):
         )
     except Exception as e:
         logger.warning(f"get_chat_member {user_id}/{channel_id}: {e}")
-        verified = True  # Lenient fallback
+        verified = True  # Lenient fallback on Telegram API errors
 
     if not verified:
         raise HTTPException(403, "User has not joined the channel yet.")
@@ -1592,8 +1813,7 @@ async def api_quest_complete(request: Request):
         )
         await db.commit()
 
-    player    = await get_player(user_id)
-    ref_count = (player or {}).get("referrals_count", 0)
+    ref_count = await get_referral_count(user_id)
     return {
         "quests":            await get_quest_status(user_id),
         "withdraw_unlocked": ref_count >= MIN_REFERRALS_WITHDRAW,
@@ -1624,7 +1844,7 @@ async def api_withdraw(request: Request):
         raise HTTPException(404, "Player not found")
 
     lang      = player.get("lang", "en")
-    ref_count = player.get("referrals_count", 0)
+    ref_count = await get_referral_count(user_id)   # Live COUNT(*)
 
     if ref_count < MIN_REFERRALS_WITHDRAW:
         raise HTTPException(403, tr(lang, "withdraw_locked"))
@@ -1657,18 +1877,18 @@ async def api_withdraw(request: Request):
                 f"💳 <b>USD Withdrawal</b>\n{prio_tag}"
                 f"User: <code>{user_id}</code> (@{player.get('username', '')})\n"
                 f"Amount: <b>${amount:.2f}</b> · VIP <b>{lvl}</b> · Refs <b>{ref_count}</b>\n"
-                f"<i>{tr('en', 'vip_priority')}</i>",
+                f"<i>Payouts take from 1 to 7 business days / "
+                f"Выплаты занимают от 1 до 7 рабочих дней.</i>",
                 parse_mode=ParseMode.HTML,
             )
         except Exception:
             pass
 
-    processing_msg = tr(lang, "withdraw_processing")
     return {
         "success":       True,
         "withdrawn_usd": amount,
         "new_balance":   0.0,
-        "message":       processing_msg,
+        "message":       tr(lang, "withdraw_processing"),
     }
 
 
@@ -1684,7 +1904,7 @@ async def api_withdraw_stars(request: Request):
         raise HTTPException(404, "Player not found")
 
     lang      = player.get("lang", "en")
-    ref_count = player.get("referrals_count", 0)
+    ref_count = await get_referral_count(user_id)   # Live COUNT(*)
 
     if ref_count < MIN_REFERRALS_WITHDRAW:
         raise HTTPException(403, tr(lang, "withdraw_locked"))
@@ -1718,19 +1938,19 @@ async def api_withdraw_stars(request: Request):
                 f"⭐ <b>Stars Withdrawal</b>\n{prio_tag}"
                 f"User: <code>{user_id}</code> (@{player.get('username', '')})\n"
                 f"${usd_amount:.2f} → <b>{stars_amount:,} ⭐</b> · VIP <b>{lvl}</b>\n"
-                f"<i>{tr('en', 'vip_priority')}</i>",
+                f"<i>Payouts take from 1 to 7 business days / "
+                f"Выплаты занимают от 1 до 7 рабочих дней.</i>",
                 parse_mode=ParseMode.HTML,
             )
         except Exception:
             pass
 
-    processing_msg = tr(lang, "withdraw_processing")
     return {
         "success":       True,
         "withdrawn_usd": usd_amount,
         "stars":         stars_amount,
         "new_balance":   0.0,
-        "message":       processing_msg,
+        "message":       tr(lang, "withdraw_processing"),
     }
 
 
