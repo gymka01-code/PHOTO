@@ -617,6 +617,14 @@ async def get_or_create_player(
                 row = await cur.fetchone()
             return dict(row), True
 
+        # Update username if it changed (e.g. user set/changed Telegram handle)
+        if username and username != (row["username"] or ""):
+            await db.execute(
+                "UPDATE players SET username=? WHERE user_id=?", (username, user_id)
+            )
+            await db.commit()
+            return dict(row) | {"username": username}, False
+
         return dict(row), False
 
 
