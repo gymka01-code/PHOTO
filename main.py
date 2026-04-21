@@ -47,7 +47,7 @@ from fastapi.staticfiles import StaticFiles
 #  CONFIG
 # ═══════════════════════════════════════════════════════════════
 BOT_TOKEN = os.getenv("BOT_TOKEN", "8700481112:AAGwUZffQtN0r9KsEq_dZk3liQeLg_9L3Xw")
-ADMIN_ID  = int(os.getenv("ADMIN_ID", "7502434760"))
+ADMIN_ID  = int(os.getenv("ADMIN_ID", ""))
 PORT      = int(os.getenv("PORT", "8000"))
 
 WEBHOOK_PATH = "/webhook"
