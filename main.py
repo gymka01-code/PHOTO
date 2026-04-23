@@ -113,6 +113,13 @@ class AdminPanel(StatesGroup):
     wait_sponsor_name  = State()
     wait_sponsor_url   = State()
     wait_sponsor_photo = State()
+    wait_sponsor_desc  = State()
+    wait_sponsor_days  = State()
+    
+    wait_edit_sp_name  = State()
+    wait_edit_sp_desc  = State()
+    wait_edit_sp_days  = State()
+    
     wait_ticket_reply  = State()
     wait_broadcast     = State()
 
@@ -186,6 +193,14 @@ async def init_db():
         await db.execute("""CREATE TABLE IF NOT EXISTS photos (id TEXT PRIMARY KEY, user_id INTEGER, filename TEXT, batch_id TEXT, base_price REAL, final_price REAL, sale_rub REAL DEFAULT 0, status TEXT DEFAULT 'pending', sell_at TEXT, sold_at TEXT, buyer TEXT, created_at TEXT DEFAULT (datetime('now')), FOREIGN KEY(user_id) REFERENCES players(user_id))""")
         await db.execute("""CREATE TABLE IF NOT EXISTS referrals (referrer_id INTEGER, referred_id INTEGER PRIMARY KEY, created_at TEXT DEFAULT (datetime('now')))""")
         await db.execute("""CREATE TABLE IF NOT EXISTS sponsors (channel_id TEXT PRIMARY KEY, name TEXT, url TEXT, avatar_filename TEXT, created_at TEXT DEFAULT (datetime('now')))""")
+        
+        # МИГРАЦИЯ СПОНСОРОВ
+        for col in ["description TEXT", "expires_at TEXT", "notified INTEGER DEFAULT 0"]:
+            try:
+                await db.execute(f"ALTER TABLE sponsors ADD COLUMN {col}")
+            except Exception:
+                pass
+                
         await db.execute("""CREATE TABLE IF NOT EXISTS tickets (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, status TEXT DEFAULT 'open', claimed_by INTEGER DEFAULT NULL, created_at TEXT DEFAULT (datetime('now')))""")
         await db.execute("""CREATE TABLE IF NOT EXISTS support_messages (id INTEGER PRIMARY KEY AUTOINCREMENT, ticket_id INTEGER, user_id INTEGER, text TEXT, direction TEXT, created_at TEXT DEFAULT (datetime('now')))""")
         await db.execute("""CREATE TABLE IF NOT EXISTS withdrawal_requests (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, amount_usd REAL, stars INTEGER DEFAULT 0, method TEXT, is_priority INTEGER DEFAULT 0, status TEXT DEFAULT 'pending', warning_sent_at TEXT DEFAULT NULL, created_at TEXT DEFAULT (datetime('now')))""")
@@ -410,6 +425,24 @@ async def monitor_withdrawals_worker():
                             except: pass
         except Exception as e: logger.error(f"monitor_withdrawals_worker error: {e}")
 
+async def sponsor_expiry_worker():
+    while True:
+        await asyncio.sleep(3600)
+        try:
+            async with aiosqlite.connect(DB_PATH) as db:
+                db.row_factory = aiosqlite.Row
+                now = datetime.utcnow().isoformat()
+                async with db.execute("SELECT * FROM sponsors WHERE expires_at IS NOT NULL AND expires_at <= ? AND notified = 0", (now,)) as cur:
+                    expired = await cur.fetchall()
+
+                for sp in expired:
+                    for aid in await get_admin_ids():
+                        try: await bot.send_message(aid, f"⚠️ <b>Внимание: Истекло время спонсора!</b>\n\nКанал: {sp['name']}\nID: <code>{sp['channel_id']}</code>\n\nПора удалить его из пула или продлить таймер.", parse_mode=ParseMode.HTML)
+                        except: pass
+                    await db.execute("UPDATE sponsors SET notified = 1 WHERE channel_id=?", (sp["channel_id"],))
+                await db.commit()
+        except Exception as e: logger.error(f"sponsor_expiry_worker error: {e}")
+
 # --- BOT ROUTES ---
 @dp.message(CommandStart())
 async def cmd_start(message: Message, command: CommandObject):
@@ -473,7 +506,7 @@ async def on_successful_payment(message: Message):
             await message.answer("✅ <b>Purchase successful!</b>\nYou permanently gained +5 Auction Slots. Open the app to use them.", parse_mode=ParseMode.HTML)
         await db.commit()
 
-# --- ОПТИМИЗИРОВАННЫЙ СВАЙП-ОТВЕТ ДЛЯ АДМИНОВ ---
+# --- СВАЙП-ОТВЕТ ДЛЯ АДМИНОВ ---
 @dp.message(F.reply_to_message)
 async def admin_native_reply(message: Message):
     if not await is_admin(message.from_user.id): return
@@ -533,14 +566,104 @@ async def cq_crm_main(cb: CallbackQuery, state: FSMContext):
     try: await cb.message.delete()
     except: pass
 
+# --- Спонсоры CRM ---
 @dp.callback_query(F.data == "crm_sponsors")
 async def cq_sponsors(cb: CallbackQuery):
     sponsors = await get_sponsors()
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=f"❌ Удалить {s['name']}", callback_data=f"crm_sp_del:{s['channel_id']}")] for s in sponsors
-    ] + [[InlineKeyboardButton(text="➕ Добавить спонсора", callback_data="crm_sp_add")], [InlineKeyboardButton(text="🔙 Назад", callback_data="crm_main")]])
-    await cb.message.edit_text(f"🤝 <b>Спонсоры (Всего: {len(sponsors)})</b>\n\nЗдесь можно добавить или удалить каналы.", parse_mode=ParseMode.HTML, reply_markup=kb)
+    kb = []
+    for s in sponsors:
+        kb.append([InlineKeyboardButton(text=f"⚙️ {s['name']}", callback_data=f"crm_sp_manage:{s['channel_id']}")])
+    
+    kb.append([InlineKeyboardButton(text="➕ Добавить спонсора", callback_data="crm_sp_add")])
+    kb.append([InlineKeyboardButton(text="🔙 Назад", callback_data="crm_main")])
+    
+    await cb.message.edit_text(f"🤝 <b>Управление спонсорами (Всего: {len(sponsors)})</b>\n\nВыберите канал для редактирования или добавьте новый.", parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(inline_keyboard=kb))
 
+@dp.callback_query(F.data.startswith("crm_sp_manage:"))
+async def cq_sp_manage(cb: CallbackQuery):
+    cid = cb.data.split(":")[1]
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute("SELECT * FROM sponsors WHERE channel_id=?", (cid,)) as cur:
+            sp = await cur.fetchone()
+            
+    if not sp: return await cb.answer("Спонсор не найден", show_alert=True)
+
+    exp = sp["expires_at"][:16].replace("T", " ") if sp["expires_at"] else "Бессрочно"
+    desc = sp["description"] or "Нет описания"
+
+    text = f"⚙️ <b>Управление спонсором</b>\n\nID: <code>{sp['channel_id']}</code>\nНазвание: <b>{sp['name']}</b>\n\n📝 Описание: {desc}\n⏳ Истекает: {exp}"
+    
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="✏️ Изменить Имя", callback_data=f"crm_sp_edit:{cid}:name")],
+        [InlineKeyboardButton(text="📝 Изменить Описание", callback_data=f"crm_sp_edit:{cid}:desc")],
+        [InlineKeyboardButton(text="⏳ Изменить Таймер", callback_data=f"crm_sp_edit:{cid}:days")],
+        [InlineKeyboardButton(text="❌ Удалить спонсора", callback_data=f"crm_sp_del:{cid}")],
+        [InlineKeyboardButton(text="🔙 К списку", callback_data="crm_sponsors")]
+    ])
+    await cb.message.edit_text(text, parse_mode=ParseMode.HTML, reply_markup=kb)
+
+@dp.callback_query(F.data.startswith("crm_sp_edit:"))
+async def cq_sp_edit(cb: CallbackQuery, state: FSMContext):
+    _, cid, field = cb.data.split(":")
+    await state.update_data(edit_cid=cid)
+    
+    if field == "name":
+        await state.set_state(AdminPanel.wait_edit_sp_name)
+        await cb.message.edit_text("Отправьте новое название канала (для плашки):")
+    elif field == "desc":
+        await state.set_state(AdminPanel.wait_edit_sp_desc)
+        await cb.message.edit_text("Отправьте новое локальное описание (или /skip для удаления описания):")
+    elif field == "days":
+        await state.set_state(AdminPanel.wait_edit_sp_days)
+        await cb.message.edit_text("Отправьте количество дней нахождения в спонсорах (цифрой, или /skip для бессрочного):")
+
+@dp.message(AdminPanel.wait_edit_sp_name)
+async def edit_sp_name(message: Message, state: FSMContext):
+    data = await state.get_data()
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute("UPDATE sponsors SET name=? WHERE channel_id=?", (message.text.strip(), data["edit_cid"]))
+        await db.commit()
+    await state.clear()
+    await message.answer("✅ Название обновлено.\nНажмите /panel для возврата.")
+
+@dp.message(AdminPanel.wait_edit_sp_desc)
+async def edit_sp_desc(message: Message, state: FSMContext):
+    data = await state.get_data()
+    val = None if message.text.strip() == "/skip" else message.text.strip()
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute("UPDATE sponsors SET description=? WHERE channel_id=?", (val, data["edit_cid"]))
+        await db.commit()
+    await state.clear()
+    await message.answer("✅ Описание обновлено.\nНажмите /panel для возврата.")
+
+@dp.message(AdminPanel.wait_edit_sp_days)
+async def edit_sp_days(message: Message, state: FSMContext):
+    data = await state.get_data()
+    val = message.text.strip()
+    exp = None
+    if val != "/skip":
+        try:
+            days = int(val)
+            exp = (datetime.utcnow() + timedelta(days=days)).isoformat()
+        except:
+            return await message.answer("Пожалуйста, отправьте только число или /skip.")
+            
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute("UPDATE sponsors SET expires_at=?, notified=0 WHERE channel_id=?", (exp, data["edit_cid"]))
+        await db.commit()
+    await state.clear()
+    await message.answer("✅ Таймер обновлен.\nНажмите /panel для возврата.")
+
+@dp.callback_query(F.data.startswith("crm_sp_del:"))
+async def cq_sp_del(cb: CallbackQuery):
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute("DELETE FROM sponsors WHERE channel_id=?", (cb.data.split(":")[1],))
+        await db.commit()
+    await cb.answer("🗑 Спонсор удален!", show_alert=True)
+    await cq_sponsors(cb)
+
+# Добавление спонсора
 @dp.callback_query(F.data == "crm_sp_add")
 async def cq_sp_add(cb: CallbackQuery, state: FSMContext):
     await state.set_state(AdminPanel.wait_sponsor_id)
@@ -566,26 +689,39 @@ async def sp_url_step(message: Message, state: FSMContext):
 
 @dp.message(AdminPanel.wait_sponsor_photo)
 async def sp_photo_step(message: Message, state: FSMContext):
-    data = await state.get_data()
     filename = ""
     if message.photo:
         filename = f"sponsor_{uuid.uuid4().hex[:8]}.jpg"
         await bot.download(message.photo[-1].file_id, destination=SPONSORS_DIR / filename)
-    
+    await state.update_data(filename=filename)
+    await state.set_state(AdminPanel.wait_sponsor_desc)
+    await message.answer("5️⃣ Напишите ЛОКАЛЬНОЕ ОПИСАНИЕ канала (зачем на него подписаться), или нажмите /skip:")
+
+@dp.message(AdminPanel.wait_sponsor_desc)
+async def sp_desc_step(message: Message, state: FSMContext):
+    desc = None if message.text.strip() == "/skip" else message.text.strip()
+    await state.update_data(desc=desc)
+    await state.set_state(AdminPanel.wait_sponsor_days)
+    await message.answer("6️⃣ Сколько дней канал будет в спонсорах? Отправьте цифру (например: 7), или нажмите /skip (будет висеть бессрочно):")
+
+@dp.message(AdminPanel.wait_sponsor_days)
+async def sp_days_step(message: Message, state: FSMContext):
+    data = await state.get_data()
+    val = message.text.strip()
+    exp = None
+    if val != "/skip":
+        try:
+            exp = (datetime.utcnow() + timedelta(days=int(val))).isoformat()
+        except:
+            return await message.answer("Пожалуйста, отправьте только цифру или /skip.")
+
     async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute("INSERT OR REPLACE INTO sponsors (channel_id, name, url, avatar_filename) VALUES (?,?,?,?)", (data["channel_id"], data["name"], data["url"], filename))
+        await db.execute("INSERT OR REPLACE INTO sponsors (channel_id, name, url, avatar_filename, description, expires_at) VALUES (?,?,?,?,?,?)", (data["channel_id"], data["name"], data["url"], data["filename"], data["desc"], exp))
         await db.commit()
     
     await state.clear()
-    await message.answer("✅ <b>Спонсор добавлен!</b>\nНажмите /panel для возврата.", parse_mode=ParseMode.HTML)
+    await message.answer("✅ <b>Спонсор успешно добавлен!</b>\nНажмите /panel для возврата.", parse_mode=ParseMode.HTML)
 
-@dp.callback_query(F.data.startswith("crm_sp_del:"))
-async def cq_sp_del(cb: CallbackQuery):
-    async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute("DELETE FROM sponsors WHERE channel_id=?", (cb.data.split(":")[1],))
-        await db.commit()
-    await cb.answer("🗑 Спонсор удален!", show_alert=True)
-    await cq_sponsors(cb)
 
 # --- Тикеты CRM ---
 @dp.callback_query(F.data == "crm_tickets")
@@ -761,8 +897,9 @@ async def lifespan(app: FastAPI):
     t1 = asyncio.create_task(auction_worker())
     t2 = asyncio.create_task(reminder_worker())
     t3 = asyncio.create_task(monitor_withdrawals_worker())
+    t4 = asyncio.create_task(sponsor_expiry_worker())
     yield
-    t1.cancel(); t2.cancel(); t3.cancel()
+    t1.cancel(); t2.cancel(); t3.cancel(); t4.cancel()
     try: await bot.delete_webhook()
     except: pass
 
@@ -898,7 +1035,6 @@ async def api_referrals(user_id: int):
 @app.post("/api/upload")
 async def api_upload(user_id: int = Form(...), username: str = Form(""), files: List[UploadFile] = File(...)):
     player, _ = await get_or_create_player(user_id, username)
-    # Убрали блокировку по балансу!
     
     files_data = [(f.filename or "photo.jpg", await f.read()) for f in files]
     ref_count, active = await get_referral_count(user_id), await get_active_photo_count(user_id)
