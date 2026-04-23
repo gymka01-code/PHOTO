@@ -77,12 +77,13 @@ FEED_ACTIONS = [
     ("ru", "🔨 Выставил на аукцион"), ("ru", "🏆 Победил в торгах за ${amount}"),
 ]
 
+# Обновленные адекватные шансы и призы. Добавлен Джекпот.
 WHEEL_PRIZES = [
-    {"id": 0, "type": "usd", "val": 0.05, "label": "$0.05", "color": "#1e3a8a", "chance": 7},
-    {"id": 1, "type": "lose", "val": 0, "label": "LOSE", "color": "#111111", "chance": 85},
-    {"id": 2, "type": "usd", "val": 0.20, "label": "$0.20", "color": "#4c1d95", "chance": 5},
-    {"id": 3, "type": "slot", "val": 1, "label": "+1 SLOT", "color": "#b45309", "chance": 2},
-    {"id": 4, "type": "usd", "val": 1.00, "label": "$1.00", "color": "#064e3b", "chance": 1},
+    {"id": 0, "type": "usd", "val": 0.50, "label": "$0.50", "color": "#1e3a8a", "chance": 8.0},
+    {"id": 1, "type": "lose", "val": 0, "label": "LOSE", "color": "#111111", "chance": 85.0},
+    {"id": 2, "type": "usd", "val": 2.00, "label": "$2.00", "color": "#4c1d95", "chance": 4.5},
+    {"id": 3, "type": "slot", "val": 2, "label": "+2 SLOTS", "color": "#b45309", "chance": 2.0},
+    {"id": 4, "type": "usd", "val": 50.00, "label": "JACKPOT", "color": "#fbbf24", "chance": 0.5},
 ]
 
 logging.basicConfig(level=logging.INFO)
@@ -99,7 +100,7 @@ class AdminPanel(StatesGroup):
 
 _T = {
     "en": {
-        "welcome": "👋 Welcome to <b>PhotoFlip</b>!\n\n📸 Upload photos → Valuation → Auction → Earn USD\n\n💰 Balance: <b>${balance:.2f}</b>\n⭐ VIP Level: <b>{vip}</b> · Slots: <b>{slots}</b>\n\n🔗 Your referral link:\n<code>{ref_url}</code>\n\nInvite <b>3 friends</b> to unlock withdrawal.\n\nTap below to open PhotoFlip:",
+        "welcome": "👋 Welcome to <b>PhotoFlip</b>!\n\n📸 Upload photos → Valuation → Auction → Earn USD\n\n💰 Balance: <b>${balance:.2f}</b>\n⭐ VIP Level: <b>{vip}</b>\n\n🔗 Your referral link:\n<code>{ref_url}</code>\n\nInvite <b>3 friends</b> to unlock withdrawal.\n\nTap below to open PhotoFlip:",
         "btn_open": "📸 Open PhotoFlip", "btn_share": "📤 Share",
         "sold": "✅ <b>Photo sold!</b>\n\n💴 Price: <b>{rub:,} ₽</b> → <b>${gross}</b>\n📉 Fee: <b>−${commission}</b>\n💰 Credited: <b>${net}</b>\n\nBalance: <b>${balance:.2f}</b>",
         "support_reply": "📨 <b>Support reply:</b>\n\n{text}",
@@ -109,7 +110,7 @@ _T = {
         "wd_rejected": "❌ <b>Withdrawal cancelled.</b> Funds returned to balance."
     },
     "ru": {
-        "welcome": "👋 Добро пожаловать в <b>PhotoFlip</b>!\n\n📸 Загрузи фото → Оценка → Аукцион → Заработай USD\n\n💰 Баланс: <b>${balance:.2f}</b>\n⭐ VIP Уровень: <b>{vip}</b> · Слотов: <b>{slots}</b>\n\n🔗 Ваша реферальная ссылка:\n<code>{ref_url}</code>\n\nПригласите <b>3 друзей</b> для активации вывода.",
+        "welcome": "👋 Добро пожаловать в <b>PhotoFlip</b>!\n\n📸 Загрузи фото → Оценка → Аукцион → Заработай USD\n\n💰 Баланс: <b>${balance:.2f}</b>\n⭐ VIP Уровень: <b>{vip}</b>\n\n🔗 Ваша реферальная ссылка:\n<code>{ref_url}</code>\n\nПригласите <b>3 друзей</b> для активации вывода.",
         "btn_open": "📸 Открыть PhotoFlip", "btn_share": "📤 Поделиться",
         "sold": "✅ <b>Ваше фото продано!</b>\n\n💴 Цена: <b>{rub:,} ₽</b> → <b>${gross}</b>\n📉 Комиссия: <b>−${commission}</b>\n💰 Начислено: <b>${net}</b>\n\nБаланс: <b>${balance:.2f}</b>",
         "support_reply": "📨 <b>Ответ поддержки:</b>\n\n{text}",
@@ -433,7 +434,7 @@ async def _process_start(target: Message, uid: int, p: dict):
         [InlineKeyboardButton(text=tr(lang, "btn_open"), web_app=WebAppInfo(url=WEBAPP_URL))],
         [InlineKeyboardButton(text=tr(lang, "btn_share"), url=make_share_url(ref_url))] if ref_url else []
     ])
-    await target.answer(tr(lang, "welcome", balance=p["balance"], vip=vip_level(p["referrals_count"]), slots=VIP_TIERS[vip_level(p["referrals_count"])][2]+(p["extra_slots"] or 0), ref_url=ref_url), parse_mode=ParseMode.HTML, reply_markup=kb)
+    await target.answer(tr(lang, "welcome", balance=p["balance"], vip=vip_level(p["referrals_count"])), parse_mode=ParseMode.HTML, reply_markup=kb)
 
 @dp.callback_query(F.data.startswith("chksub:"))
 async def cb_check_sub(cb: CallbackQuery):
@@ -478,10 +479,22 @@ async def admin_search_user(message: Message, state: FSMContext):
 
 async def show_user_control_panel(msg_or_cb, uid: int, state: FSMContext):
     p = await get_player(uid)
-    can_spin = "Да"
-    if p.get('last_spin') and (datetime.utcnow() - datetime.fromisoformat(p['last_spin'])).total_seconds() < 86400: can_spin = "Нет (Кулдаун)"
+    used_today = await get_active_photo_count(uid)
+    vip_base_slots = vip_slot_limit(p['referrals_count'])
+    extra_slots = p.get('extra_slots') or 0
+    total_slots = vip_base_slots + extra_slots
 
-    text = f"👤 <b>Аккаунт: <code>{uid}</code></b> {'(🚫 ЗАБЛОКИРОВАН)' if p.get('is_banned') else ''}\nИмя: @{p.get('username') or 'Нет'}\nБаланс: <b>${p['balance']:.2f}</b>\nЗаработано: <b>${p['total_earned']:.2f}</b>\nРефералы: <b>{p['referrals_count']}</b> (VIP {vip_level(p['referrals_count'])})\nДоп. слоты: <b>{p.get('extra_slots') or 0}</b>\nКолесо: <b>{can_spin}</b>"
+    can_spin = "Да"
+    if p.get('last_spin') and (datetime.utcnow() - datetime.fromisoformat(p['last_spin'])).total_seconds() < 86400: 
+        can_spin = "Нет (Кулдаун)"
+
+    text = f"👤 <b>Аккаунт: <code>{uid}</code></b> {'(🚫 ЗАБЛОКИРОВАН)' if p.get('is_banned') else ''}\n"
+    text += f"Имя: @{p.get('username') or 'Нет'}\n"
+    text += f"Баланс: <b>${p['balance']:.2f}</b>\n"
+    text += f"Заработано: <b>${p['total_earned']:.2f}</b>\n"
+    text += f"Рефералы: <b>{p['referrals_count']}</b> (VIP {vip_level(p['referrals_count'])})\n"
+    text += f"Слоты сегодня: <b>{used_today} / {total_slots}</b> <i>(База: {vip_base_slots}, Доп: {extra_slots})</i>\n"
+    text += f"Колесо: <b>{can_spin}</b>"
 
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="💰 Баланс", callback_data="c_usr_bal"), InlineKeyboardButton(text="📈 Заработано", callback_data="c_usr_earn")],
@@ -521,7 +534,7 @@ async def cq_c_usr_actions(cb: CallbackQuery, state: FSMContext):
         "bal": ("wait_edit_user_balance", "Введите БАЛАНС (например 15.50):"),
         "earn": ("wait_edit_user_earned", "Введите ЗАРАБОТАНО (например 100.00):"),
         "ref": ("wait_edit_user_refs", "Введите РЕФЕРАЛОВ (целое число):"),
-        "slots": ("wait_edit_user_slots", "Введите ДОП. СЛОТЫ (целое число):"),
+        "slots": ("wait_edit_user_slots", "Введите точное количество ДОП. СЛОТОВ (число):"),
         "vip": ("wait_edit_user_vip", "Введите ЖЕЛАЕМЫЙ VIP УРОВЕНЬ (от 0 до 5):")
     }
     
@@ -559,7 +572,7 @@ async def e_refs(m: Message, state: FSMContext):
 
 @dp.message(AdminPanel.wait_edit_user_slots)
 async def e_slots(m: Message, state: FSMContext):
-    if not m.text.isdigit(): return await m.answer("❌ Целое число.")
+    if not m.text.lstrip('-').isdigit(): return await m.answer("❌ Целое число.")
     async with get_db() as db:
         await db.execute("UPDATE players SET extra_slots=? WHERE user_id=?", (int(m.text), (await state.get_data())["edit_user_id"]))
         await db.commit()
