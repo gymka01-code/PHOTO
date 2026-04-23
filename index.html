@@ -499,7 +499,7 @@ img{display:block}
       </div>
       
       <div style="margin-bottom: 12px;">
-        <button class="btn btn-stars" onclick="buyItem('slots')" data-i18n="buy_slots">+5 Slots (50 ⭐)</button>
+        <button class="btn btn-stars" onclick="buyItem('slots')" data-i18n="buy_slots">+1 Slot ($50)</button>
       </div>
 
       <div id="upload-drop-zone" onclick="document.getElementById('file-input').click()">
@@ -545,8 +545,8 @@ img{display:block}
           <button class="btn btn-primary" id="spin-btn" onclick="spinWheel()" style="margin-bottom: 12px; width: 100%" data-i18n="btn_spin">Spin (Free)</button>
           
           <div class="buy-panel">
-            <button class="btn btn-stars" onclick="buyItem('spin')" data-i18n="buy_spin">Buy Spin (20 ⭐)</button>
-            <button class="btn btn-stars" onclick="buyItem('slots')" data-i18n="buy_slots">+5 Slots (50 ⭐)</button>
+            <button class="btn btn-stars" onclick="buyItem('spin')" data-i18n="buy_spin">Buy Spin ($10)</button>
+            <button class="btn btn-stars" onclick="buyItem('slots')" data-i18n="buy_slots">+1 Slot ($50)</button>
           </div>
       </div>
     </div>
@@ -685,7 +685,7 @@ const TRANSLATIONS = {
     wallet_title:"Wallet",
     
     wheel_title:"Wheel of Fortune", wheel_sub:"Win cash & extra slots", btn_spin:"Spin (Free)",
-    buy_spin:"Buy Spin (20 ⭐)", buy_slots:"+5 Slots (50 ⭐)",
+    buy_spin:"Buy Spin ($10)", buy_slots:"+1 Slot ($50)",
     spin_wait:"Wait {h}h {m}m", prize_win:"🎉 You won: {p}",
     
     wallet_info_title:"Withdrawal Info:",
@@ -736,7 +736,7 @@ const TRANSLATIONS = {
     toast_copied:"Link copied!", toast_copy_err:"Copy failed.",
     toast_verify_fail:"You haven't joined the channel yet.",
     auction_in:"Sells in", err_no_file:"Select at least one photo.",
-    err_slots_full:"Not enough auction slots. Wait or Buy Extra Slots.",
+    err_slots_full:"Not enough auction slots. Wait until tomorrow or Buy Extra Slots.",
     ref_count_sub:"referrals",
     ban_title:"Account Suspended",
     ban_desc:"Your account has been blocked for violation of terms. If you believe this is a mistake, close this app and send a message directly to the bot to contact support."
@@ -756,7 +756,7 @@ const TRANSLATIONS = {
     wallet_title:"Кошелёк",
     
     wheel_title:"Колесо Фортуны", wheel_sub:"Выигрывай $ и слоты", btn_spin:"Крутить (Бесплатно)",
-    buy_spin:"Купить Спин (20 ⭐)", buy_slots:"+5 Слотов (50 ⭐)",
+    buy_spin:"Купить Спин ($10)", buy_slots:"+1 Слот ($50)",
     spin_wait:"Жди {h}ч {m}м", prize_win:"🎉 Твой выигрыш: {p}",
 
     wallet_info_title:"Информация о выводе:",
@@ -804,7 +804,7 @@ const TRANSLATIONS = {
     toast_copied:"Ссылка скопирована!", toast_copy_err:"Ошибка копирования.",
     toast_verify_fail:"Вы ещё не вступили во все каналы.",
     auction_in:"Продажа через", err_no_file:"Выберите хотя бы одно фото.",
-    err_slots_full:"Нет слотов. Подождите продаж или купите слоты.",
+    err_slots_full:"Нет слотов. Подождите до завтра или купите дополнительные слоты.",
     ref_count_sub:"рефералов",
     ban_title:"Аккаунт Заблокирован",
     ban_desc:"Ваш аккаунт был заблокирован за нарушение правил. Если вы считаете, что это ошибка, закройте приложение и напишите сообщение прямо в бота для связи с поддержкой."
@@ -864,7 +864,6 @@ const VIP_ICONS = ['🔵','🟤','⚪','🟡','⚫','💎'];
 
 async function init(){
   applyTranslations();
-  // Вызов привязки убран из frontend, так как он теперь делается мгновенно в backend (cmd_start)
   await loadPlayer();
   buildLiveFeed();
   setInterval(tickCountdowns, 1000);
@@ -1160,26 +1159,21 @@ async function spinWheel() {
 }
 
 async function buyItem(item) {
-  if (!tg || !tg.openInvoice) {
-    showToast("Telegram Stars only work inside the official app", 'error');
-    return;
-  }
-  
   try {
     const r = await fetch(`${BASE}/api/buy/item`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ user_id: userId, item: item })
     });
-    if (!r.ok) throw new Error();
     const data = await r.json();
     
-    tg.openInvoice(data.invoice_url, async (status) => {
-      if (status === 'paid') {
-        showToast("Payment successful! Updating...", "success");
-        setTimeout(() => loadPlayer(false), 2000);
-      }
-    });
+    if (!r.ok) {
+        showToast(data.detail || t('toast_err'), 'error');
+        return;
+    }
+    
+    showToast("Purchase successful!", "success");
+    await loadPlayer(false);
   } catch (e) {
     showToast(t('toast_err'), 'error');
   }
