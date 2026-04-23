@@ -114,38 +114,53 @@ img{display:block}
 .slot-bar-fill.full{background:var(--red)}
 .slot-count{font-size:11px;font-weight:700;color:var(--text-2)}
 
-/* WHEEL OF FORTUNE */
-.wheel-container { position: relative; width: 260px; height: 260px; margin: 0 auto 20px; }
-.wheel {
-  width: 100%; height: 100%; border-radius: 50%; border: 4px solid var(--surface2);
-  box-shadow: 0 0 30px rgba(59,130,246,0.15); transition: transform 4s cubic-bezier(0.25, 0.1, 0.25, 1);
-  position: relative; overflow: hidden;
+/* 💥 КРАСИВОЕ КОЛЕСО ФОРТУНЫ 💥 */
+.wheel-glass-card {
+  background: rgba(20, 20, 20, 0.6); border: 1px solid var(--border2);
+  border-radius: 20px; padding: 24px; backdrop-filter: blur(12px);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.5); margin-bottom: 20px;
+  display: flex; flex-direction: column; align-items: center;
 }
-/* The wheel slices (hardcoded CSS for 5 segments, purely visual approximation for spin effect) */
-.wheel-bg {
-  width: 100%; height: 100%; border-radius: 50%;
+.wheel-container { position: relative; width: 240px; height: 240px; margin: 10px auto 24px; }
+.wheel-border {
+  position: absolute; inset: 0; border-radius: 50%; padding: 6px;
+  background: linear-gradient(135deg, #3b82f6, #8b5cf6, #ec4899);
+  box-shadow: 0 0 20px rgba(139, 92, 246, 0.4), inset 0 0 20px rgba(0,0,0,0.8);
+}
+.wheel {
+  width: 100%; height: 100%; border-radius: 50%; position: relative; overflow: hidden;
+  box-shadow: inset 0 0 20px rgba(0,0,0,0.8);
   background: conic-gradient(
-    #3b82f6 0deg 72deg,
-    #1e1e1e 72deg 144deg,
-    #8b5cf6 144deg 216deg,
-    #f59e0b 216deg 288deg,
-    #22c55e 288deg 360deg
+    #1e3a8a 0deg 72deg,
+    #111111 72deg 144deg,
+    #4c1d95 144deg 216deg,
+    #b45309 216deg 288deg,
+    #064e3b 288deg 360deg
   );
 }
-.wheel-center {
+.wheel-slice {
+  position: absolute; top: 0; left: 50%; width: 80px; height: 50%; margin-left: -40px;
+  transform-origin: bottom center; display: flex; justify-content: center; padding-top: 18px;
+  font-weight: 800; font-size: 13px; text-shadow: 0 2px 4px #000; color: #fff; z-index: 2;
+}
+.wheel-divider {
+  position: absolute; top: 0; left: 50%; width: 2px; height: 50%;
+  background: rgba(255,255,255,0.15); transform-origin: bottom center; z-index: 3;
+}
+.wheel-center-glass {
   position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-  width: 40px; height: 40px; background: var(--surface); border: 3px solid var(--border2);
-  border-radius: 50%; z-index: 5;
+  width: 50px; height: 50px; border-radius: 50%;
+  background: radial-gradient(circle at 30% 30%, #444, #000);
+  border: 2px solid rgba(255,255,255,0.2); box-shadow: 0 5px 15px rgba(0,0,0,0.8); z-index: 10;
 }
 .wheel-pointer {
-  position: absolute; top: -15px; left: 50%; transform: translateX(-50%);
-  width: 0; height: 0; border-left: 15px solid transparent; border-right: 15px solid transparent;
-  border-top: 25px solid var(--text); z-index: 10; filter: drop-shadow(0 4px 4px rgba(0,0,0,0.5));
+  position: absolute; top: -18px; left: 50%; transform: translateX(-50%);
+  color: #f1f5f9; font-size: 32px; z-index: 20; filter: drop-shadow(0 4px 6px rgba(0,0,0,0.6));
 }
 .wheel-legend { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-bottom: 20px; }
 .wl-item { display: flex; align-items: center; gap: 4px; font-size: 10px; color: var(--text-2); font-weight: 600; background: var(--surface2); padding: 4px 8px; border-radius: 20px; border: 1px solid var(--border2);}
 .wl-dot { width: 8px; height: 8px; border-radius: 50%; }
-.buy-panel { display: flex; gap: 10px; margin-top: 10px; }
+.buy-panel { display: flex; gap: 10px; margin-top: 10px; width: 100%;}
 .buy-panel .btn { flex: 1; font-size: 11px; padding: 10px; }
 
 /* BUTTONS */
@@ -489,27 +504,32 @@ img{display:block}
         <div class="section-sub" data-i18n="wheel_sub">Win cash & extra slots</div>
       </div>
       
-      <div class="wheel-legend">
-        <div class="wl-item"><div class="wl-dot" style="background:#3b82f6"></div>$0.05</div>
-        <div class="wl-item"><div class="wl-dot" style="background:#1e1e1e"></div>Lose</div>
-        <div class="wl-item"><div class="wl-dot" style="background:#8b5cf6"></div>$0.20</div>
-        <div class="wl-item"><div class="wl-dot" style="background:#f59e0b"></div>+1 Slot</div>
-        <div class="wl-item"><div class="wl-dot" style="background:#22c55e"></div>$1.00</div>
-      </div>
-
-      <div class="wheel-container">
-        <div class="wheel-pointer"></div>
-        <div class="wheel-center"></div>
-        <div class="wheel" id="wheel-bg">
-          <div class="wheel-bg"></div>
-        </div>
-      </div>
-      
-      <button class="btn btn-primary" id="spin-btn" onclick="spinWheel()" style="margin-bottom: 12px;" data-i18n="btn_spin">Spin (Free)</button>
-      
-      <div class="buy-panel">
-        <button class="btn btn-stars" onclick="buyItem('spin')" data-i18n="buy_spin">Buy Spin (20 ⭐)</button>
-        <button class="btn btn-stars" onclick="buyItem('slots')" data-i18n="buy_slots">+5 Slots (50 ⭐)</button>
+      <div class="wheel-glass-card">
+          <div class="wheel-container">
+            <div class="wheel-pointer">▼</div>
+            <div class="wheel-border">
+                <div class="wheel" id="wheel-bg">
+                    <div class="wheel-slice" style="transform: rotate(36deg);"><span>$0.05</span></div>
+                    <div class="wheel-divider" style="transform: rotate(72deg);"></div>
+                    <div class="wheel-slice" style="transform: rotate(108deg);"><span>LOSE</span></div>
+                    <div class="wheel-divider" style="transform: rotate(144deg);"></div>
+                    <div class="wheel-slice" style="transform: rotate(180deg);"><span>$0.20</span></div>
+                    <div class="wheel-divider" style="transform: rotate(216deg);"></div>
+                    <div class="wheel-slice" style="transform: rotate(252deg);"><span>+1 SLOT</span></div>
+                    <div class="wheel-divider" style="transform: rotate(288deg);"></div>
+                    <div class="wheel-slice" style="transform: rotate(324deg);"><span>$1.00</span></div>
+                    <div class="wheel-divider" style="transform: rotate(0deg);"></div>
+                </div>
+                <div class="wheel-center-glass"></div>
+            </div>
+          </div>
+          
+          <button class="btn btn-primary" id="spin-btn" onclick="spinWheel()" style="margin-bottom: 12px; width: 100%" data-i18n="btn_spin">Spin (Free)</button>
+          
+          <div class="buy-panel">
+            <button class="btn btn-stars" onclick="buyItem('spin')" data-i18n="buy_spin">Buy Spin (20 ⭐)</button>
+            <button class="btn btn-stars" onclick="buyItem('slots')" data-i18n="buy_slots">+5 Slots (50 ⭐)</button>
+          </div>
       </div>
     </div>
 
@@ -641,7 +661,6 @@ const TRANSLATIONS = {
     upload_cta:"Select photos",
     upload_hint:"JPG, PNG, WEBP · up to 10 MB each\nUpload 5+ together for pack pricing",
     upload_btn:"Analyse & List",
-    lock_title:"Upload Locked", lock_text:"You have an active balance. Withdraw your earnings first.",
     slots_label:"Auction Slots",
     pack_notice:"📦 Pack mode active (5+ photos). Pack pricing applied.",
     portfolio_title:"My Portfolio", portfolio_empty:"No photos yet. Upload your first shot!",
@@ -694,9 +713,8 @@ const TRANSLATIONS = {
     ai_verdict_mid:"Good composition. Solid auction prospects.",
     ai_verdict_lo:"Decent shot. Niche buyers will respond.",
     ai_list:"List on Auction",
-    toast_listed:"{n} photo(s) listed on auction!", toast_err:"Upload failed. Try again.",
+    toast_listed:"{n} photo(s) listed on auction!", toast_err:"Action failed. Try again.",
     toast_withdrawn:"✅ Your request is being processed. Payouts take from 1 to 7 business days.", toast_withdraw_err:"Withdrawal error.",
-    toast_stars_ok:"✅ Your request is being processed. Payouts take from 1 to 7 business days.",
     toast_copied:"Link copied!", toast_copy_err:"Copy failed.",
     toast_verify_fail:"You haven't joined the channel yet.",
     auction_in:"Sells in", err_no_file:"Select at least one photo.",
@@ -712,7 +730,6 @@ const TRANSLATIONS = {
     upload_cta:"Выберите фото",
     upload_hint:"JPG, PNG, WEBP · до 10 МБ каждое\nВыберите 5+ сразу для пакетной оценки",
     upload_btn:"Анализировать и выставить",
-    lock_title:"Загрузка заблокирована", lock_text:"У вас есть активный баланс. Сначала выведите средства.",
     slots_label:"Слоты аукциона",
     pack_notice:"📦 Пакетный режим (5+ фото). Применена повышенная оценка.",
     portfolio_title:"Портфолио", portfolio_empty:"Фото нет. Загрузите первый снимок!",
@@ -762,9 +779,8 @@ const TRANSLATIONS = {
     ai_title:"ИИ-Оценка", ai_sub:"Анализируем ваши фото…",
     ai_verdict_hi:"Отличное качество. Ожидается высокий спрос.", ai_verdict_mid:"Хорошая композиция. Хорошие шансы на аукционе.", ai_verdict_lo:"Достойный кадр. Нишевые покупатели откликнутся.",
     ai_list:"Выставить на аукцион",
-    toast_listed:"Фото выставлены на аукцион!", toast_err:"Ошибка загрузки. Попробуйте снова.",
+    toast_listed:"Фото выставлены на аукцион!", toast_err:"Ошибка. Попробуйте снова.",
     toast_withdrawn:"✅ Заявка обработана. Выплата занимает от 1 до 7 рабочих дней.", toast_withdraw_err:"Ошибка вывода средств.",
-    toast_stars_ok:"✅ Заявка обработана. Выплата занимает от 1 до 7 рабочих дней.",
     toast_copied:"Ссылка скопирована!", toast_copy_err:"Ошибка копирования.",
     toast_verify_fail:"Вы ещё не вступили во все каналы.",
     auction_in:"Продажа через", err_no_file:"Выберите хотя бы одно фото.",
@@ -962,7 +978,6 @@ function switchTab(name){
   if(name === 'support') loadSupportMsgs();
 }
 
-// ── БОЛЬШЕ НЕТ БЛОКИРОВКИ ПО БАЛАНСУ ──
 function updateUploadLock(){
   const active = gameData?.active_slots || 0;
   const slotLimit = gameData?.slot_limit || 5;
@@ -1068,7 +1083,7 @@ async function confirmUpload(){
   }
 }
 
-// ── WHEEL OF FORTUNE LOGIC ──
+// ── WHEEL LOGIC ──
 function updateWheelUI() {
   const btn = document.getElementById('spin-btn');
   if (nextSpinMs <= 0) {
@@ -1106,13 +1121,7 @@ async function spinWheel() {
     if (!r.ok) throw new Error();
     const data = await r.json();
     
-    // Calculate rotation: 5 segments = 72 deg each.
-    // 0: 36, 1: 108, 2: 180, 3: 252, 4: 324
     const segmentAngles = [36, 108, 180, 252, 324];
-    // Substract 360 to spin backwards or add to spin forwards. 
-    // Let's add 5 full rotations (1800 deg) + target angle.
-    // We want the target segment to land at the TOP (0 deg).
-    // Conic gradient starts at top.
     const targetDeg = 1800 - segmentAngles[data.prize.id];
     
     const wheelBg = document.getElementById('wheel-bg');
@@ -1122,7 +1131,7 @@ async function spinWheel() {
     setTimeout(async () => {
       showToast(t('prize_win').replace('{p}', data.prize.label), 'success');
       wheelBg.style.transition = 'none';
-      wheelBg.style.transform = `rotate(${-segmentAngles[data.prize.id]}deg)`; // reset visual
+      wheelBg.style.transform = `rotate(${-segmentAngles[data.prize.id]}deg)`;
       wheelSpinning = false;
       await loadPlayer(false);
     }, 4100);
@@ -1158,8 +1167,6 @@ async function buyItem(item) {
     showToast(t('toast_err'), 'error');
   }
 }
-// ── END WHEEL LOGIC ──
-
 
 function renderPortfolio(){
   const photos = gameData?.photos || [];
