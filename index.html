@@ -191,7 +191,6 @@ img{display:block}
 .sub-channel-top{display:flex;justify-content:space-between;width:100%;align-items:center;}
 .sub-channel-name{font-size:13px;font-weight:600;color:var(--text);}
 .sub-channel-btn{background:var(--blue-dim);color:var(--blue);border:1px solid rgba(59,130,246,0.3);border-radius:6px;padding:6px 12px;font-size:11px;font-weight:600;text-decoration:none; flex-shrink:0;}
-.sub-channel-desc{font-size:11px;color:var(--text-3);line-height:1.4;}
 .sub-modal-actions{display:flex;flex-direction:column;gap:10px; flex-shrink:0;}
 
 /* AI MODAL */
@@ -1322,14 +1321,12 @@ async function initiateWithdraw(method) {
 function renderSubModal(channels) {
     const list = document.getElementById('sub-channel-list');
     list.innerHTML = channels.map(ch => {
-        const descHtml = ch.description ? `<div class="sub-channel-desc">${escHtml(ch.description)}</div>` : '';
         return `
         <div class="sub-channel-item">
             <div class="sub-channel-top">
                 <div class="sub-channel-name">${escHtml(ch.name || 'Sponsor')}</div>
                 <a href="${escHtml(ch.url)}" target="_blank" class="sub-channel-btn">${t('sub_btn_join')}</a>
             </div>
-            ${descHtml}
         </div>
         `;
     }).join('');
