@@ -75,7 +75,8 @@ MIN_DELAY_SECS = 30
 PARTNER_CHANNELS = [
     {"-1003642113064": "@dsdfsdfawer", "name": "PhotoFlip Community",
      "url": "https://t.me/dsdfsdfawer"},
-
+    {"-1002484263962": "@ehche", "Первый парт": "ГОВНОХАБ НЕ ПОДПИСЫВАЙТЕСЬ",
+     "url": "t.me/ehche"},
 ]
 
 # ── Required subscription channel ─────────────────────────────
