@@ -20,7 +20,7 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import (
     CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup,
-    Message, WebAppInfo, LabeledPrice, PreCheckoutQuery
+    Message, WebAppInfo, PreCheckoutQuery
 )
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -78,11 +78,11 @@ FEED_ACTIONS = [
 ]
 
 WHEEL_PRIZES = [
-    {"id": 0, "type": "usd", "val": 0.05, "label": "$0.05", "color": "#1e3a8a", "chance": 25},
-    {"id": 1, "type": "lose", "val": 0, "label": "Lose", "color": "#111111", "chance": 40},
-    {"id": 2, "type": "usd", "val": 0.20, "label": "$0.20", "color": "#4c1d95", "chance": 15},
-    {"id": 3, "type": "slot", "val": 1, "label": "+1 Slot", "color": "#b45309", "chance": 15},
-    {"id": 4, "type": "usd", "val": 1.00, "label": "$1.00!", "color": "#064e3b", "chance": 5},
+    {"id": 0, "type": "usd", "val": 0.05, "label": "$0.05", "color": "#1e3a8a", "chance": 7},
+    {"id": 1, "type": "lose", "val": 0, "label": "LOSE", "color": "#111111", "chance": 85},
+    {"id": 2, "type": "usd", "val": 0.20, "label": "$0.20", "color": "#4c1d95", "chance": 5},
+    {"id": 3, "type": "slot", "val": 1, "label": "+1 SLOT", "color": "#b45309", "chance": 2},
+    {"id": 4, "type": "usd", "val": 1.00, "label": "$1.00", "color": "#064e3b", "chance": 1},
 ]
 
 logging.basicConfig(level=logging.INFO)
@@ -127,7 +127,9 @@ def tr(lang: str, key: str, **kw) -> str:
 def rub_to_usd(rub: float) -> float: return round(rub / RUB_TO_USD_RATE, 2)
 def apply_commission(usd: float) -> float: return round(usd * (1 - COMMISSION_PCT), 2)
 def vip_level(refs: int) -> int:
-    return next((i for i, (thr, _, _) in enumerate(reversed(VIP_TIERS)) if refs >= thr), 0) if refs > 0 else 0
+    for i in range(len(VIP_TIERS)-1, -1, -1):
+        if refs >= VIP_TIERS[i][0]: return i
+    return 0
 def vip_max_delay(refs: int) -> int: return VIP_TIERS[vip_level(refs)][1]
 def vip_slot_limit(refs: int) -> int: return VIP_TIERS[vip_level(refs)][2]
 def usd_to_stars(usd: float) -> int: return math.floor(usd / 0.012)
@@ -139,11 +141,9 @@ def make_share_url(ref_url: str) -> str:
 bot = Bot(token=BOT_TOKEN)
 dp  = Dispatcher(storage=MemoryStorage())
 
-# --- Улучшенное подключение к БД ---
 def get_db():
     return aiosqlite.connect(DB_PATH, timeout=20.0)
 
-# --- INIT DB ---
 async def init_db():
     async with get_db() as db:
         await db.execute("PRAGMA journal_mode=WAL;")
@@ -231,7 +231,7 @@ async def get_player_photos(user_id: int, lang: str = "en") -> list:
 
 async def get_active_photo_count(user_id: int) -> int:
     async with get_db() as db:
-        async with db.execute("SELECT COUNT(*) FROM photos WHERE user_id=? AND status='on_auction'", (user_id,)) as cur:
+        async with db.execute("SELECT COUNT(*) FROM photos WHERE user_id=? AND date(created_at) = date('now')", (user_id,)) as cur:
             return (await cur.fetchone())[0]
 
 async def get_referral_count(user_id: int) -> int:
@@ -303,7 +303,6 @@ async def dispatch_support_ticket(uid: int, tkt_id: int, text: str, claimed_by: 
             try: await bot.send_message(aid, f"🆘 <b>Новый Тикет #{tkt_id}</b>\nОт: {uname}\n\n{text[:300]}", parse_mode=ParseMode.HTML, reply_markup=kb)
             except: pass
 
-# --- WORKERS ---
 async def auction_worker():
     while True:
         try:
@@ -406,7 +405,6 @@ async def sponsor_expiry_worker():
                 if expired: await db.commit()
         except: pass
 
-# --- BOT ROUTES ---
 @dp.message(CommandStart())
 async def cmd_start(message: Message, command: CommandObject):
     user, args_str = message.from_user, (command.args or "").strip()
@@ -447,19 +445,6 @@ async def cb_check_sub(cb: CallbackQuery):
     p = await get_player(cb.from_user.id)
     if p: await _process_start(cb.message, cb.from_user.id, p)
 
-@dp.pre_checkout_query()
-async def on_pre_checkout(pre_checkout: PreCheckoutQuery): await pre_checkout.answer(ok=True)
-
-@dp.message(F.successful_payment)
-async def on_successful_payment(message: Message):
-    payload, uid = message.successful_payment.invoice_payload, message.from_user.id
-    async with get_db() as db:
-        if payload == "buy_spin": await db.execute("UPDATE players SET last_spin=NULL WHERE user_id=?", (uid,))
-        elif payload == "buy_slots": await db.execute("UPDATE players SET extra_slots=extra_slots+5 WHERE user_id=?", (uid,))
-        await db.commit()
-    await message.answer("✅ <b>Purchase successful!</b> Open the app.", parse_mode=ParseMode.HTML)
-
-# --- CRM ADMIN PANEL ---
 @dp.message(Command("admin"))
 @dp.message(Command("panel"))
 async def cmd_admin(message: Message, state: FSMContext):
@@ -478,9 +463,6 @@ async def cq_crm_main(cb: CallbackQuery, state: FSMContext):
     try: await cb.message.delete()
     except: pass
 
-# ==========================================================
-#  CRM: УПРАВЛЕНИЕ ПОЛЬЗОВАТЕЛЯМИ
-# ==========================================================
 @dp.callback_query(F.data == "crm_users")
 async def cq_crm_users(cb: CallbackQuery, state: FSMContext):
     await state.set_state(AdminPanel.wait_user_id_search)
@@ -593,10 +575,6 @@ async def e_vip(m: Message, state: FSMContext):
     await m.answer(f"✅ VIP изменен")
     await show_user_control_panel(m, (await state.get_data())["edit_user_id"], state)
 
-
-# ==========================================================
-#  CRM: СПОНСОРЫ / ТИКЕТЫ / РАССЫЛКА
-# ==========================================================
 @dp.callback_query(F.data == "crm_sponsors")
 async def cq_sponsors(cb: CallbackQuery):
     sponsors = await get_sponsors()
@@ -701,7 +679,6 @@ async def sp_add_6(m: Message, state: FSMContext):
         await db.commit()
     await state.clear(); await m.answer("✅ Добавлен! /panel")
 
-# --- Поддержка (Ответы админов на тикеты) ---
 @dp.message(F.reply_to_message)
 async def admin_native_reply(message: Message):
     if not await is_admin(message.from_user.id): return
@@ -825,9 +802,6 @@ async def broad_step(m: Message, state: FSMContext):
         await asyncio.sleep(0.05)
     await m.answer(f"✅ Доставлено: {ok}")
 
-# ==========================================================
-#  ПОДДЕРЖКА ДЛЯ ЗАБЛОКИРОВАННЫХ И ОБЫЧНЫХ СООБЩЕНИЙ В БОТ
-# ==========================================================
 @dp.message(F.text)
 async def direct_support_msg(message: Message, state: FSMContext):
     if await state.get_state(): return
@@ -855,7 +829,6 @@ async def direct_support_msg(message: Message, state: FSMContext):
 
     await message.reply("📨 Сообщение доставлено в поддержку. Ожидайте ответа.")
     await dispatch_support_ticket(uid, tkt_id, text, claimed_by)
-
 
 # ═══════════════════════════════════════════════════════════════
 #  FASTAPI APP
@@ -942,11 +915,29 @@ async def api_wheel_spin(request: Request):
 
 @app.post("/api/buy/item")
 async def api_buy_item(request: Request):
-    it = (await request.json()).get("item")
-    if it == "spin": t, d, p, pr = "Extra Spin", "1 additional Wheel Spin", "buy_spin", 20
-    elif it == "slots": t, d, p, pr = "+5 Auction Slots", "Permanent slots for your photos", "buy_slots", 50
-    else: raise HTTPException(400)
-    return {"invoice_url": await bot.create_invoice_link(title=t, description=d, payload=p, provider_token="", currency="XTR", prices=[LabeledPrice(label=t, amount=pr)])}
+    data = await request.json()
+    uid = data.get("user_id")
+    it = data.get("item")
+    
+    price = 10.0 if it == "spin" else 50.0
+    
+    async with get_db() as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute("SELECT balance FROM players WHERE user_id=?", (uid,)) as cur:
+            p = await cur.fetchone()
+            
+        if not p or p["balance"] < price:
+            raise HTTPException(400, detail="Недостаточно средств на балансе. / Not enough balance.")
+            
+        await db.execute("UPDATE players SET balance=balance-? WHERE user_id=?", (price, uid))
+        
+        if it == "spin":
+            await db.execute("UPDATE players SET last_spin=NULL WHERE user_id=?", (uid,))
+        elif it == "slots":
+            await db.execute("UPDATE players SET extra_slots=extra_slots+1 WHERE user_id=?", (uid,))
+            
+        await db.commit()
+    return {"success": True}
 
 @app.put("/api/player/{user_id}/lang")
 async def api_set_lang(user_id: int, request: Request):
@@ -969,7 +960,6 @@ async def api_upload(user_id: int = Form(...), username: str = Form(""), files: 
     lim = vip_slot_limit(ref_c) + (p.get("extra_slots") or 0)
     if act + len(files) > lim: raise HTTPException(403, "Limit reached")
 
-    # Сначала сохраняем файлы асинхронно, НЕ блокируя базу
     saved_files = []
     for f in files:
         raw = await f.read()
@@ -982,7 +972,6 @@ async def api_upload(user_id: int = Form(...), username: str = Form(""), files: 
     rub_each = [random.randint(PACK_MIN_RUB, PACK_MAX_RUB)//PACK_SIZE]*len(saved_files) if is_pack else [random.randint(SINGLE_MIN_RUB, SINGLE_MAX_RUB) for _ in range(len(saved_files))]
     bid, md = uuid.uuid4().hex, vip_max_delay(ref_c)
 
-    # Быстро пишем в базу
     async with get_db() as db:
         for i, fn in enumerate(saved_files):
             sat = (datetime.utcnow() + timedelta(seconds=random.randint(MIN_DELAY_SECS, max(md, MIN_DELAY_SECS + 1)))).isoformat()
