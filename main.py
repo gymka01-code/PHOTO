@@ -13,7 +13,7 @@ from typing import List
 
 import aiosqlite
 from aiogram import Bot, Dispatcher, F
-from aiogram.enums import ChatMemberStatus, ParseMode
+from aiogram.enums import ChatMemberStatus, ParseMode, ContentType
 from aiogram.filters import Command, CommandObject, CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
@@ -24,6 +24,8 @@ from aiogram.types import (
     InlineKeyboardMarkup,
     Message,
     WebAppInfo,
+    LabeledPrice,
+    PreCheckoutQuery
 )
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -95,6 +97,14 @@ FEED_ACTIONS = [
     ("ru", "🏆 Победил в торгах за ${amount}"),
 ]
 
+WHEEL_PRIZES = [
+    {"id": 0, "type": "usd", "val": 0.05, "label": "$0.05", "color": "#3b82f6", "chance": 25},
+    {"id": 1, "type": "lose", "val": 0, "label": "Lose", "color": "#1e1e1e", "chance": 40},
+    {"id": 2, "type": "usd", "val": 0.20, "label": "$0.20", "color": "#8b5cf6", "chance": 15},
+    {"id": 3, "type": "slot", "val": 1, "label": "+1 Slot", "color": "#f59e0b", "chance": 15},
+    {"id": 4, "type": "usd", "val": 1.00, "label": "$1.00!", "color": "#22c55e", "chance": 5},
+]
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -151,7 +161,6 @@ def vip_level(refs: int) -> int:
     return lvl
 
 def vip_max_delay(refs: int) -> int: return VIP_TIERS[vip_level(refs)][1]
-def vip_slot_limit(refs: int) -> int: return VIP_TIERS[vip_level(refs)][2]
 def usd_to_stars(usd: float) -> int: return math.floor(usd / 0.012)
 
 def make_share_url(ref_url: str) -> str:
@@ -164,7 +173,11 @@ dp  = Dispatcher(storage=MemoryStorage())
 # --- INIT DB ---
 async def init_db():
     async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute("""CREATE TABLE IF NOT EXISTS players (user_id INTEGER PRIMARY KEY, username TEXT, balance REAL DEFAULT 0.0, total_earned REAL DEFAULT 0.0, photos_sold INTEGER DEFAULT 0, referrals_count INTEGER DEFAULT 0, referred_by INTEGER DEFAULT NULL, lang TEXT DEFAULT 'en', last_seen TEXT DEFAULT (datetime('now')), created_at TEXT DEFAULT (datetime('now')))""")
+        await db.execute("""CREATE TABLE IF NOT EXISTS players (user_id INTEGER PRIMARY KEY, username TEXT, balance REAL DEFAULT 0.0, total_earned REAL DEFAULT 0.0, photos_sold INTEGER DEFAULT 0, referrals_count INTEGER DEFAULT 0, referred_by INTEGER DEFAULT NULL, lang TEXT DEFAULT 'en', extra_slots INTEGER DEFAULT 0, last_spin TEXT DEFAULT NULL, last_seen TEXT DEFAULT (datetime('now')), created_at TEXT DEFAULT (datetime('now')))""")
+        # Миграция старых колонок
+        for col in ["extra_slots INTEGER DEFAULT 0", "last_spin TEXT DEFAULT NULL"]:
+            try: await db.execute(f"ALTER TABLE players ADD COLUMN {col}")
+            except: pass
         await db.execute("""CREATE TABLE IF NOT EXISTS photos (id TEXT PRIMARY KEY, user_id INTEGER, filename TEXT, batch_id TEXT, base_price REAL, final_price REAL, sale_rub REAL DEFAULT 0, status TEXT DEFAULT 'pending', sell_at TEXT, sold_at TEXT, buyer TEXT, created_at TEXT DEFAULT (datetime('now')), FOREIGN KEY(user_id) REFERENCES players(user_id))""")
         await db.execute("""CREATE TABLE IF NOT EXISTS referrals (referrer_id INTEGER, referred_id INTEGER PRIMARY KEY, created_at TEXT DEFAULT (datetime('now')))""")
         await db.execute("""CREATE TABLE IF NOT EXISTS sponsors (channel_id TEXT PRIMARY KEY, name TEXT, url TEXT, avatar_filename TEXT, created_at TEXT DEFAULT (datetime('now')))""")
@@ -392,7 +405,6 @@ async def monitor_withdrawals_worker():
                             except: pass
         except Exception as e: logger.error(f"monitor_withdrawals_worker error: {e}")
 
-
 # --- BOT ROUTES ---
 @dp.message(CommandStart())
 async def cmd_start(message: Message, command: CommandObject):
@@ -426,7 +438,7 @@ async def _process_start(target: Message, user, args: str = ""):
         [InlineKeyboardButton(text=tr(lang, "btn_open"), web_app=WebAppInfo(url=WEBAPP_URL))],
         [InlineKeyboardButton(text=tr(lang, "btn_share"), url=make_share_url(ref_url))] if ref_url else []
     ])
-    await target.answer(tr(lang, "welcome", balance=p["balance"], vip=vip_level(ref_count), slots=vip_slot_limit(ref_count), ref_url=ref_url), parse_mode=ParseMode.HTML, reply_markup=kb)
+    await target.answer(tr(lang, "welcome", balance=p["balance"], vip=vip_level(ref_count), slots=VIP_TIERS[vip_level(ref_count)][2]+(p["extra_slots"] or 0), ref_url=ref_url), parse_mode=ParseMode.HTML, reply_markup=kb)
 
 @dp.callback_query(F.data.startswith("chksub:"))
 async def cb_check_sub(cb: CallbackQuery):
@@ -436,6 +448,25 @@ async def cb_check_sub(cb: CallbackQuery):
     try: await cb.message.delete()
     except: pass
     await _process_start(cb.message, cb.from_user, cb.data[7:])
+
+# --- STARS PAYMENTS ---
+@dp.pre_checkout_query()
+async def on_pre_checkout(pre_checkout: PreCheckoutQuery):
+    await pre_checkout.answer(ok=True)
+
+@dp.message(F.successful_payment)
+async def on_successful_payment(message: Message):
+    payload = message.successful_payment.invoice_payload
+    uid = message.from_user.id
+    
+    async with aiosqlite.connect(DB_PATH) as db:
+        if payload == "buy_spin":
+            await db.execute("UPDATE players SET last_spin=NULL WHERE user_id=?", (uid,))
+            await message.answer("✅ <b>Purchase successful!</b>\nYou got +1 Wheel Spin. Open the app to use it.", parse_mode=ParseMode.HTML)
+        elif payload == "buy_slots":
+            await db.execute("UPDATE players SET extra_slots=extra_slots+5 WHERE user_id=?", (uid,))
+            await message.answer("✅ <b>Purchase successful!</b>\nYou permanently gained +5 Auction Slots. Open the app to use them.", parse_mode=ParseMode.HTML)
+        await db.commit()
 
 
 # --- ОПТИМИЗИРОВАННЫЙ СВАЙП-ОТВЕТ ДЛЯ АДМИНОВ ---
@@ -447,7 +478,6 @@ async def admin_native_reply(message: Message):
     original_text = replied.text or replied.caption
     if not original_text: return
     
-    # Ищем фразу "Тикет #ID"
     match = re.search(r"Тикет #(\d+)", original_text, re.IGNORECASE)
     if not match: return
     
@@ -465,7 +495,6 @@ async def admin_native_reply(message: Message):
         if status == 'closed':
             return await message.reply("⚠️ Этот тикет уже закрыт.")
             
-        # Если тикет "Новый", автоматически назначаем админа
         if status == 'open':
             await db.execute("UPDATE tickets SET status='claimed', claimed_by=? WHERE id=?", (message.from_user.id, tkt_id))
             admin_name = message.from_user.username or "Admin"
@@ -765,7 +794,20 @@ async def api_get_player(user_id: int, username: str = ""):
         async with aiosqlite.connect(DB_PATH) as db:
             await db.execute("UPDATE players SET username=? WHERE user_id=?", (username, user_id))
             await db.commit()
-    
+            
+    # Вычисление данных для колеса
+    can_spin = False
+    next_spin_ms = 0
+    if player.get("last_spin"):
+        try:
+            last = datetime.fromisoformat(player["last_spin"])
+            diff = (last + timedelta(hours=24)) - datetime.utcnow()
+            if diff.total_seconds() <= 0: can_spin = True
+            else: next_spin_ms = int(diff.total_seconds() * 1000)
+        except: can_spin = True
+    else:
+        can_spin = True
+        
     return {
         "player": player,
         "photos": await get_player_photos(user_id, lang),
@@ -775,11 +817,68 @@ async def api_get_player(user_id: int, username: str = ""):
         "referral_url": await referral_url(user_id),
         "rub_rate": RUB_TO_USD_RATE,
         "active_slots": await get_active_photo_count(user_id),
-        "slot_limit": vip_slot_limit(ref_count),
+        "slot_limit": vip_slot_limit(ref_count) + (player.get("extra_slots") or 0),
         "min_referrals_withdraw": MIN_REFERRALS_WITHDRAW,
         "withdraw_condition": tr(lang, "withdraw_locked"),
         "vip_priority_note": tr(lang, "vip_priority"),
+        "wheel": {"can_spin": can_spin, "next_spin_ms": next_spin_ms}
     }
+
+@app.post("/api/wheel/spin")
+async def api_wheel_spin(request: Request):
+    data = await request.json()
+    user_id = data.get("user_id")
+    player = await get_player(user_id)
+    if not player: raise HTTPException(404)
+    
+    if player.get("last_spin"):
+        last = datetime.fromisoformat(player["last_spin"])
+        if datetime.utcnow() < last + timedelta(hours=24):
+            raise HTTPException(403, "Spin cooldown active.")
+
+    rand = random.uniform(0, 100)
+    current = 0
+    prize = WHEEL_PRIZES[1] # Default to lose
+    for p in WHEEL_PRIZES:
+        current += p["chance"]
+        if rand <= current:
+            prize = p
+            break
+
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute("UPDATE players SET last_spin=datetime('now') WHERE user_id=?", (user_id,))
+        if prize["type"] == "usd":
+            await db.execute("UPDATE players SET balance=balance+?, total_earned=total_earned+? WHERE user_id=?", (prize["val"], prize["val"], user_id))
+        elif prize["type"] == "slot":
+            await db.execute("UPDATE players SET extra_slots=extra_slots+? WHERE user_id=?", (prize["val"], user_id))
+        await db.commit()
+
+    return {"success": True, "prize": prize}
+
+@app.post("/api/buy/item")
+async def api_buy_item(request: Request):
+    data = await request.json()
+    user_id = data.get("user_id")
+    item = data.get("item") # 'spin' or 'slots'
+    
+    if item == "spin":
+        title, desc, payload, price = "Extra Spin", "1 additional Wheel Spin", "buy_spin", 20
+    elif item == "slots":
+        title, desc, payload, price = "+5 Auction Slots", "Permanent slots for your photos", "buy_slots", 50
+    else:
+        raise HTTPException(400, "Invalid item")
+        
+    # Формируем счет для Telegram Stars (XTR)
+    link = await bot.create_invoice_link(
+        title=title,
+        description=desc,
+        payload=payload,
+        provider_token="", # Для XTR всегда пусто
+        currency="XTR",
+        prices=[LabeledPrice(label=title, amount=price)]
+    )
+    return {"invoice_url": link}
+
 
 @app.put("/api/player/{user_id}/lang")
 async def api_set_lang(user_id: int, request: Request):
@@ -796,11 +895,12 @@ async def api_referrals(user_id: int):
 @app.post("/api/upload")
 async def api_upload(user_id: int = Form(...), username: str = Form(""), files: List[UploadFile] = File(...)):
     player, _ = await get_or_create_player(user_id, username)
-    if (player["balance"] or 0) > 0: raise HTTPException(403, "Withdraw balance first.")
+    # ПРАВИЛО УДАЛЕНО: if (player["balance"] or 0) > 0: raise HTTPException(403, "Withdraw balance first.")
     
     files_data = [(f.filename or "photo.jpg", await f.read()) for f in files]
     ref_count, active = await get_referral_count(user_id), await get_active_photo_count(user_id)
-    slot_limit = vip_slot_limit(ref_count)
+    slot_limit = vip_slot_limit(ref_count) + (player.get("extra_slots") or 0)
+    
     if active + len(files_data) > slot_limit: raise HTTPException(403, "Slot limit reached.")
 
     is_pack = len(files_data) >= PACK_SIZE
