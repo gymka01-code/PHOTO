@@ -282,24 +282,34 @@ except: pass
 
 async def _bind_referral(new_user_id: int, referrer_id: int) -> bool:
     if referrer_id == new_user_id: return False
-    async with aiosqlite.connect(DB_PATH) as db:
-        async with db.execute("SELECT 1 FROM players WHERE user_id=?", (referrer_id,)) as cur:
-            if not await cur.fetchone(): return False
-        async with db.execute("SELECT referred_by FROM players WHERE user_id=?", (new_user_id,)) as cur:
-            prow = await cur.fetchone()
-        if prow is None or prow[0] is not None: return False
-
-        await db.execute("UPDATE players SET referred_by=? WHERE user_id=?", (referrer_id, new_user_id))
-        await db.execute("INSERT OR IGNORE INTO referrals (referrer_id, referred_id) VALUES (?,?)", (referrer_id, new_user_id))
-        await db.execute("UPDATE players SET referrals_count=referrals_count+1 WHERE user_id=?", (referrer_id,))
-        await db.commit()
-
     try:
-        new_player = await get_player(new_user_id)
-        display = f"@{new_player['username']}" if new_player and new_player.get("username") else str(new_user_id)
-        await bot.send_message(referrer_id, f"🔔 <b>Новый реферал!</b>\nПользователь {display} зарегистрировался по вашей ссылке.", parse_mode=ParseMode.HTML)
-    except: pass
-    return True
+        async with aiosqlite.connect(DB_PATH) as db:
+            # 1. Проверяем существует ли реферер
+            async with db.execute("SELECT 1 FROM players WHERE user_id=?", (referrer_id,)) as cur:
+                if not await cur.fetchone(): return False
+
+            # 2. Проверяем нет ли уже реферера у нового юзера
+            async with db.execute("SELECT referred_by FROM players WHERE user_id=?", (new_user_id,)) as cur:
+                row = await cur.fetchone()
+                if row is None or row[0] is not None:
+                    return False
+
+            # 3. Привязываем
+            await db.execute("UPDATE players SET referred_by=? WHERE user_id=?", (referrer_id, new_user_id))
+            await db.execute("INSERT OR IGNORE INTO referrals (referrer_id, referred_id) VALUES (?,?)", (referrer_id, new_user_id))
+            await db.execute("UPDATE players SET referrals_count=referrals_count+1 WHERE user_id=?", (referrer_id,))
+            await db.commit()
+
+        # Отправляем уведомление
+        try:
+            new_player = await get_player(new_user_id)
+            display = f"@{new_player['username']}" if new_player and new_player.get("username") else str(new_user_id)
+            await bot.send_message(referrer_id, f"🔔 <b>Новый реферал!</b>\nПользователь {display} присоединился по вашей ссылке.", parse_mode=ParseMode.HTML)
+        except Exception: pass
+        return True
+    except Exception as e:
+        logger.error(f"Referral binding error: {e}")
+        return False
 
 # --- WORKERS ---
 async def auction_worker():
@@ -402,7 +412,7 @@ async def cmd_start(message: Message, command: CommandObject):
     if referrer_id:
         await _bind_referral(user.id, referrer_id)
 
-    if not await check_subscription(user.id):
+    if not await is_subscribed_to_channel(REQUIRED_CHANNEL_ID, user.id):
         kb = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="📢 Subscribe to Channel", url=REQUIRED_CHANNEL_URL)],
             [InlineKeyboardButton(text="✅ I've Subscribed", callback_data=f"chksub:{args_str}")]
@@ -551,7 +561,6 @@ async def cq_tclaim(cb: CallbackQuery):
         
         await db.execute("UPDATE tickets SET status='claimed', claimed_by=? WHERE id=?", (cb.from_user.id, tkt_id))
         
-        # Системное сообщение для пользователя в приложении
         admin_name = cb.from_user.username or "Admin"
         system_text = f"👨‍💻 Агент поддержки @{admin_name} подключился к диалогу."
         await db.execute("INSERT INTO support_messages (ticket_id, user_id, text, direction) VALUES (?,?,?, 'system')", (tkt_id, tkt["user_id"], system_text))
@@ -599,7 +608,6 @@ async def cq_tclose(cb: CallbackQuery):
         async with db.execute("SELECT user_id FROM tickets WHERE id=?", (tkt_id,)) as cur:
             uid = (await cur.fetchone())[0]
         await db.execute("UPDATE tickets SET status='closed' WHERE id=?", (tkt_id,))
-        # Системное сообщение о закрытии
         system_text = "✅ Диалог завершен. Если остались вопросы — отправьте новое сообщение."
         await db.execute("INSERT INTO support_messages (ticket_id, user_id, text, direction) VALUES (?,?,?, 'system')", (tkt_id, uid, system_text))
         await db.commit()
@@ -699,6 +707,16 @@ async def lifespan(app: FastAPI):
     await init_db()
     try: await bot.set_webhook(WEBHOOK_URL, drop_pending_updates=True, request_timeout=30)
     except: pass
+    
+    # КЕШИРУЕМ ЮЗЕРНЕЙМ БОТА ПРИ СТАРТЕ ДЛЯ РЕФ. ССЫЛОК
+    try:
+        global _bot_username
+        me = await bot.get_me()
+        _bot_username = me.username
+        with open(_BOT_USERNAME_CACHE, "w") as f: f.write(_bot_username)
+    except Exception as e:
+        logger.error(f"Failed to get bot username: {e}")
+
     t1 = asyncio.create_task(auction_worker())
     t2 = asyncio.create_task(reminder_worker())
     t3 = asyncio.create_task(monitor_withdrawals_worker())
@@ -734,8 +752,13 @@ async def api_get_player(user_id: int, username: str = ""):
 
     ref_count = await get_referral_count(user_id)
     player["referrals_count"] = ref_count
-    await touch_last_seen(user_id)
-
+    
+    # Кэшируем юзернейм на всякий случай
+    if username and username != player.get("username"):
+        async with aiosqlite.connect(DB_PATH) as db:
+            await db.execute("UPDATE players SET username=? WHERE user_id=?", (username, user_id))
+            await db.commit()
+    
     return {
         "player": player,
         "photos": await get_player_photos(user_id, lang),
@@ -875,9 +898,11 @@ async def api_referral_bind(request: Request):
     new_user_id, ref_param = data.get("user_id"), str(data.get("ref_param") or "").strip()
     if not new_user_id: raise HTTPException(400)
     referrer_id = int(ref_param[4:]) if ref_param.startswith("ref_") else int(ref_param) if ref_param.isdigit() else None
-    if not referrer_id or referrer_id == new_user_id: return {"bound": False}
+    
     await get_or_create_player(new_user_id, str(data.get("username") or ""))
-    bound = await _bind_referral(new_user_id, referrer_id)
+    bound = False
+    if referrer_id:
+        bound = await _bind_referral(new_user_id, referrer_id)
     return {"bound": bound}
 
 @app.post(WEBHOOK_PATH)
