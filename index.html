@@ -241,17 +241,38 @@ img{display:block}
 .vip-dot-lbl.active{color:var(--blue)}
 .vip-next-hint{font-size:11px;color:var(--text-3);text-align:center;margin-top:10px}
 .vip-tier-list{display:flex;flex-direction:column;gap:6px;margin-top:2px}
-.vip-tier-row{background:var(--bg1);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;display:flex;align-items:center;gap:10px;transition:var(--transition)}
-.vip-tier-row.unlocked{border-color:rgba(59,130,246,0.2);background:var(--blue-dim)}
-.vip-tier-row.current-tier{border-color:var(--blue);box-shadow:0 0 0 1px var(--blue)}
-.vtc-icon{font-size:18px;flex-shrink:0}
-.vtc-info{flex:1;min-width:0}
-.vtc-name{font-size:12px;font-weight:600;color:var(--text);margin-bottom:2px}
-.vtc-meta{font-size:10px;color:var(--text-3)}
-.vtc-status{font-size:10px;font-weight:700;flex-shrink:0}
-.vtc-status.done{color:var(--green)}
-.vtc-status.active{color:var(--blue)}
-.vtc-status.locked{color:var(--text-3)}
+
+/* VIP ACCORDION (НОВЫЙ СТИЛЬ) */
+.vip-tier-row {
+  background: var(--bg1); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  display: flex; flex-direction: column; overflow: hidden; transition: var(--transition);
+  cursor: pointer;
+}
+.vip-tier-row.unlocked { border-color: rgba(59,130,246,0.2); background: var(--blue-dim); }
+.vip-tier-row.current-tier { border-color: var(--blue); box-shadow: 0 0 0 1px var(--blue); }
+.vtc-header {
+  padding: 10px 12px; display: flex; align-items: center; gap: 10px;
+}
+.vtc-icon { font-size: 18px; flex-shrink: 0; }
+.vtc-info { flex: 1; min-width: 0; }
+.vtc-name { font-size: 12px; font-weight: 600; color: var(--text); }
+.vtc-chevron { font-size: 14px; color: var(--text-3); transition: transform 0.2s ease; }
+.vip-tier-row.open .vtc-chevron { transform: rotate(180deg); }
+.vtc-status { font-size: 10px; font-weight: 700; flex-shrink: 0; padding-right: 8px;}
+.vtc-status.done { color: var(--green); }
+.vtc-status.active { color: var(--blue); }
+.vtc-status.locked { color: var(--text-3); }
+
+.vtc-details {
+  max-height: 0; overflow: hidden; transition: max-height 0.3s ease;
+  background: var(--surface2); padding: 0 12px; font-size: 11px; color: var(--text-2); line-height: 1.6;
+}
+.vip-tier-row.open .vtc-details {
+  max-height: 150px; padding: 10px 12px; border-top: 1px solid var(--border2);
+}
+.vtc-det-row { display: flex; justify-content: space-between; margin-bottom: 4px; }
+.vtc-det-row span:last-child { font-weight: 600; color: var(--text); }
+
 
 /* REFERRALS LIST */
 .referrals-list-container { margin-top: 10px; }
@@ -270,6 +291,9 @@ img{display:block}
 .chat-bubble.from-admin{align-self:flex-start;background:var(--surface2);border:1px solid var(--border2);color:var(--text);border-bottom-left-radius:3px}
 .bubble-meta{font-size:9px;color:rgba(255,255,255,0.55);margin-top:3px;text-align:right}
 .chat-bubble.from-admin .bubble-meta{color:var(--text-3);text-align:left}
+
+.chat-system-msg { align-self: center; text-align: center; font-size: 11px; color: var(--text-3); margin: 8px 0; max-width: 90%; line-height: 1.4; background: var(--bg1); padding: 4px 12px; border-radius: 12px;}
+
 .chat-empty{text-align:center;padding:40px 20px;color:var(--text-3);font-size:13px}
 .chat-input-area{display:flex;gap:8px;align-items:flex-end;padding-top:10px;border-top:1px solid var(--border);margin-top:auto}
 .chat-input-area textarea{flex:1;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--radius-sm);padding:9px 12px;font-size:13px;color:var(--text);resize:none;min-height:40px;max-height:100px;transition:var(--transition);line-height:1.4}
@@ -468,7 +492,6 @@ img{display:block}
         <div class="section-sub" id="wallet-progress">0/3 referrals</div>
       </div>
       
-      <!-- НОВАЯ ИНФОРМАЦИОННАЯ ПЛАШКА ВМЕСТО КАНАЛОВ -->
       <div class="wallet-info-banner" id="wallet-info-banner">
         ℹ️ <strong data-i18n="wallet_info_title">Withdrawal Info:</strong>
         <span data-i18n="wallet_info_text">Withdrawals are processed within 1-7 business days. VIP users enjoy priority in the payout queue. Keep inviting friends to increase your VIP level and speed up your payouts!</span>
@@ -529,6 +552,7 @@ img{display:block}
         </div>
         <div class="vip-next-hint" id="vip-next-hint"></div>
       </div>
+      
       <div class="vip-tier-list" id="vip-tier-cards"></div>
 
       <div class="section-head" style="margin-top:24px; margin-bottom: 10px;">
@@ -603,6 +627,9 @@ const TRANSLATIONS = {
     vip_tier_req:["0 referrals","3 referrals","5 referrals","10 referrals","25 referrals","50 referrals"],
     vip_next_hint:"Invite {n} more friend(s) to reach Level {l}",
     vip_max_hint:"Maximum VIP level reached!",
+    
+    label_req:"Requirement:", label_slots:"Auction Slots:", label_delay:"Sale Delay:",
+    
     ref_list_title:"My Referrals", ref_list_empty:"No referrals yet. Invite friends!", ref_active:"Active", ref_new:"New",
     support_title:"Support Chat", support_sub:"Replies within 24h",
     chat_empty:"No messages yet. Send us a message!", chat_placeholder:"Type a message…",
@@ -651,7 +678,7 @@ const TRANSLATIONS = {
     wd_modal_title:"Подтверждение заявки",
     wd_modal_p1:"Ваши средства с продажи на аукционе находятся в процессе обработки клирингом.",
     wd_modal_p2:"В течение 1-7 рабочих дней поддержка свяжется с вами для уточнения реквизитов. Выплаты осуществляются в порядке живой очереди и с учетом VIP-приоритета.",
-    wd_modal_upsell:"💡 Подсказка: Если вы хотите ускорить процесс вывода, необходимо повысить свой VIP статус.",
+    wd_modal_upsell:"💡 Подсказка: Увеличьте ваш VIP статус, чтобы ускорить процесс вывода.",
     wd_modal_footer:"⏱ Зачисление средств осуществляется в течение 1-7 рабочих дней с момента предоставления реквизитов.",
     wd_btn_confirm:"Подтвердить заявку", wd_btn_cancel:"Отмена",
 
@@ -667,6 +694,9 @@ const TRANSLATIONS = {
     vip_tier_req:["0 рефералов","3 реферала","5 рефералов","10 рефералов","25 рефералов","50 рефералов"],
     vip_next_hint:"Пригласите ещё {n} для Уровня {l}",
     vip_max_hint:"Максимальный VIP уровень достигнут!",
+    
+    label_req:"Требование:", label_slots:"Слотов для фото:", label_delay:"Время продажи:",
+
     ref_list_title:"Мои рефералы", ref_list_empty:"Пока нет рефералов. Пригласите друзей!", ref_active:"Активен", ref_new:"Новый",
     support_title:"Чат поддержки", support_sub:"Ответ в течение 24 часов",
     chat_empty:"Сообщений нет. Напишите нам!", chat_placeholder:"Напишите сообщение…",
@@ -687,7 +717,6 @@ const TRANSLATIONS = {
 };
 
 let currentLang = 'en';
-
 function t(key){ return (TRANSLATIONS[currentLang]||{})[key] || (TRANSLATIONS['en']||{})[key] || key; }
 
 function applyTranslations(){
@@ -1038,10 +1067,6 @@ async function renderWalletInfo(){
   document.getElementById('withdraw-sub').textContent = unlocked ? t('withdraw_unlocked_hint') : t('withdraw_sub');
 }
 
-function openChannelURL(url){
-  window.open(url, '_blank');
-}
-
 function renderWithdrawPreviews(){
   const bal = parseFloat(gameData?.player?.balance || 0), refs = gameData?.player?.referrals_count || 0, unlocked = refs >= (gameData?.min_referrals_withdraw || 3);
   document.getElementById('withdraw-usd-preview').textContent = '$' + fmt(bal);
@@ -1060,7 +1085,6 @@ function selectWithdrawTab(tab){
   document.getElementById('withdraw-stars-panel').style.display = tab === 'stars' ? '' : 'none';
 }
 
-// ── ЛОГИКА ОКНА ПОДПИСОК И ВЫВОДА ──
 async function initiateWithdraw(method) {
   pendingWithdrawMethod = method;
   const btnId = method === 'usd' ? 'withdraw-btn-usd' : 'withdraw-btn-stars';
@@ -1077,11 +1101,9 @@ async function initiateWithdraw(method) {
     const data = await r.json();
     
     if (!data.ok && data.channels && data.channels.length > 0) {
-        // Not subscribed -> show sub-modal
         renderSubModal(data.channels);
         document.getElementById('sub-modal').classList.add('open');
     } else {
-        // Subscribed -> open confirm modal
         document.getElementById('wd-modal').classList.add('open');
     }
   } catch(e) {
@@ -1124,7 +1146,7 @@ async function checkWithdrawSubs() {
             document.getElementById('wd-modal').classList.add('open');
         } else {
             showToast(t('toast_verify_fail'), 'error');
-            renderSubModal(data.channels); // refresh list
+            renderSubModal(data.channels);
         }
     } catch(e) {
         showToast(t('toast_err'), 'error');
@@ -1149,9 +1171,8 @@ async function confirmWithdraw(){
   try{
     const r = await fetch(endpoint, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ user_id: userId }) });
     const wdata = await r.json().catch(() => ({}));
-    if(!r.ok) {
-        throw new Error(wdata.detail || wdata.message || t('toast_withdraw_err'));
-    }
+    if(!r.ok) throw new Error(wdata.detail || wdata.message || t('toast_withdraw_err'));
+    
     closeWithdrawModal();
     btn.disabled = false; btn.textContent = originalText;
     showToast(wdata.message || t('toast_withdrawn'), 'success');
@@ -1162,6 +1183,11 @@ async function confirmWithdraw(){
     showToast(e.message || t('toast_withdraw_err'), 'error');
     renderWithdrawPreviews();
   }
+}
+
+function toggleVipDetails(index) {
+  const row = document.getElementById(`vip-tier-row-${index}`);
+  row.classList.toggle('open');
 }
 
 let _refRetryCount = 0;
@@ -1176,30 +1202,44 @@ function renderReferrals(){
   document.getElementById('vip-big-badge').textContent = 'Lv ' + lvl;
 
   const tiers = VIP_TIERS;
-  const nextTier = tiers.find(ti => refs < ti.min);
-  const prevMin = lvl > 0 ? tiers[lvl].min : 0;
-  const nextMin = nextTier ? nextTier.min : tiers[tiers.length - 1].min;
-
-  let pct = 0;
-  if (lvl >= tiers.length - 1) {
-    pct = 100;
-  } else {
-    const basePct = (lvl / (tiers.length - 1)) * 100;
-    const progressInTier = (refs - prevMin) / (nextMin - prevMin);
-    const segmentSize = 100 / (tiers.length - 1);
-    pct = basePct + (progressInTier * segmentSize);
-  }
+  
+  // Корректная математика прогрессбара (от 0 до 50)
+  const maxRefs = tiers[tiers.length - 1].min; 
+  let pct = Math.min((refs / maxRefs) * 100, 100);
   document.getElementById('vip-track-fill').style.width = pct + '%';
 
-  document.getElementById('vip-milestones').innerHTML = tiers.map((tier, i) => `<div class="vip-dot-wrap"><div class="vip-dot ${refs >= tier.min ? 'reached' : ''} ${i === lvl ? 'current' : ''}"></div><div class="vip-dot-lbl ${i === lvl ? 'active' : ''}">${i}</div></div>`).join('');
+  document.getElementById('vip-milestones').innerHTML = tiers.map((tier, i) => `<div class="vip-dot-wrap" style="position:absolute; left:${(tier.min/maxRefs)*100}%; transform:translateX(-50%)"><div class="vip-dot ${refs >= tier.min ? 'reached' : ''} ${i === lvl ? 'current' : ''}"></div><div class="vip-dot-lbl ${i === lvl ? 'active' : ''}">${i}</div></div>`).join('');
   const hint = document.getElementById('vip-next-hint');
   if(lvl >= tiers.length - 1) hint.textContent = t('vip_max_hint');
   else hint.textContent = t('vip_next_hint').replace('{n}', tiers[lvl + 1].min - refs).replace('{l}', lvl + 1);
 
   const tNames = t('vip_tier_names'), tMax = t('vip_tier_max'), tSlots = t('vip_tier_slots'), tReq = t('vip_tier_req');
+  
+  // Аккордеон
   document.getElementById('vip-tier-cards').innerHTML = tiers.map((tier, i) => {
     const unlocked = refs >= tier.min, curr = i === lvl;
-    return `<div class="vip-tier-row ${unlocked ? 'unlocked' : ''} ${curr ? 'current-tier' : ''}"><div class="vtc-icon">${VIP_ICONS[i] || '●'}</div><div class="vtc-info"><div class="vtc-name">${Array.isArray(tNames) ? tNames[i] : 'Level ' + i} — Level ${i}</div><div class="vtc-meta">${Array.isArray(tReq) ? tReq[i] : ''} · ${Array.isArray(tMax) ? tMax[i] : ''} · ${Array.isArray(tSlots) ? tSlots[i] : ''}</div></div><div class="vtc-status ${curr ? 'active' : unlocked ? 'done' : 'locked'}">${curr ? '● ACTIVE' : unlocked ? '✓' : '🔒'}</div></div>`;
+    const name = Array.isArray(tNames) ? tNames[i] : 'Level ' + i;
+    const req = Array.isArray(tReq) ? tReq[i] : `${tier.min} refs`;
+    const maxd = Array.isArray(tMax) ? tMax[i] : `${tier.max_delay/60} min`;
+    const slots = Array.isArray(tSlots) ? tSlots[i] : `${tier.slots}`;
+    
+    return `
+      <div class="vip-tier-row ${unlocked ? 'unlocked' : ''} ${curr ? 'current-tier' : ''}" id="vip-tier-row-${i}" onclick="toggleVipDetails(${i})">
+        <div class="vtc-header">
+            <div class="vtc-icon">${VIP_ICONS[i] || '●'}</div>
+            <div class="vtc-info">
+              <div class="vtc-name">${name} — Level ${i}</div>
+            </div>
+            <div class="vtc-status ${curr ? 'active' : unlocked ? 'done' : 'locked'}">${curr ? '● ACTIVE' : unlocked ? '✓' : '🔒'}</div>
+            <div class="vtc-chevron">▼</div>
+        </div>
+        <div class="vtc-details">
+            <div class="vtc-det-row"><span>${t('label_req')}</span><span>${req}</span></div>
+            <div class="vtc-det-row"><span>${t('label_slots')}</span><span>${slots}</span></div>
+            <div class="vtc-det-row"><span>${t('label_delay')}</span><span>${maxd}</span></div>
+        </div>
+      </div>
+    `;
   }).join('');
 }
 
@@ -1242,7 +1282,7 @@ async function copyRefLink(){
 function shareRefLink(){
   const url = gameData?.referral_url;
   if(!url || !url.startsWith('https://t.me/')){ showToast(t('toast_copy_err'), 'error'); return; }
-  const shareText = currentLang === 'ru' ? 'Твоя камера теперь печатает деньги. Серьезно. 🖼💰\nPhotoFlip — это как биржа, только вместо акций — твои фото. Флипай лоты, лови профит в баксах и выводи.\nЗалетай по моей ссылке: 🔗\nПроверим, чей лот купят быстрее? 😉' : 'Your camera is now printing money. Seriously. 🖼💰\nPhotoFlip — it\'s like a stock exchange, but instead of stocks — your photos. Flip lots, catch profit in dollars and withdraw.\nJoin via my link: 🔗\nLet\'s see whose lot sells faster? 😉';
+  const shareText = currentLang === 'ru' ? 'Твоя камера теперь печатает деньги. Серьезно. 🖼💰\nPhotoFlip — это как биржа, только вместо акций — твои фото.\nЗалетай по моей ссылке: 🔗\nПроверим, чей лот купят быстрее? 😉' : 'Your camera is now printing money. Seriously. 🖼💰\nPhotoFlip — it\'s like a stock exchange, but instead of stocks — your photos.\nJoin via my link: 🔗\nLet\'s see whose lot sells faster? 😉';
   const shareUrl = 'https://t.me/share/url?url=' + encodeURIComponent(url) + '&text=' + encodeURIComponent(shareText);
   if(window.Telegram?.WebApp?.openTelegramLink) window.Telegram.WebApp.openTelegramLink(shareUrl); else window.open(shareUrl, '_blank');
 }
@@ -1260,7 +1300,13 @@ async function loadSupportMsgs(){
 function renderSupportMsgs(msgs){
   const container = document.getElementById('chat-messages');
   if(!msgs.length){ container.innerHTML = `<div class="chat-empty">${t('chat_empty')}</div>`; return; }
-  container.innerHTML = msgs.map(m => `<div class="chat-bubble ${m.direction === 'in' ? 'from-user' : 'from-admin'}">${escHtml(m.text)}<div class="bubble-meta">${m.direction === 'in' ? t('chat_you') : t('chat_support')} · ${new Date(m.created_at + 'Z').toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</div></div>`).join('');
+  
+  container.innerHTML = msgs.map(m => {
+    if (m.direction === 'system') {
+        return `<div class="chat-system-msg">${escHtml(m.text)}</div>`;
+    }
+    return `<div class="chat-bubble ${m.direction === 'in' ? 'from-user' : 'from-admin'}">${escHtml(m.text)}<div class="bubble-meta">${m.direction === 'in' ? t('chat_you') : t('chat_support')} · ${new Date(m.created_at + 'Z').toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</div></div>`;
+  }).join('');
   container.scrollTop = container.scrollHeight;
 }
 
