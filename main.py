@@ -73,9 +73,9 @@ VIP_TIERS = [
 MIN_DELAY_SECS = 30
 
 PARTNER_CHANNELS = [
-    {"-1003642113064": "@dsdfsdfawer", "name": "PhotoFlip Community",
+    {"-1003642113064": "@dsdfsdfawer", "name": "PhotoFlip Conity",
      "url": "https://t.me/dsdfsdfawer"},
-    {"-1002977372900": "@zmnxj", "Первый": "ГАВНО ГАВНО",
+    {"-1002977372900": "@zmnxj", "Первый": "PPRIVET",
      "url": "https://t.me/zmnxj"},
 ]
 
