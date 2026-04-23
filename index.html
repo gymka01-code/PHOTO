@@ -34,7 +34,7 @@ img{display:block}
 /* LAYOUT */
 #app{height:100vh;display:flex;flex-direction:column;max-width:480px;margin:0 auto;position:relative;overflow:hidden}
 
-/* HEADER & НОВЫЙ ЛОГОТИП */
+/* HEADER & ЛОГОТИП */
 #header{padding:12px 16px 10px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border);flex-shrink:0;position:relative;z-index:10;background:var(--bg)}
 #header-logo {
   width: 34px; height: 34px; border-radius: 10px;
@@ -43,10 +43,7 @@ img{display:block}
   box-shadow: 0 0 16px rgba(99, 102, 241, 0.4), inset 0 0 0 1px rgba(255, 255, 255, 0.2);
   position: relative; overflow: hidden;
 }
-#header-logo svg {
-  width: 20px; height: 20px; color: #ffffff;
-  animation: slowSpin 8s linear infinite;
-}
+#header-logo svg { width: 20px; height: 20px; color: #ffffff; animation: slowSpin 8s linear infinite; }
 @keyframes slowSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 #header-logo::after {
   content: ''; position: absolute; top: 0; left: -100%; width: 50%; height: 100%;
@@ -108,12 +105,6 @@ img{display:block}
 .preview-remove{position:absolute;top:-6px;right:-6px;width:18px;height:18px;background:var(--red);border-radius:50%;font-size:10px;color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;border:2px solid var(--bg);font-weight:700}
 #file-input{display:none}
 
-#upload-locked-banner{display:none;background:var(--red-dim);border:1px solid rgba(239,68,68,0.25);border-radius:var(--radius);padding:14px;margin-bottom:12px}
-.lock-header{display:flex;align-items:center;gap:8px;margin-bottom:5px}
-.lock-icon-wrap{width:28px;height:28px;border-radius:7px;background:rgba(239,68,68,0.15);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0}
-.lock-title{font-size:13px;font-weight:600;color:var(--red)}
-.lock-text{font-size:12px;color:var(--text-2);line-height:1.5}
-
 #slot-indicator{display:flex;align-items:center;justify-content:space-between;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:12px}
 .slot-label{font-size:11px;color:var(--text-3);font-weight:500}
 .slot-bar-wrap{flex:1;margin:0 12px}
@@ -123,8 +114,42 @@ img{display:block}
 .slot-bar-fill.full{background:var(--red)}
 .slot-count{font-size:11px;font-weight:700;color:var(--text-2)}
 
+/* WHEEL OF FORTUNE */
+.wheel-container { position: relative; width: 260px; height: 260px; margin: 0 auto 20px; }
+.wheel {
+  width: 100%; height: 100%; border-radius: 50%; border: 4px solid var(--surface2);
+  box-shadow: 0 0 30px rgba(59,130,246,0.15); transition: transform 4s cubic-bezier(0.25, 0.1, 0.25, 1);
+  position: relative; overflow: hidden;
+}
+/* The wheel slices (hardcoded CSS for 5 segments, purely visual approximation for spin effect) */
+.wheel-bg {
+  width: 100%; height: 100%; border-radius: 50%;
+  background: conic-gradient(
+    #3b82f6 0deg 72deg,
+    #1e1e1e 72deg 144deg,
+    #8b5cf6 144deg 216deg,
+    #f59e0b 216deg 288deg,
+    #22c55e 288deg 360deg
+  );
+}
+.wheel-center {
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  width: 40px; height: 40px; background: var(--surface); border: 3px solid var(--border2);
+  border-radius: 50%; z-index: 5;
+}
+.wheel-pointer {
+  position: absolute; top: -15px; left: 50%; transform: translateX(-50%);
+  width: 0; height: 0; border-left: 15px solid transparent; border-right: 15px solid transparent;
+  border-top: 25px solid var(--text); z-index: 10; filter: drop-shadow(0 4px 4px rgba(0,0,0,0.5));
+}
+.wheel-legend { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-bottom: 20px; }
+.wl-item { display: flex; align-items: center; gap: 4px; font-size: 10px; color: var(--text-2); font-weight: 600; background: var(--surface2); padding: 4px 8px; border-radius: 20px; border: 1px solid var(--border2);}
+.wl-dot { width: 8px; height: 8px; border-radius: 50%; }
+.buy-panel { display: flex; gap: 10px; margin-top: 10px; }
+.buy-panel .btn { flex: 1; font-size: 11px; padding: 10px; }
+
 /* BUTTONS */
-.btn{width:100%;padding:12px;border-radius:var(--radius);font-size:13px;font-weight:600;letter-spacing:0.02em;transition:var(--transition)}
+.btn{width:100%;padding:12px;border-radius:var(--radius);font-size:13px;font-weight:600;letter-spacing:0.02em;transition:var(--transition); display:flex; justify-content:center; align-items:center; gap: 6px;}
 .btn-primary{background:var(--blue);color:#fff;box-shadow:0 2px 16px var(--blue-glow)}
 .btn-primary:active{transform:scale(.98);filter:brightness(.9)}
 .btn-primary:disabled{opacity:.35;pointer-events:none;box-shadow:none}
@@ -254,16 +279,10 @@ img{display:block}
 .vip-tier-list{display:flex;flex-direction:column;gap:6px;margin-top:2px}
 
 /* VIP ACCORDION */
-.vip-tier-row {
-  background: var(--bg1); border: 1px solid var(--border); border-radius: var(--radius-sm);
-  display: flex; flex-direction: column; overflow: hidden; transition: var(--transition);
-  cursor: pointer;
-}
+.vip-tier-row { background: var(--bg1); border: 1px solid var(--border); border-radius: var(--radius-sm); display: flex; flex-direction: column; overflow: hidden; transition: var(--transition); cursor: pointer; }
 .vip-tier-row.unlocked { border-color: rgba(59,130,246,0.2); background: var(--blue-dim); }
 .vip-tier-row.current-tier { border-color: var(--blue); box-shadow: 0 0 0 1px var(--blue); }
-.vtc-header {
-  padding: 10px 12px; display: flex; align-items: center; gap: 10px;
-}
+.vtc-header { padding: 10px 12px; display: flex; align-items: center; gap: 10px; }
 .vtc-icon { font-size: 18px; flex-shrink: 0; }
 .vtc-info { flex: 1; min-width: 0; }
 .vtc-name { font-size: 12px; font-weight: 600; color: var(--text); }
@@ -273,17 +292,10 @@ img{display:block}
 .vtc-status.done { color: var(--green); }
 .vtc-status.active { color: var(--blue); }
 .vtc-status.locked { color: var(--text-3); }
-
-.vtc-details {
-  max-height: 0; overflow: hidden; transition: max-height 0.3s ease;
-  background: var(--surface2); padding: 0 12px; font-size: 11px; color: var(--text-2); line-height: 1.6;
-}
-.vip-tier-row.open .vtc-details {
-  max-height: 150px; padding: 10px 12px; border-top: 1px solid var(--border2);
-}
+.vtc-details { max-height: 0; overflow: hidden; transition: max-height 0.3s ease; background: var(--surface2); padding: 0 12px; font-size: 11px; color: var(--text-2); line-height: 1.6; }
+.vip-tier-row.open .vtc-details { max-height: 150px; padding: 10px 12px; border-top: 1px solid var(--border2); }
 .vtc-det-row { display: flex; justify-content: space-between; margin-bottom: 4px; }
 .vtc-det-row span:last-child { font-weight: 600; color: var(--text); }
-
 
 /* REFERRALS LIST */
 .referrals-list-container { margin-top: 10px; }
@@ -302,9 +314,7 @@ img{display:block}
 .chat-bubble.from-admin{align-self:flex-start;background:var(--surface2);border:1px solid var(--border2);color:var(--text);border-bottom-left-radius:3px}
 .bubble-meta{font-size:9px;color:rgba(255,255,255,0.55);margin-top:3px;text-align:right}
 .chat-bubble.from-admin .bubble-meta{color:var(--text-3);text-align:left}
-
 .chat-system-msg { align-self: center; text-align: center; font-size: 11px; color: var(--text-3); margin: 8px 0; max-width: 90%; line-height: 1.4; background: var(--bg1); padding: 4px 12px; border-radius: 12px;}
-
 .chat-empty{text-align:center;padding:40px 20px;color:var(--text-3);font-size:13px}
 .chat-input-area{display:flex;gap:8px;align-items:flex-end;padding-top:10px;border-top:1px solid var(--border);margin-top:auto}
 .chat-input-area textarea{flex:1;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--radius-sm);padding:9px 12px;font-size:13px;color:var(--text);resize:none;min-height:40px;max-height:100px;transition:var(--transition);line-height:1.4}
@@ -439,6 +449,7 @@ img{display:block}
 
   <div id="tabs">
     <button class="tab active" data-tab="upload" onclick="switchTab('upload')" data-i18n="tab_upload">Upload</button>
+    <button class="tab" data-tab="bonus" onclick="switchTab('bonus')" data-i18n="tab_bonus">Bonus</button>
     <button class="tab" data-tab="portfolio" onclick="switchTab('portfolio')" data-i18n="tab_portfolio">Portfolio</button>
     <button class="tab" data-tab="market" onclick="switchTab('market')" data-i18n="tab_market">Market</button>
     <button class="tab" data-tab="wallet" onclick="switchTab('wallet')" data-i18n="tab_wallet">Wallet</button>
@@ -447,16 +458,9 @@ img{display:block}
   </div>
 
   <div id="content">
+    
     <!-- UPLOAD -->
     <div class="panel active" id="panel-upload">
-      <div id="upload-locked-banner">
-        <div class="lock-header">
-          <div class="lock-icon-wrap">🔒</div>
-          <div class="lock-title" data-i18n="lock_title">Upload Locked</div>
-        </div>
-        <div class="lock-text" id="lock-text" data-i18n="lock_text">You have an active balance. Withdraw your earnings first.</div>
-      </div>
-
       <div id="slot-indicator">
         <div class="slot-label" data-i18n="slots_label">Slots</div>
         <div class="slot-bar-wrap">
@@ -476,6 +480,37 @@ img{display:block}
         📦 Pack mode active (5+ photos). Pack pricing applied.
       </div>
       <button class="btn btn-primary" id="upload-btn" onclick="startUpload()" data-i18n="upload_btn">Analyse &amp; List</button>
+    </div>
+
+    <!-- BONUS (НОВАЯ ВКЛАДКА) -->
+    <div class="panel" id="panel-bonus">
+      <div class="section-head">
+        <div class="section-title" data-i18n="wheel_title">Wheel of Fortune</div>
+        <div class="section-sub" data-i18n="wheel_sub">Win cash & extra slots</div>
+      </div>
+      
+      <div class="wheel-legend">
+        <div class="wl-item"><div class="wl-dot" style="background:#3b82f6"></div>$0.05</div>
+        <div class="wl-item"><div class="wl-dot" style="background:#1e1e1e"></div>Lose</div>
+        <div class="wl-item"><div class="wl-dot" style="background:#8b5cf6"></div>$0.20</div>
+        <div class="wl-item"><div class="wl-dot" style="background:#f59e0b"></div>+1 Slot</div>
+        <div class="wl-item"><div class="wl-dot" style="background:#22c55e"></div>$1.00</div>
+      </div>
+
+      <div class="wheel-container">
+        <div class="wheel-pointer"></div>
+        <div class="wheel-center"></div>
+        <div class="wheel" id="wheel-bg">
+          <div class="wheel-bg"></div>
+        </div>
+      </div>
+      
+      <button class="btn btn-primary" id="spin-btn" onclick="spinWheel()" style="margin-bottom: 12px;" data-i18n="btn_spin">Spin (Free)</button>
+      
+      <div class="buy-panel">
+        <button class="btn btn-stars" onclick="buyItem('spin')" data-i18n="buy_spin">Buy Spin (20 ⭐)</button>
+        <button class="btn btn-stars" onclick="buyItem('slots')" data-i18n="buy_slots">+5 Slots (50 ⭐)</button>
+      </div>
     </div>
 
     <!-- PORTFOLIO -->
@@ -601,7 +636,7 @@ const TRANSLATIONS = {
     hdr_sub:"Photo Auction Platform",
     balance_label:"Balance", earned_label:"Earned", sold_label:"Sold",
     tab_upload:"Upload", tab_portfolio:"Portfolio", tab_market:"Market",
-    tab_wallet:"Wallet", tab_vip:"VIP", tab_support:"Support",
+    tab_wallet:"Wallet", tab_vip:"VIP", tab_support:"Support", tab_bonus:"Bonus",
     live_label:"LIVE", live_sub:"Real-time transactions",
     upload_cta:"Select photos",
     upload_hint:"JPG, PNG, WEBP · up to 10 MB each\nUpload 5+ together for pack pricing",
@@ -611,6 +646,10 @@ const TRANSLATIONS = {
     pack_notice:"📦 Pack mode active (5+ photos). Pack pricing applied.",
     portfolio_title:"My Portfolio", portfolio_empty:"No photos yet. Upload your first shot!",
     wallet_title:"Wallet",
+    
+    wheel_title:"Wheel of Fortune", wheel_sub:"Win cash & extra slots", btn_spin:"Spin (Free)",
+    buy_spin:"Buy Spin (20 ⭐)", buy_slots:"+5 Slots (50 ⭐)",
+    spin_wait:"Wait {h}h {m}m", prize_win:"🎉 You won: {p}",
     
     wallet_info_title:"Withdrawal Info:",
     wallet_info_text:"Withdrawals are processed within 1-7 business days. VIP users enjoy priority in the payout queue. Keep inviting friends to increase your VIP level and speed up your payouts!",
@@ -661,14 +700,14 @@ const TRANSLATIONS = {
     toast_copied:"Link copied!", toast_copy_err:"Copy failed.",
     toast_verify_fail:"You haven't joined the channel yet.",
     auction_in:"Sells in", err_no_file:"Select at least one photo.",
-    err_slots_full:"Not enough auction slots. Upgrade your VIP level.",
+    err_slots_full:"Not enough auction slots. Wait or Buy Extra Slots.",
     ref_count_sub:"referrals",
   },
   ru:{
     hdr_sub:"Платформа аукциона фото",
     balance_label:"Баланс", earned_label:"Заработано", sold_label:"Продано",
     tab_upload:"Загрузка", tab_portfolio:"Портфолио", tab_market:"Лента",
-    tab_wallet:"Кошелёк", tab_vip:"VIP", tab_support:"Поддержка",
+    tab_wallet:"Кошелёк", tab_vip:"VIP", tab_support:"Поддержка", tab_bonus:"Бонус",
     live_label:"ЛАЙВ", live_sub:"Сделки в реальном времени",
     upload_cta:"Выберите фото",
     upload_hint:"JPG, PNG, WEBP · до 10 МБ каждое\nВыберите 5+ сразу для пакетной оценки",
@@ -679,6 +718,10 @@ const TRANSLATIONS = {
     portfolio_title:"Портфолио", portfolio_empty:"Фото нет. Загрузите первый снимок!",
     wallet_title:"Кошелёк",
     
+    wheel_title:"Колесо Фортуны", wheel_sub:"Выигрывай $ и слоты", btn_spin:"Крутить (Бесплатно)",
+    buy_spin:"Купить Спин (20 ⭐)", buy_slots:"+5 Слотов (50 ⭐)",
+    spin_wait:"Жди {h}ч {m}м", prize_win:"🎉 Твой выигрыш: {p}",
+
     wallet_info_title:"Информация о выводе:",
     wallet_info_text:"Выплаты обрабатываются в течение 1-7 рабочих дней. Пользователи с VIP-статусом имеют приоритет в очереди. Приглашайте друзей, чтобы повысить VIP и ускорить выплаты!",
     
@@ -725,7 +768,7 @@ const TRANSLATIONS = {
     toast_copied:"Ссылка скопирована!", toast_copy_err:"Ошибка копирования.",
     toast_verify_fail:"Вы ещё не вступили во все каналы.",
     auction_in:"Продажа через", err_no_file:"Выберите хотя бы одно фото.",
-    err_slots_full:"Нет свободных слотов. Повысьте VIP уровень.",
+    err_slots_full:"Нет слотов. Подождите продаж или купите слоты.",
     ref_count_sub:"рефералов",
   }
 };
@@ -737,6 +780,7 @@ function applyTranslations(){
   document.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = t(el.getAttribute('data-i18n')); });
   document.querySelectorAll('[data-i18n-placeholder]').forEach(el => { el.placeholder = t(el.getAttribute('data-i18n-placeholder')); });
   document.getElementById('lang-toggle').textContent = currentLang === 'en' ? 'RU' : 'EN';
+  updateWheelUI();
 }
 
 function toggleLang(){
@@ -768,6 +812,8 @@ let withdrawTab = 'usd';
 let pendingWithdrawMethod = null;
 let supportMsgsLoaded = false, lastSupportMsgId = 0;
 let lastSoldCount = 0;
+let wheelTimer = null;
+let nextSpinMs = 0;
 
 const VIP_TIERS = [
   {min:0,  max_delay:3600, slots:5}, {min:3,  max_delay:2700, slots:10},
@@ -791,7 +837,6 @@ async function init(){
   buildLiveFeed();
   setInterval(tickCountdowns, 1000);
   setInterval(() => loadPlayer(true), 30000);
-  // ИЗМЕНЁН ИНТЕРВАЛ ПОЛУЧЕНИЯ СООБЩЕНИЙ ЧАТА: с 15 сек на 3 сек
   setInterval(pollSupportReplies, 3000);
   setInterval(tickLiveFeed, 7000);
 }
@@ -808,6 +853,15 @@ async function loadPlayer(silent = false){
     updateHeader(gameData.player);
     renderPortfolio(); renderWalletInfo(); updateUploadLock(); renderWithdrawPreviews();
     renderVipBadge(gameData.vip_level); renderReferrals();
+    
+    if(data.wheel) {
+      if(data.wheel.can_spin) {
+        nextSpinMs = 0;
+      } else {
+        nextSpinMs = data.wheel.next_spin_ms;
+      }
+      updateWheelUI();
+    }
   }catch(e){ if(!silent) console.error(e); }
 }
 
@@ -873,6 +927,7 @@ async function recheckSub(){
   gameData = data;
   updateHeader(gameData.player); renderPortfolio(); renderWalletInfo(); updateUploadLock();
   renderWithdrawPreviews(); renderVipBadge(gameData.vip_level); renderReferrals();
+  updateWheelUI();
 }
 
 function updateHeader(p){
@@ -907,16 +962,11 @@ function switchTab(name){
   if(name === 'support') loadSupportMsgs();
 }
 
+// ── БОЛЬШЕ НЕТ БЛОКИРОВКИ ПО БАЛАНСУ ──
 function updateUploadLock(){
-  const bal = parseFloat(gameData?.player?.balance || 0);
-  const locked = bal > 0;
   const active = gameData?.active_slots || 0;
   const slotLimit = gameData?.slot_limit || 5;
-  document.getElementById('upload-locked-banner').style.display = locked ? 'block' : 'none';
-  document.getElementById('upload-drop-zone').style.display = locked ? 'none' : '';
-  document.getElementById('upload-previews').style.display = (locked || !selectedFiles.length) ? 'none' : 'flex';
-  document.getElementById('upload-btn').disabled = locked;
-
+  
   const pct = slotLimit > 0 ? Math.min((active / slotLimit) * 100, 100) : 0;
   const fill = document.getElementById('slot-bar-fill');
   fill.style.width = pct + '%';
@@ -1017,6 +1067,99 @@ async function confirmUpload(){
     btn.disabled = false; document.getElementById('ai-confirm-text').textContent = t('ai_list');
   }
 }
+
+// ── WHEEL OF FORTUNE LOGIC ──
+function updateWheelUI() {
+  const btn = document.getElementById('spin-btn');
+  if (nextSpinMs <= 0) {
+    btn.disabled = false;
+    btn.textContent = t('btn_spin');
+    clearInterval(wheelTimer);
+  } else {
+    btn.disabled = true;
+    updateWheelTimer();
+    clearInterval(wheelTimer);
+    wheelTimer = setInterval(() => {
+      nextSpinMs -= 1000;
+      if (nextSpinMs <= 0) {
+        updateWheelUI();
+      } else {
+        updateWheelTimer();
+      }
+    }, 1000);
+  }
+}
+
+function updateWheelTimer() {
+  const h = Math.floor(nextSpinMs / 3600000);
+  const m = Math.floor((nextSpinMs % 3600000) / 60000);
+  document.getElementById('spin-btn').textContent = t('spin_wait').replace('{h}', h).replace('{m}', m);
+}
+
+let wheelSpinning = false;
+async function spinWheel() {
+  if (wheelSpinning) return;
+  wheelSpinning = true;
+  
+  try {
+    const r = await fetch(`${BASE}/api/wheel/spin`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id: userId}) });
+    if (!r.ok) throw new Error();
+    const data = await r.json();
+    
+    // Calculate rotation: 5 segments = 72 deg each.
+    // 0: 36, 1: 108, 2: 180, 3: 252, 4: 324
+    const segmentAngles = [36, 108, 180, 252, 324];
+    // Substract 360 to spin backwards or add to spin forwards. 
+    // Let's add 5 full rotations (1800 deg) + target angle.
+    // We want the target segment to land at the TOP (0 deg).
+    // Conic gradient starts at top.
+    const targetDeg = 1800 - segmentAngles[data.prize.id];
+    
+    const wheelBg = document.getElementById('wheel-bg');
+    wheelBg.style.transition = 'transform 4s cubic-bezier(0.25, 0.1, 0.25, 1)';
+    wheelBg.style.transform = `rotate(${targetDeg}deg)`;
+    
+    setTimeout(async () => {
+      showToast(t('prize_win').replace('{p}', data.prize.label), 'success');
+      wheelBg.style.transition = 'none';
+      wheelBg.style.transform = `rotate(${-segmentAngles[data.prize.id]}deg)`; // reset visual
+      wheelSpinning = false;
+      await loadPlayer(false);
+    }, 4100);
+    
+  } catch (e) {
+    wheelSpinning = false;
+    showToast(t('toast_err'), 'error');
+  }
+}
+
+async function buyItem(item) {
+  if (!tg || !tg.openInvoice) {
+    showToast("Telegram Stars only work inside the official app", 'error');
+    return;
+  }
+  
+  try {
+    const r = await fetch(`${BASE}/api/buy/item`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: userId, item: item })
+    });
+    if (!r.ok) throw new Error();
+    const data = await r.json();
+    
+    tg.openInvoice(data.invoice_url, async (status) => {
+      if (status === 'paid') {
+        showToast("Payment successful! Updating...", "success");
+        setTimeout(() => loadPlayer(false), 2000);
+      }
+    });
+  } catch (e) {
+    showToast(t('toast_err'), 'error');
+  }
+}
+// ── END WHEEL LOGIC ──
+
 
 function renderPortfolio(){
   const photos = gameData?.photos || [];
