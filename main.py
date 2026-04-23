@@ -109,10 +109,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class AdminPanel(StatesGroup):
-    wait_sponsor_id    = State()
-    wait_sponsor_name  = State()
-    wait_sponsor_url   = State()
-    wait_sponsor_photo = State()
+    wait_sponsor_input = State() # УМНЫЙ ВВОД КАНАЛА
     wait_ticket_reply  = State()
     wait_broadcast     = State()
 
@@ -176,12 +173,10 @@ async def init_db():
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute("""CREATE TABLE IF NOT EXISTS players (user_id INTEGER PRIMARY KEY, username TEXT, balance REAL DEFAULT 0.0, total_earned REAL DEFAULT 0.0, photos_sold INTEGER DEFAULT 0, referrals_count INTEGER DEFAULT 0, referred_by INTEGER DEFAULT NULL, lang TEXT DEFAULT 'en', last_seen TEXT DEFAULT (datetime('now')), created_at TEXT DEFAULT (datetime('now')))""")
         
-        # БЕЗОПАСНАЯ МИГРАЦИЯ ДЛЯ СУЩЕСТВУЮЩИХ БД
+        # Миграция
         for col in ["extra_slots INTEGER DEFAULT 0", "last_spin TEXT DEFAULT NULL"]:
-            try:
-                await db.execute(f"ALTER TABLE players ADD COLUMN {col}")
-            except Exception:
-                pass
+            try: await db.execute(f"ALTER TABLE players ADD COLUMN {col}")
+            except Exception: pass
                 
         await db.execute("""CREATE TABLE IF NOT EXISTS photos (id TEXT PRIMARY KEY, user_id INTEGER, filename TEXT, batch_id TEXT, base_price REAL, final_price REAL, sale_rub REAL DEFAULT 0, status TEXT DEFAULT 'pending', sell_at TEXT, sold_at TEXT, buyer TEXT, created_at TEXT DEFAULT (datetime('now')), FOREIGN KEY(user_id) REFERENCES players(user_id))""")
         await db.execute("""CREATE TABLE IF NOT EXISTS referrals (referrer_id INTEGER, referred_id INTEGER PRIMARY KEY, created_at TEXT DEFAULT (datetime('now')))""")
@@ -533,6 +528,7 @@ async def cq_crm_main(cb: CallbackQuery, state: FSMContext):
     try: await cb.message.delete()
     except: pass
 
+# ─── ИЗМЕНЕННОЕ ДОБАВЛЕНИЕ СПОНСОРОВ (УМНЫЙ ВВОД) ───
 @dp.callback_query(F.data == "crm_sponsors")
 async def cq_sponsors(cb: CallbackQuery):
     sponsors = await get_sponsors()
@@ -543,41 +539,70 @@ async def cq_sponsors(cb: CallbackQuery):
 
 @dp.callback_query(F.data == "crm_sp_add")
 async def cq_sp_add(cb: CallbackQuery, state: FSMContext):
-    await state.set_state(AdminPanel.wait_sponsor_id)
-    await cb.message.edit_text("1️⃣ Отправьте числовой ID канала (например: <code>-100123456789</code>).\n<i>Бот должен быть админом в этом канале!</i>", parse_mode=ParseMode.HTML)
+    await state.set_state(AdminPanel.wait_sponsor_input)
+    await cb.message.edit_text(
+        "📢 <b>Добавление спонсора</b>\n\n"
+        "Бот <b>должен быть администратором</b> в канале!\n\n"
+        "Сделайте одно из действий:\n"
+        "1️⃣ Перешлите любое сообщение из канала\n"
+        "2️⃣ Отправьте юзернейм (например, <code>@mychannel</code>)\n"
+        "3️⃣ Отправьте ссылку (<code>https://t.me/mychannel</code>)\n\n"
+        "Бот сам достанет название, ссылку и аватарку.",
+        parse_mode=ParseMode.HTML
+    )
 
-@dp.message(AdminPanel.wait_sponsor_id)
-async def sp_id_step(message: Message, state: FSMContext):
-    await state.update_data(channel_id=message.text.strip())
-    await state.set_state(AdminPanel.wait_sponsor_name)
-    await message.answer("2️⃣ Отправьте красивое название канала (для плашки):")
+@dp.message(AdminPanel.wait_sponsor_input)
+async def sp_input_step(message: Message, state: FSMContext):
+    chat = None
+    if message.forward_from_chat:
+        chat = message.forward_from_chat
+    elif message.text:
+        text = message.text.strip()
+        target = text
+        if "t.me/" in text:
+            target = "@" + text.split("t.me/")[1].split("/")[0].split("?")[0]
+            if target == "@+":
+                return await message.answer("❌ Для приватных каналов перешлите сообщение из канала, а не ссылку.")
+        elif not text.startswith("@") and not text.startswith("-100"):
+            target = "@" + text
 
-@dp.message(AdminPanel.wait_sponsor_name)
-async def sp_name_step(message: Message, state: FSMContext):
-    await state.update_data(name=message.text.strip())
-    await state.set_state(AdminPanel.wait_sponsor_url)
-    await message.answer("3️⃣ Отправьте ссылку на канал (можно приватную <code>https://t.me/+...</code>):", parse_mode=ParseMode.HTML)
+        try:
+            chat = await bot.get_chat(target)
+        except Exception as e:
+            return await message.answer(f"❌ Не удалось найти канал. Убедитесь, что бот там админ. Ошибка: {e}")
+    else:
+        return await message.answer("❌ Неверный формат. Перешлите сообщение или отправьте ссылку.")
 
-@dp.message(AdminPanel.wait_sponsor_url)
-async def sp_url_step(message: Message, state: FSMContext):
-    await state.update_data(url=message.text.strip())
-    await state.set_state(AdminPanel.wait_sponsor_photo)
-    await message.answer("4️⃣ Отправьте ФОТО (картинку) для аватарки канала (или нажмите /skip).")
+    if chat.type not in ["channel", "group", "supergroup"]:
+        return await message.answer("❌ Это не канал/группа.")
 
-@dp.message(AdminPanel.wait_sponsor_photo)
-async def sp_photo_step(message: Message, state: FSMContext):
-    data = await state.get_data()
+    try:
+        invite_link = chat.invite_link
+        if not invite_link:
+            if chat.username:
+                invite_link = f"https://t.me/{chat.username}"
+            else:
+                invite_link = await bot.export_chat_invite_link(chat.id)
+    except Exception:
+        return await message.answer("❌ Бот должен быть администратором канала, чтобы получить ссылку!")
+
     filename = ""
-    if message.photo:
+    if chat.photo:
         filename = f"sponsor_{uuid.uuid4().hex[:8]}.jpg"
-        await bot.download(message.photo[-1].file_id, destination=SPONSORS_DIR / filename)
-    
+        try:
+            file = await bot.get_file(chat.photo.big_file_id)
+            await bot.download_file(file.file_path, destination=SPONSORS_DIR / filename)
+        except Exception as e:
+            logger.error(f"Failed to download chat photo: {e}")
+            filename = ""
+
     async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute("INSERT OR REPLACE INTO sponsors (channel_id, name, url, avatar_filename) VALUES (?,?,?,?)", (data["channel_id"], data["name"], data["url"], filename))
+        await db.execute("INSERT OR REPLACE INTO sponsors (channel_id, name, url, avatar_filename) VALUES (?,?,?,?)", 
+                         (str(chat.id), chat.title, invite_link, filename))
         await db.commit()
-    
+
     await state.clear()
-    await message.answer("✅ <b>Спонсор добавлен!</b>\nНажмите /panel для возврата.", parse_mode=ParseMode.HTML)
+    await message.answer(f"✅ <b>Спонсор добавлен!</b>\n\nНазвание: {chat.title}\nID: <code>{chat.id}</code>", parse_mode=ParseMode.HTML)
 
 @dp.callback_query(F.data.startswith("crm_sp_del:"))
 async def cq_sp_del(cb: CallbackQuery):
@@ -586,6 +611,7 @@ async def cq_sp_del(cb: CallbackQuery):
         await db.commit()
     await cb.answer("🗑 Спонсор удален!", show_alert=True)
     await cq_sponsors(cb)
+# ────────────────────────────────────────────────────
 
 # --- Тикеты CRM ---
 @dp.callback_query(F.data == "crm_tickets")
@@ -898,7 +924,6 @@ async def api_referrals(user_id: int):
 @app.post("/api/upload")
 async def api_upload(user_id: int = Form(...), username: str = Form(""), files: List[UploadFile] = File(...)):
     player, _ = await get_or_create_player(user_id, username)
-    # Убрали блокировку по балансу!
     
     files_data = [(f.filename or "photo.jpg", await f.read()) for f in files]
     ref_count, active = await get_referral_count(user_id), await get_active_photo_count(user_id)
