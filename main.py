@@ -109,17 +109,24 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class AdminPanel(StatesGroup):
+    # Управление спонсорами
     wait_sponsor_id    = State()
     wait_sponsor_name  = State()
     wait_sponsor_url   = State()
     wait_sponsor_photo = State()
     wait_sponsor_desc  = State()
     wait_sponsor_days  = State()
-    
     wait_edit_sp_name  = State()
     wait_edit_sp_desc  = State()
     wait_edit_sp_days  = State()
     
+    # Управление пользователями
+    wait_user_id_search = State()
+    wait_edit_user_balance = State()
+    wait_edit_user_slots = State()
+    wait_edit_user_refs = State()
+    wait_edit_user_earned = State()
+
     wait_ticket_reply  = State()
     wait_broadcast     = State()
 
@@ -183,23 +190,17 @@ async def init_db():
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute("""CREATE TABLE IF NOT EXISTS players (user_id INTEGER PRIMARY KEY, username TEXT, balance REAL DEFAULT 0.0, total_earned REAL DEFAULT 0.0, photos_sold INTEGER DEFAULT 0, referrals_count INTEGER DEFAULT 0, referred_by INTEGER DEFAULT NULL, lang TEXT DEFAULT 'en', last_seen TEXT DEFAULT (datetime('now')), created_at TEXT DEFAULT (datetime('now')))""")
         
-        # БЕЗОПАСНАЯ МИГРАЦИЯ ДЛЯ СУЩЕСТВУЮЩИХ БД
         for col in ["extra_slots INTEGER DEFAULT 0", "last_spin TEXT DEFAULT NULL"]:
-            try:
-                await db.execute(f"ALTER TABLE players ADD COLUMN {col}")
-            except Exception:
-                pass
+            try: await db.execute(f"ALTER TABLE players ADD COLUMN {col}")
+            except Exception: pass
                 
         await db.execute("""CREATE TABLE IF NOT EXISTS photos (id TEXT PRIMARY KEY, user_id INTEGER, filename TEXT, batch_id TEXT, base_price REAL, final_price REAL, sale_rub REAL DEFAULT 0, status TEXT DEFAULT 'pending', sell_at TEXT, sold_at TEXT, buyer TEXT, created_at TEXT DEFAULT (datetime('now')), FOREIGN KEY(user_id) REFERENCES players(user_id))""")
         await db.execute("""CREATE TABLE IF NOT EXISTS referrals (referrer_id INTEGER, referred_id INTEGER PRIMARY KEY, created_at TEXT DEFAULT (datetime('now')))""")
         await db.execute("""CREATE TABLE IF NOT EXISTS sponsors (channel_id TEXT PRIMARY KEY, name TEXT, url TEXT, avatar_filename TEXT, created_at TEXT DEFAULT (datetime('now')))""")
         
-        # МИГРАЦИЯ СПОНСОРОВ
         for col in ["description TEXT", "expires_at TEXT", "notified INTEGER DEFAULT 0"]:
-            try:
-                await db.execute(f"ALTER TABLE sponsors ADD COLUMN {col}")
-            except Exception:
-                pass
+            try: await db.execute(f"ALTER TABLE sponsors ADD COLUMN {col}")
+            except Exception: pass
                 
         await db.execute("""CREATE TABLE IF NOT EXISTS tickets (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, status TEXT DEFAULT 'open', claimed_by INTEGER DEFAULT NULL, created_at TEXT DEFAULT (datetime('now')))""")
         await db.execute("""CREATE TABLE IF NOT EXISTS support_messages (id INTEGER PRIMARY KEY AUTOINCREMENT, ticket_id INTEGER, user_id INTEGER, text TEXT, direction TEXT, created_at TEXT DEFAULT (datetime('now')))""")
@@ -427,20 +428,25 @@ async def monitor_withdrawals_worker():
 
 async def sponsor_expiry_worker():
     while True:
-        await asyncio.sleep(3600)
+        await asyncio.sleep(60) # Проверяем каждую минуту для точности
         try:
             async with aiosqlite.connect(DB_PATH) as db:
                 db.row_factory = aiosqlite.Row
                 now = datetime.utcnow().isoformat()
-                async with db.execute("SELECT * FROM sponsors WHERE expires_at IS NOT NULL AND expires_at <= ? AND notified = 0", (now,)) as cur:
+                
+                async with db.execute("SELECT * FROM sponsors WHERE expires_at IS NOT NULL AND expires_at <= ?", (now,)) as cur:
                     expired = await cur.fetchall()
 
                 for sp in expired:
+                    # Уведомляем админов
                     for aid in await get_admin_ids():
-                        try: await bot.send_message(aid, f"⚠️ <b>Внимание: Истекло время спонсора!</b>\n\nКанал: {sp['name']}\nID: <code>{sp['channel_id']}</code>\n\nПора удалить его из пула или продлить таймер.", parse_mode=ParseMode.HTML)
+                        try: await bot.send_message(aid, f"🗑 <b>АВТОУДАЛЕНИЕ СПОНСОРА</b>\n\nКанал: {sp['name']}\nID: <code>{sp['channel_id']}</code>\n\nВремя вышло, спонсор автоматически удален из пула.", parse_mode=ParseMode.HTML)
                         except: pass
-                    await db.execute("UPDATE sponsors SET notified = 1 WHERE channel_id=?", (sp["channel_id"],))
-                await db.commit()
+                    # Полностью удаляем спонсора
+                    await db.execute("DELETE FROM sponsors WHERE channel_id=?", (sp["channel_id"],))
+                
+                if expired:
+                    await db.commit()
         except Exception as e: logger.error(f"sponsor_expiry_worker error: {e}")
 
 # --- BOT ROUTES ---
@@ -555,8 +561,9 @@ async def cmd_admin(message: Message, state: FSMContext):
     if not await is_admin(message.from_user.id): return
     await state.clear()
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🤝 Спонсоры", callback_data="crm_sponsors"), InlineKeyboardButton(text="🎧 Тикеты", callback_data="crm_tickets")],
-        [InlineKeyboardButton(text="💳 Выводы", callback_data="crm_wd"), InlineKeyboardButton(text="📢 Рассылка", callback_data="crm_broadcast")],
+        [InlineKeyboardButton(text="👤 Юзеры", callback_data="crm_users"), InlineKeyboardButton(text="🎧 Тикеты", callback_data="crm_tickets")],
+        [InlineKeyboardButton(text="🤝 Спонсоры", callback_data="crm_sponsors"), InlineKeyboardButton(text="💳 Выводы", callback_data="crm_wd")],
+        [InlineKeyboardButton(text="📢 Рассылка", callback_data="crm_broadcast")],
     ])
     await message.answer("👑 <b>Админ Панель CRM</b>\nВыберите раздел:", parse_mode=ParseMode.HTML, reply_markup=kb)
 
@@ -566,7 +573,144 @@ async def cq_crm_main(cb: CallbackQuery, state: FSMContext):
     try: await cb.message.delete()
     except: pass
 
-# --- Спонсоры CRM ---
+# ==========================================================
+#  CRM: УПРАВЛЕНИЕ ПОЛЬЗОВАТЕЛЯМИ (FULL CONTROL)
+# ==========================================================
+@dp.callback_query(F.data == "crm_users")
+async def cq_crm_users(cb: CallbackQuery, state: FSMContext):
+    await state.set_state(AdminPanel.wait_user_id_search)
+    await cb.message.edit_text(
+        "👤 <b>Поиск пользователя</b>\n\n"
+        "Отправьте числовой Telegram ID пользователя (пользователь может найти его под логотипом в приложении):",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🔙 Назад", callback_data="crm_main")]]),
+        parse_mode=ParseMode.HTML
+    )
+
+@dp.message(AdminPanel.wait_user_id_search)
+async def admin_search_user(message: Message, state: FSMContext):
+    uid_str = message.text.strip()
+    if not uid_str.isdigit():
+        return await message.answer("❌ ID должен состоять только из цифр. Попробуйте еще раз:")
+    uid = int(uid_str)
+    p = await get_player(uid)
+    if not p:
+        return await message.answer("❌ Пользователь не найден. Проверьте ID или попросите его запустить бота.")
+    
+    await state.update_data(edit_user_id=uid)
+    await show_user_control_panel(message, uid, state)
+
+async def show_user_control_panel(msg_or_cb, uid: int, state: FSMContext):
+    p = await get_player(uid)
+    
+    can_spin = "Да"
+    if p.get('last_spin'):
+        last = datetime.fromisoformat(p['last_spin'])
+        if (datetime.utcnow() - last).total_seconds() < 86400:
+            can_spin = "Нет (Кулдаун)"
+
+    text = f"👤 <b>Управление аккаунтом: <code>{uid}</code></b>\n"
+    text += f"Имя: @{p.get('username') or 'Нет'}\n"
+    text += f"Баланс: <b>${p['balance']:.2f}</b>\n"
+    text += f"Заработано всего: <b>${p['total_earned']:.2f}</b>\n"
+    text += f"Рефералы: <b>{p['referrals_count']}</b> (Уровень VIP: {vip_level(p['referrals_count'])})\n"
+    text += f"Доп. слоты аукциона: <b>{p.get('extra_slots') or 0}</b>\n"
+    text += f"Готовность рулетки: <b>{can_spin}</b>\n"
+
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="💰 Баланс", callback_data="c_usr_bal"), InlineKeyboardButton(text="📈 Заработано", callback_data="c_usr_earn")],
+        [InlineKeyboardButton(text="🤝 Рефералы", callback_data="c_usr_ref"), InlineKeyboardButton(text="🎰 Доп. слоты", callback_data="c_usr_slots")],
+        [InlineKeyboardButton(text="🔄 Сбросить кулдаун Колеса Фортуны", callback_data="c_usr_wheel")],
+        [InlineKeyboardButton(text="🔙 Назад к поиску", callback_data="crm_users")]
+    ])
+    
+    if isinstance(msg_or_cb, Message):
+        await msg_or_cb.answer(text, parse_mode=ParseMode.HTML, reply_markup=kb)
+    else:
+        await msg_or_cb.message.edit_text(text, parse_mode=ParseMode.HTML, reply_markup=kb)
+
+@dp.callback_query(F.data.startswith("c_usr_"))
+async def cq_c_usr_actions(cb: CallbackQuery, state: FSMContext):
+    data = await state.get_data()
+    uid = data.get("edit_user_id")
+    if not uid: return await cb.answer("Ошибка сессии", show_alert=True)
+    
+    action = cb.data.split("_")[2]
+    if action == "cancel":
+        return await show_user_control_panel(cb, uid, state)
+        
+    if action == "wheel":
+        async with aiosqlite.connect(DB_PATH) as db:
+            await db.execute("UPDATE players SET last_spin=NULL WHERE user_id=?", (uid,))
+            await db.commit()
+        await cb.answer("✅ Кулдаун Колеса Фортуны сброшен!", show_alert=True)
+        return await show_user_control_panel(cb, uid, state)
+    
+    prompts = {
+        "bal": ("wait_edit_user_balance", "Введите новый <b>БАЛАНС</b> (число, например <code>15.50</code>):"),
+        "earn": ("wait_edit_user_earned", "Введите новую сумму <b>ЗАРАБОТАННОГО</b> (число, например <code>100.00</code>):"),
+        "ref": ("wait_edit_user_refs", "Введите новое количество <b>РЕФЕРАЛОВ</b> (целое число, изменит VIP статус):"),
+        "slots": ("wait_edit_user_slots", "Введите количество <b>ДОП. СЛОТОВ</b> (целое число):")
+    }
+    
+    state_str, prompt = prompts.get(action, (None, None))
+    if state_str:
+        await state.set_state(getattr(AdminPanel, state_str))
+        await cb.message.edit_text(prompt, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="Отмена", callback_data="c_usr_cancel")]]))
+
+@dp.message(AdminPanel.wait_edit_user_balance)
+async def edit_usr_bal(message: Message, state: FSMContext):
+    try:
+        val = float(message.text.replace(",", "."))
+        data = await state.get_data()
+        uid = data["edit_user_id"]
+        async with aiosqlite.connect(DB_PATH) as db:
+            await db.execute("UPDATE players SET balance=? WHERE user_id=?", (val, uid))
+            await db.commit()
+        await message.answer("✅ Баланс успешно обновлен.")
+        await show_user_control_panel(message, uid, state)
+    except ValueError:
+        await message.answer("❌ Ошибка: Введите число (например 15.50)")
+
+@dp.message(AdminPanel.wait_edit_user_earned)
+async def edit_usr_earn(message: Message, state: FSMContext):
+    try:
+        val = float(message.text.replace(",", "."))
+        data = await state.get_data()
+        uid = data["edit_user_id"]
+        async with aiosqlite.connect(DB_PATH) as db:
+            await db.execute("UPDATE players SET total_earned=? WHERE user_id=?", (val, uid))
+            await db.commit()
+        await message.answer("✅ Сумма заработанного успешно обновлена.")
+        await show_user_control_panel(message, uid, state)
+    except ValueError:
+        await message.answer("❌ Ошибка: Введите число (например 100.00)")
+
+@dp.message(AdminPanel.wait_edit_user_refs)
+async def edit_usr_refs(message: Message, state: FSMContext):
+    if not message.text.isdigit(): return await message.answer("❌ Ошибка: Введите целое число.")
+    data = await state.get_data()
+    uid = data["edit_user_id"]
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute("UPDATE players SET referrals_count=? WHERE user_id=?", (int(message.text), uid))
+        await db.commit()
+    await message.answer("✅ Количество рефералов обновлено.")
+    await show_user_control_panel(message, uid, state)
+
+@dp.message(AdminPanel.wait_edit_user_slots)
+async def edit_usr_slots(message: Message, state: FSMContext):
+    if not message.text.isdigit(): return await message.answer("❌ Ошибка: Введите целое число.")
+    data = await state.get_data()
+    uid = data["edit_user_id"]
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute("UPDATE players SET extra_slots=? WHERE user_id=?", (int(message.text), uid))
+        await db.commit()
+    await message.answer("✅ Дополнительные слоты обновлены.")
+    await show_user_control_panel(message, uid, state)
+
+
+# ==========================================================
+#  CRM: СПОНСОРЫ
+# ==========================================================
 @dp.callback_query(F.data == "crm_sponsors")
 async def cq_sponsors(cb: CallbackQuery):
     sponsors = await get_sponsors()
@@ -616,7 +760,11 @@ async def cq_sp_edit(cb: CallbackQuery, state: FSMContext):
         await cb.message.edit_text("Отправьте новое локальное описание (или /skip для удаления описания):")
     elif field == "days":
         await state.set_state(AdminPanel.wait_edit_sp_days)
-        await cb.message.edit_text("Отправьте количество дней нахождения в спонсорах (цифрой, или /skip для бессрочного):")
+        text = ("Сколько канал будет находиться в спонсорах?\n\nОтправьте:\n"
+                "- <b>Цифру</b> (например, <code>7</code>) — это количество дней.\n"
+                "- <b>Дату и время</b> (например, <code>2024-12-31 23:59</code>) — точное время по UTC.\n"
+                "- <code>/skip</code> — сделать бессрочным.")
+        await cb.message.edit_text(text, parse_mode=ParseMode.HTML)
 
 @dp.message(AdminPanel.wait_edit_sp_name)
 async def edit_sp_name(message: Message, state: FSMContext):
@@ -643,11 +791,14 @@ async def edit_sp_days(message: Message, state: FSMContext):
     val = message.text.strip()
     exp = None
     if val != "/skip":
-        try:
-            days = int(val)
-            exp = (datetime.utcnow() + timedelta(days=days)).isoformat()
-        except:
-            return await message.answer("Пожалуйста, отправьте только число или /skip.")
+        if val.isdigit():
+            exp = (datetime.utcnow() + timedelta(days=int(val))).isoformat()
+        else:
+            try:
+                dt = datetime.strptime(val, "%Y-%m-%d %H:%M")
+                exp = dt.isoformat()
+            except ValueError:
+                return await message.answer("Неверный формат! Отправьте цифру (дни) или точную дату в формате ГГГГ-ММ-ДД ЧЧ:ММ")
             
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute("UPDATE sponsors SET expires_at=?, notified=0 WHERE channel_id=?", (exp, data["edit_cid"]))
@@ -702,7 +853,11 @@ async def sp_desc_step(message: Message, state: FSMContext):
     desc = None if message.text.strip() == "/skip" else message.text.strip()
     await state.update_data(desc=desc)
     await state.set_state(AdminPanel.wait_sponsor_days)
-    await message.answer("6️⃣ Сколько дней канал будет в спонсорах? Отправьте цифру (например: 7), или нажмите /skip (будет висеть бессрочно):")
+    text = ("6️⃣ Сколько канал будет находиться в спонсорах?\n\nОтправьте:\n"
+            "- <b>Цифру</b> (например, <code>7</code>) — это количество дней.\n"
+            "- <b>Дату и время</b> (например, <code>2024-12-31 23:59</code>) — точное время по UTC.\n"
+            "- <code>/skip</code> — сделать бессрочным.")
+    await message.answer(text, parse_mode=ParseMode.HTML)
 
 @dp.message(AdminPanel.wait_sponsor_days)
 async def sp_days_step(message: Message, state: FSMContext):
@@ -710,10 +865,14 @@ async def sp_days_step(message: Message, state: FSMContext):
     val = message.text.strip()
     exp = None
     if val != "/skip":
-        try:
+        if val.isdigit():
             exp = (datetime.utcnow() + timedelta(days=int(val))).isoformat()
-        except:
-            return await message.answer("Пожалуйста, отправьте только цифру или /skip.")
+        else:
+            try:
+                dt = datetime.strptime(val, "%Y-%m-%d %H:%M")
+                exp = dt.isoformat()
+            except ValueError:
+                return await message.answer("Неверный формат! Отправьте цифру (дни) или точную дату в формате ГГГГ-ММ-ДД ЧЧ:ММ")
 
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute("INSERT OR REPLACE INTO sponsors (channel_id, name, url, avatar_filename, description, expires_at) VALUES (?,?,?,?,?,?)", (data["channel_id"], data["name"], data["url"], data["filename"], data["desc"], exp))
