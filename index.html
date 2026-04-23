@@ -529,11 +529,11 @@ img{display:block}
             <div class="wheel-pointer">▼</div>
             <div class="wheel-border">
                 <div class="wheel" id="wheel-bg">
-                    <div class="wheel-slice" style="transform: rotate(36deg);"><span>$0.50</span></div>
+                    <div class="wheel-slice" style="transform: rotate(36deg);"><span>$5.00</span></div>
                     <div class="wheel-divider" style="transform: rotate(72deg);"></div>
                     <div class="wheel-slice" style="transform: rotate(108deg);"><span>LOSE</span></div>
                     <div class="wheel-divider" style="transform: rotate(144deg);"></div>
-                    <div class="wheel-slice" style="transform: rotate(180deg);"><span>$2.00</span></div>
+                    <div class="wheel-slice" style="transform: rotate(180deg);"><span>$20.00</span></div>
                     <div class="wheel-divider" style="transform: rotate(216deg);"></div>
                     <div class="wheel-slice" style="transform: rotate(252deg);"><span>+2 SLOTS</span></div>
                     <div class="wheel-divider" style="transform: rotate(288deg);"></div>
@@ -716,7 +716,7 @@ const TRANSLATIONS = {
     vip_current_level:"Current Level",
     vip_tier_names:["Starter","Bronze","Silver","Gold","Platinum","Diamond"],
     vip_tier_max:["60 min max","45 min max","30 min max","15 min max","5 min max","Near-instant"],
-    vip_tier_slots:["5 slots","10 slots","15 slots","20 slots","25 slots","30 slots"],
+    vip_tier_slots:["5 slots/d","10 slots/d","15 slots/d","20 slots/d","25 slots/d","30 slots/d"],
     vip_tier_req:["0 referrals","3 referrals","5 referrals","10 referrals","25 referrals","50 referrals"],
     vip_next_hint:"Invite {n} more friend(s) to reach Level {l}",
     vip_max_hint:"Maximum VIP level reached!",
@@ -1216,8 +1216,12 @@ function tickCountdowns(){
   const resetEl = document.getElementById('slot-reset-timer');
   if(resetEl && resetEl.style.display !== 'none') {
       const now = new Date();
-      const tomorrow = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1));
-      const diff = tomorrow - now;
+      let nextReset = new Date();
+      nextReset.setUTCHours(21, 0, 0, 0); // 00:00 MSK = 21:00 UTC
+      if (now >= nextReset) {
+          nextReset.setUTCDate(nextReset.getUTCDate() + 1);
+      }
+      const diff = nextReset - now;
       const h = Math.floor(diff / 3600000);
       const m = Math.floor((diff % 3600000) / 60000);
       const s = Math.floor((diff % 60000) / 1000);
