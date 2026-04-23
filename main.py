@@ -139,9 +139,13 @@ def make_share_url(ref_url: str) -> str:
 bot = Bot(token=BOT_TOKEN)
 dp  = Dispatcher(storage=MemoryStorage())
 
+# --- Улучшенное подключение к БД ---
+def get_db():
+    return aiosqlite.connect(DB_PATH, timeout=20.0)
+
 # --- INIT DB ---
 async def init_db():
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with get_db() as db:
         await db.execute("PRAGMA journal_mode=WAL;")
         await db.execute("PRAGMA synchronous=NORMAL;")
         
@@ -162,7 +166,6 @@ async def init_db():
         await db.execute("""CREATE TABLE IF NOT EXISTS withdrawal_requests (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, amount_usd REAL, stars INTEGER DEFAULT 0, method TEXT, is_priority INTEGER DEFAULT 0, status TEXT DEFAULT 'pending', warning_sent_at TEXT DEFAULT NULL, created_at TEXT DEFAULT (datetime('now')))""")
         await db.execute("""CREATE TABLE IF NOT EXISTS admins (user_id INTEGER PRIMARY KEY, username TEXT, added_by INTEGER, created_at TEXT DEFAULT (datetime('now')))""")
         
-        # Индексы для сверхбыстрой работы
         await db.execute("CREATE INDEX IF NOT EXISTS idx_photos_auction ON photos(status, sell_at)")
         await db.execute("CREATE INDEX IF NOT EXISTS idx_photos_user ON photos(user_id)")
         await db.execute("CREATE INDEX IF NOT EXISTS idx_support_user ON support_messages(user_id)")
@@ -172,26 +175,37 @@ async def notify_referrer(referrer_id: int, new_user_name: str):
     try: await bot.send_message(referrer_id, f"🔔 <b>Новый реферал!</b>\nПользователь @{new_user_name} присоединился по вашей ссылке.", parse_mode=ParseMode.HTML)
     except: pass
 
+async def _bind_referral(new_user_id: int, referrer_id: int) -> bool:
+    if referrer_id == new_user_id: return False
+    try:
+        async with get_db() as db:
+            async with db.execute("SELECT 1 FROM players WHERE user_id=?", (referrer_id,)) as cur:
+                if not await cur.fetchone(): return False
+            async with db.execute("SELECT referred_by FROM players WHERE user_id=?", (new_user_id,)) as cur:
+                row = await cur.fetchone()
+                if row is None or row[0] is not None: return False
+            
+            await db.execute("UPDATE players SET referred_by=? WHERE user_id=?", (referrer_id, new_user_id))
+            await db.execute("INSERT OR IGNORE INTO referrals (referrer_id, referred_id) VALUES (?,?)", (referrer_id, new_user_id))
+            await db.execute("UPDATE players SET referrals_count=referrals_count+1 WHERE user_id=?", (referrer_id,))
+            await db.commit()
+
+        p = await get_player(new_user_id)
+        display = f"@{p['username']}" if p and p.get("username") else str(new_user_id)
+        asyncio.create_task(notify_referrer(referrer_id, display))
+        return True
+    except Exception: return False
+
 async def get_or_create_player(user_id: int, username: str = "", referred_by: int | None = None) -> tuple[dict, bool]:
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with get_db() as db:
         db.row_factory = aiosqlite.Row
         async with db.execute("SELECT * FROM players WHERE user_id=?", (user_id,)) as cur:
             row = await cur.fetchone()
             
         if row is None:
-            # Безопасная моментальная привязка реферала при регистрации
-            valid_ref = None
-            if referred_by and referred_by != user_id:
-                async with db.execute("SELECT 1 FROM players WHERE user_id=?", (referred_by,)) as cur:
-                    if await cur.fetchone(): valid_ref = referred_by
-
-            await db.execute("INSERT INTO players (user_id, username, referred_by) VALUES (?,?,?)", (user_id, username, valid_ref))
-            if valid_ref:
-                await db.execute("INSERT OR IGNORE INTO referrals (referrer_id, referred_id) VALUES (?,?)", (valid_ref, user_id))
-                await db.execute("UPDATE players SET referrals_count=referrals_count+1 WHERE user_id=?", (valid_ref,))
+            await db.execute("INSERT INTO players (user_id, username) VALUES (?,?)", (user_id, username))
             await db.commit()
-            
-            if valid_ref: asyncio.create_task(notify_referrer(valid_ref, username or str(user_id)))
+            if referred_by: await _bind_referral(user_id, referred_by)
             async with db.execute("SELECT * FROM players WHERE user_id=?", (user_id,)) as cur:
                 return dict(await cur.fetchone()), True
                 
@@ -202,14 +216,55 @@ async def get_or_create_player(user_id: int, username: str = "", referred_by: in
         return dict(row), False
 
 async def get_player(user_id: int) -> dict | None:
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with get_db() as db:
         db.row_factory = aiosqlite.Row
         async with db.execute("SELECT * FROM players WHERE user_id=?", (user_id,)) as cur:
             r = await cur.fetchone()
         return dict(r) if r else None
 
+async def get_player_photos(user_id: int, lang: str = "en") -> list:
+    async with get_db() as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute("SELECT * FROM photos WHERE user_id=? ORDER BY created_at DESC LIMIT 50", (user_id,)) as cur:
+            rows = await cur.fetchall()
+    return [dict(r) | {"status_label": tr(lang, "status_auction") if r["status"] == "on_auction" else ""} for r in rows]
+
+async def get_active_photo_count(user_id: int) -> int:
+    async with get_db() as db:
+        async with db.execute("SELECT COUNT(*) FROM photos WHERE user_id=? AND status='on_auction'", (user_id,)) as cur:
+            return (await cur.fetchone())[0]
+
+async def get_referral_count(user_id: int) -> int:
+    async with get_db() as db:
+        async with db.execute("SELECT COUNT(*) FROM players WHERE referred_by=?", (user_id,)) as cur:
+            return (await cur.fetchone())[0]
+
+async def get_all_user_ids() -> list[int]:
+    async with get_db() as db:
+        async with db.execute("SELECT user_id FROM players") as cur:
+            return [r[0] for r in await cur.fetchall()]
+
+async def get_referral_list(referrer_id: int) -> list:
+    async with get_db() as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute("SELECT r.referred_id, r.created_at, p.username, CASE WHEN p.photos_sold > 0 THEN 1 ELSE 0 END AS is_active FROM referrals r LEFT JOIN players p ON p.user_id = r.referred_id WHERE r.referrer_id = ? ORDER BY r.created_at DESC", (referrer_id,)) as cur:
+            return [dict(r) for r in await cur.fetchall()]
+
+async def is_admin(user_id: int) -> bool:
+    if ADMIN_ID and user_id == ADMIN_ID: return True
+    async with get_db() as db:
+        async with db.execute("SELECT 1 FROM admins WHERE user_id=?", (user_id,)) as cur:
+            return bool(await cur.fetchone())
+
+async def get_admin_ids() -> set[int]:
+    ids = {ADMIN_ID} if ADMIN_ID else set()
+    async with get_db() as db:
+        async with db.execute("SELECT user_id FROM admins") as cur:
+            ids.update(r[0] for r in await cur.fetchall())
+    return ids
+
 async def get_sponsors():
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with get_db() as db:
         db.row_factory = aiosqlite.Row
         async with db.execute("SELECT * FROM sponsors") as cur:
             return [{"avatar": f"{WEBAPP_URL}/uploads/sponsors/{r['avatar_filename']}" if r["avatar_filename"] else ""} | dict(r) for r in await cur.fetchall()]
@@ -222,19 +277,6 @@ async def is_subscribed_to_channel(channel_id: str, user_id: int) -> bool:
 
 async def check_all_subs(user_id: int) -> list:
     return [sp for sp in await get_sponsors() if not await is_subscribed_to_channel(sp["channel_id"], user_id)]
-
-async def is_admin(user_id: int) -> bool:
-    if ADMIN_ID and user_id == ADMIN_ID: return True
-    async with aiosqlite.connect(DB_PATH) as db:
-        async with db.execute("SELECT 1 FROM admins WHERE user_id=?", (user_id,)) as cur:
-            return bool(await cur.fetchone())
-
-async def get_admin_ids() -> set[int]:
-    ids = {ADMIN_ID} if ADMIN_ID else set()
-    async with aiosqlite.connect(DB_PATH) as db:
-        async with db.execute("SELECT user_id FROM admins") as cur:
-            ids.update(r[0] for r in await cur.fetchall())
-    return ids
 
 async def referral_url(user_id: int) -> str:
     global _bot_username
@@ -266,7 +308,7 @@ async def auction_worker():
     while True:
         try:
             notifications = []
-            async with aiosqlite.connect(DB_PATH) as db:
+            async with get_db() as db:
                 db.row_factory = aiosqlite.Row
                 async with db.execute("SELECT * FROM photos WHERE status='on_auction' AND sell_at<=?", (datetime.utcnow().isoformat(),)) as cur:
                     due = await cur.fetchall()
@@ -296,7 +338,7 @@ async def reminder_worker():
         await asyncio.sleep(3600)
         try:
             cutoff = (datetime.utcnow() - timedelta(hours=24)).isoformat()
-            async with aiosqlite.connect(DB_PATH) as db:
+            async with get_db() as db:
                 db.row_factory = aiosqlite.Row
                 async with db.execute("SELECT user_id, lang FROM players WHERE last_seen < ?", (cutoff,)) as cur:
                     for row in await cur.fetchall():
@@ -311,7 +353,7 @@ async def monitor_withdrawals_worker():
     while True:
         await asyncio.sleep(3600)
         try:
-            async with aiosqlite.connect(DB_PATH) as db:
+            async with get_db() as db:
                 db.row_factory = aiosqlite.Row
                 async with db.execute("SELECT id, user_id, amount_usd, warning_sent_at FROM withdrawal_requests WHERE status='pending'") as cur:
                     reqs = await cur.fetchall()
@@ -348,12 +390,11 @@ async def monitor_withdrawals_worker():
                             except: pass
         except Exception as e: logger.error(f"monitor_withdrawals_worker error: {e}")
 
-
 async def sponsor_expiry_worker():
     while True:
         await asyncio.sleep(60)
         try:
-            async with aiosqlite.connect(DB_PATH) as db:
+            async with get_db() as db:
                 db.row_factory = aiosqlite.Row
                 async with db.execute("SELECT * FROM sponsors WHERE expires_at IS NOT NULL AND expires_at <= ?", (datetime.utcnow().isoformat(),)) as cur:
                     expired = await cur.fetchall()
@@ -374,7 +415,6 @@ async def cmd_start(message: Message, command: CommandObject):
         try: referrer_id = int(args_str[4:] if args_str.startswith("ref_") else args_str)
         except ValueError: pass
 
-    # get_or_create_player сразу и безопасно привяжет реферала если это новый юзер
     p, _ = await get_or_create_player(user.id, user.username or "", referred_by=referrer_id)
 
     if p.get("is_banned"):
@@ -413,7 +453,7 @@ async def on_pre_checkout(pre_checkout: PreCheckoutQuery): await pre_checkout.an
 @dp.message(F.successful_payment)
 async def on_successful_payment(message: Message):
     payload, uid = message.successful_payment.invoice_payload, message.from_user.id
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with get_db() as db:
         if payload == "buy_spin": await db.execute("UPDATE players SET last_spin=NULL WHERE user_id=?", (uid,))
         elif payload == "buy_slots": await db.execute("UPDATE players SET extra_slots=extra_slots+5 WHERE user_id=?", (uid,))
         await db.commit()
@@ -465,7 +505,7 @@ async def show_user_control_panel(msg_or_cb, uid: int, state: FSMContext):
         [InlineKeyboardButton(text="💰 Баланс", callback_data="c_usr_bal"), InlineKeyboardButton(text="📈 Заработано", callback_data="c_usr_earn")],
         [InlineKeyboardButton(text="🤝 Рефералы", callback_data="c_usr_ref"), InlineKeyboardButton(text="🎰 Доп. слоты", callback_data="c_usr_slots")],
         [InlineKeyboardButton(text="🌟 Уровень VIP", callback_data="c_usr_vip")],
-        [InlineKeyboardButton(text="🔄 Сбросить кулдаун Колеса", callback_data="c_usr_wheel")],
+        [InlineKeyboardButton(text="🔄 Сбросить Колесо", callback_data="c_usr_wheel")],
         [InlineKeyboardButton(text="🔓 Разблокировать" if p.get('is_banned') else "🚫 Заблокировать", callback_data="c_usr_ban")],
         [InlineKeyboardButton(text="🔙 Назад к поиску", callback_data="crm_users")]
     ])
@@ -481,7 +521,7 @@ async def cq_c_usr_actions(cb: CallbackQuery, state: FSMContext):
     action = cb.data.split("_")[2]
     if action == "cancel": return await show_user_control_panel(cb, uid, state)
     if action == "wheel":
-        async with aiosqlite.connect(DB_PATH) as db:
+        async with get_db() as db:
             await db.execute("UPDATE players SET last_spin=NULL WHERE user_id=?", (uid,))
             await db.commit()
         await cb.answer("✅ Сброшен!")
@@ -489,7 +529,7 @@ async def cq_c_usr_actions(cb: CallbackQuery, state: FSMContext):
     if action == "ban":
         p = await get_player(uid)
         new_stat = 0 if p.get('is_banned') else 1
-        async with aiosqlite.connect(DB_PATH) as db:
+        async with get_db() as db:
             await db.execute("UPDATE players SET is_banned=? WHERE user_id=?", (new_stat, uid))
             await db.commit()
         await cb.answer("✅ Статус изменен")
@@ -511,7 +551,7 @@ async def cq_c_usr_actions(cb: CallbackQuery, state: FSMContext):
 async def e_bal(m: Message, state: FSMContext):
     try:
         val = float(m.text.replace(",", "."))
-        async with aiosqlite.connect(DB_PATH) as db:
+        async with get_db() as db:
             await db.execute("UPDATE players SET balance=? WHERE user_id=?", (val, (await state.get_data())["edit_user_id"]))
             await db.commit()
         await show_user_control_panel(m, (await state.get_data())["edit_user_id"], state)
@@ -521,7 +561,7 @@ async def e_bal(m: Message, state: FSMContext):
 async def e_earn(m: Message, state: FSMContext):
     try:
         val = float(m.text.replace(",", "."))
-        async with aiosqlite.connect(DB_PATH) as db:
+        async with get_db() as db:
             await db.execute("UPDATE players SET total_earned=? WHERE user_id=?", (val, (await state.get_data())["edit_user_id"]))
             await db.commit()
         await show_user_control_panel(m, (await state.get_data())["edit_user_id"], state)
@@ -530,7 +570,7 @@ async def e_earn(m: Message, state: FSMContext):
 @dp.message(AdminPanel.wait_edit_user_refs)
 async def e_refs(m: Message, state: FSMContext):
     if not m.text.isdigit(): return await m.answer("❌ Целое число.")
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with get_db() as db:
         await db.execute("UPDATE players SET referrals_count=? WHERE user_id=?", (int(m.text), (await state.get_data())["edit_user_id"]))
         await db.commit()
     await show_user_control_panel(m, (await state.get_data())["edit_user_id"], state)
@@ -538,7 +578,7 @@ async def e_refs(m: Message, state: FSMContext):
 @dp.message(AdminPanel.wait_edit_user_slots)
 async def e_slots(m: Message, state: FSMContext):
     if not m.text.isdigit(): return await m.answer("❌ Целое число.")
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with get_db() as db:
         await db.execute("UPDATE players SET extra_slots=? WHERE user_id=?", (int(m.text), (await state.get_data())["edit_user_id"]))
         await db.commit()
     await show_user_control_panel(m, (await state.get_data())["edit_user_id"], state)
@@ -546,12 +586,11 @@ async def e_slots(m: Message, state: FSMContext):
 @dp.message(AdminPanel.wait_edit_user_vip)
 async def e_vip(m: Message, state: FSMContext):
     if not m.text.isdigit() or not (0 <= int(m.text) <= 5): return await m.answer("❌ Число от 0 до 5.")
-    lvl = int(m.text)
-    req_refs = VIP_TIERS[lvl][0]
-    async with aiosqlite.connect(DB_PATH) as db:
+    req_refs = VIP_TIERS[int(m.text)][0]
+    async with get_db() as db:
         await db.execute("UPDATE players SET referrals_count=? WHERE user_id=?", (req_refs, (await state.get_data())["edit_user_id"]))
         await db.commit()
-    await m.answer(f"✅ VIP изменен (рефералы установлены на {req_refs})")
+    await m.answer(f"✅ VIP изменен")
     await show_user_control_panel(m, (await state.get_data())["edit_user_id"], state)
 
 
@@ -588,39 +627,38 @@ async def cq_sp_edit(cb: CallbackQuery, state: FSMContext):
         await cb.message.edit_text("Новое описание (или /skip):")
     elif field == "days":
         await state.set_state(AdminPanel.wait_edit_sp_days)
-        await cb.message.edit_text("Таймер (кол-во дней, формат ГГГГ-ММ-ДД ЧЧ:ММ, или /skip):")
+        await cb.message.edit_text("Таймер (дни, или ГГГГ-ММ-ДД ЧЧ:ММ, или /skip):")
 
 @dp.message(AdminPanel.wait_edit_sp_name)
 async def e_sp_n(m: Message, state: FSMContext):
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with get_db() as db:
         await db.execute("UPDATE sponsors SET name=? WHERE channel_id=?", (m.text.strip(), (await state.get_data())["edit_cid"]))
         await db.commit()
     await state.clear(); await m.answer("✅ Обновлено. /panel")
 
 @dp.message(AdminPanel.wait_edit_sp_desc)
 async def e_sp_d(m: Message, state: FSMContext):
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with get_db() as db:
         await db.execute("UPDATE sponsors SET description=? WHERE channel_id=?", (None if m.text=="/skip" else m.text.strip(), (await state.get_data())["edit_cid"]))
         await db.commit()
     await state.clear(); await m.answer("✅ Обновлено. /panel")
 
 @dp.message(AdminPanel.wait_edit_sp_days)
 async def e_sp_dy(m: Message, state: FSMContext):
-    v = m.text.strip()
-    exp = None
+    v, exp = m.text.strip(), None
     if v != "/skip":
         if v.isdigit(): exp = (datetime.utcnow() + timedelta(days=int(v))).isoformat()
         else:
             try: exp = datetime.strptime(v, "%Y-%m-%d %H:%M").isoformat()
             except: return await m.answer("Неверный формат!")
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with get_db() as db:
         await db.execute("UPDATE sponsors SET expires_at=?, notified=0 WHERE channel_id=?", (exp, (await state.get_data())["edit_cid"]))
         await db.commit()
     await state.clear(); await m.answer("✅ Обновлено. /panel")
 
 @dp.callback_query(F.data.startswith("crm_sp_del:"))
 async def cq_sp_del(cb: CallbackQuery):
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with get_db() as db:
         await db.execute("DELETE FROM sponsors WHERE channel_id=?", (cb.data.split(":")[1],))
         await db.commit()
     await cq_sponsors(cb)
@@ -650,7 +688,7 @@ async def sp_add_5(m: Message, state: FSMContext):
     await state.update_data(d=None if m.text=="/skip" else m.text.strip()); await state.set_state(AdminPanel.wait_sponsor_days); await m.answer("6️⃣ Дней (или /skip):")
 @dp.message(AdminPanel.wait_sponsor_days)
 async def sp_add_6(m: Message, state: FSMContext):
-    dt = await state.get_data()
+    dt_data = await state.get_data()
     v = m.text.strip()
     exp = None
     if v != "/skip":
@@ -658,8 +696,8 @@ async def sp_add_6(m: Message, state: FSMContext):
         else:
             try: exp = datetime.strptime(v, "%Y-%m-%d %H:%M").isoformat()
             except: return await m.answer("Неверный формат!")
-    async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute("INSERT OR REPLACE INTO sponsors (channel_id, name, url, avatar_filename, description, expires_at) VALUES (?,?,?,?,?,?)", (dt["cid"], dt["n"], dt["u"], dt["f"], dt["d"], exp))
+    async with get_db() as db:
+        await db.execute("INSERT OR REPLACE INTO sponsors (channel_id, name, url, avatar_filename, description, expires_at) VALUES (?,?,?,?,?,?)", (dt_data["cid"], dt_data["n"], dt_data["u"], dt_data["f"], dt_data["d"], exp))
         await db.commit()
     await state.clear(); await m.answer("✅ Добавлен! /panel")
 
@@ -674,7 +712,7 @@ async def admin_native_reply(message: Message):
     reply_text = message.text or message.caption or ""
     if not reply_text: return
     
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with get_db() as db:
         async with db.execute("SELECT user_id, status FROM tickets WHERE id=?", (tkt_id,)) as cur:
             tkt = await cur.fetchone()
         if not tkt: return
@@ -694,7 +732,7 @@ async def admin_native_reply(message: Message):
 
 @dp.callback_query(F.data == "crm_tickets")
 async def cq_tickets(cb: CallbackQuery):
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with get_db() as db:
         db.row_factory = aiosqlite.Row
         async with db.execute("SELECT t.id, t.user_id, p.username FROM tickets t LEFT JOIN players p ON t.user_id=p.user_id WHERE t.status='open' LIMIT 10") as cur:
             tkts = await cur.fetchall()
@@ -705,7 +743,7 @@ async def cq_tickets(cb: CallbackQuery):
 @dp.callback_query(F.data.startswith("crm_tview:"))
 async def cq_tview(cb: CallbackQuery):
     tkt_id = int(cb.data.split(":")[1])
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with get_db() as db:
         db.row_factory = aiosqlite.Row
         async with db.execute("SELECT t.id, t.user_id, t.status, p.username FROM tickets t LEFT JOIN players p ON t.user_id=p.user_id WHERE t.id=?", (tkt_id,)) as cur:
             tkt = await cur.fetchone()
@@ -718,7 +756,7 @@ async def cq_tview(cb: CallbackQuery):
 @dp.callback_query(F.data.startswith("crm_tclaim:"))
 async def cq_tclaim(cb: CallbackQuery):
     tkt_id = int(cb.data.split(":")[1])
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with get_db() as db:
         async with db.execute("SELECT user_id, status FROM tickets WHERE id=?", (tkt_id,)) as cur:
             tkt = await cur.fetchone()
         if not tkt or tkt[1] != "open": return await cb.answer("Уже взят.", show_alert=True)
@@ -730,7 +768,7 @@ async def cq_tclaim(cb: CallbackQuery):
 @dp.callback_query(F.data.startswith("crm_tclose:"))
 async def cq_tclose(cb: CallbackQuery):
     tkt_id = int(cb.data.split(":")[1])
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with get_db() as db:
         async with db.execute("SELECT user_id FROM tickets WHERE id=?", (tkt_id,)) as cur: uid = (await cur.fetchone())[0]
         await db.execute("UPDATE tickets SET status='closed' WHERE id=?", (tkt_id,))
         await db.execute("INSERT INTO support_messages (ticket_id, user_id, text, direction) VALUES (?,?,?, 'system')", (tkt_id, uid, "✅ Завершен."))
@@ -739,7 +777,7 @@ async def cq_tclose(cb: CallbackQuery):
 
 @dp.callback_query(F.data == "crm_wd")
 async def cq_wd(cb: CallbackQuery):
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with get_db() as db:
         db.row_factory = aiosqlite.Row
         async with db.execute("SELECT wr.*, p.username FROM withdrawal_requests wr LEFT JOIN players p ON p.user_id = wr.user_id WHERE wr.status='pending' ORDER BY wr.is_priority DESC, wr.created_at ASC LIMIT 10") as cur:
             wds = await cur.fetchall()
@@ -754,7 +792,7 @@ async def cq_wd(cb: CallbackQuery):
 
 @dp.callback_query(F.data.startswith("crm_wdok:"))
 async def cq_wdok(cb: CallbackQuery):
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with get_db() as db:
         await db.execute("UPDATE withdrawal_requests SET status='completed' WHERE id=?", (cb.data.split(":")[1],))
         await db.commit()
     await cq_wd(cb)
@@ -762,7 +800,7 @@ async def cq_wdok(cb: CallbackQuery):
 @dp.callback_query(F.data.startswith("crm_wdrej_do:"))
 async def cq_wdrej_do(cb: CallbackQuery):
     wid = int(cb.data.split(":")[1])
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with get_db() as db:
         async with db.execute("SELECT user_id, amount_usd FROM withdrawal_requests WHERE id=?", (wid,)) as cur: req = await cur.fetchone()
         await db.execute("UPDATE withdrawal_requests SET status='rejected' WHERE id=?", (wid,))
         await db.execute("UPDATE players SET balance=balance+? WHERE user_id=?", (req[1], req[0]))
@@ -798,7 +836,7 @@ async def direct_support_msg(message: Message, state: FSMContext):
     uid = message.from_user.id
     text = message.text.strip()
     
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with get_db() as db:
         db.row_factory = aiosqlite.Row
         async with db.execute("SELECT id, claimed_by FROM tickets WHERE user_id=? AND status IN ('open', 'claimed')", (uid,)) as cur:
             tkt = await cur.fetchone()
@@ -895,7 +933,7 @@ async def api_wheel_spin(request: Request):
         cur += pr["chance"]
         if r <= cur: prize = pr; break
 
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with get_db() as db:
         await db.execute("UPDATE players SET last_spin=datetime('now') WHERE user_id=?", (uid,))
         if prize["type"] == "usd": await db.execute("UPDATE players SET balance=balance+?, total_earned=total_earned+? WHERE user_id=?", (prize["val"], prize["val"], uid))
         elif prize["type"] == "slot": await db.execute("UPDATE players SET extra_slots=extra_slots+? WHERE user_id=?", (prize["val"], uid))
@@ -913,7 +951,7 @@ async def api_buy_item(request: Request):
 @app.put("/api/player/{user_id}/lang")
 async def api_set_lang(user_id: int, request: Request):
     lang = (await request.json()).get("lang", "en")
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with get_db() as db:
         await db.execute("UPDATE players SET lang=? WHERE user_id=?", (lang, user_id))
         await db.commit()
     return {"lang": lang}
@@ -927,28 +965,33 @@ async def api_upload(user_id: int = Form(...), username: str = Form(""), files: 
     p, _ = await get_or_create_player(user_id, username)
     if p.get("is_banned"): raise HTTPException(403)
     
-    fs = [(f.filename or "photo.jpg", await f.read()) for f in files]
     ref_c, act = p.get("referrals_count", 0), await get_active_photo_count(user_id)
     lim = vip_slot_limit(ref_c) + (p.get("extra_slots") or 0)
-    if act + len(fs) > lim: raise HTTPException(403)
+    if act + len(files) > lim: raise HTTPException(403, "Limit reached")
 
-    is_pack, results = len(fs) >= PACK_SIZE, []
-    rub_each = [random.randint(PACK_MIN_RUB, PACK_MAX_RUB)//PACK_SIZE]*len(fs) if is_pack else [random.randint(SINGLE_MIN_RUB, SINGLE_MAX_RUB) for _ in range(len(fs))]
+    # Сначала сохраняем файлы асинхронно, НЕ блокируя базу
+    saved_files = []
+    for f in files:
+        raw = await f.read()
+        fn = f"{uuid.uuid4().hex}.jpg"
+        filepath = UPLOADS_DIR / fn
+        await asyncio.to_thread(filepath.write_bytes, raw)
+        saved_files.append(fn)
+
+    is_pack, results = len(saved_files) >= PACK_SIZE, []
+    rub_each = [random.randint(PACK_MIN_RUB, PACK_MAX_RUB)//PACK_SIZE]*len(saved_files) if is_pack else [random.randint(SINGLE_MIN_RUB, SINGLE_MAX_RUB) for _ in range(len(saved_files))]
     bid, md = uuid.uuid4().hex, vip_max_delay(ref_c)
 
-    async with aiosqlite.connect(DB_PATH) as db:
-        for i, (n, r) in enumerate(fs):
-            fn = f"{uuid.uuid4().hex}.jpg"
-            filepath = UPLOADS_DIR / fn
-            
-            await asyncio.to_thread(filepath.write_bytes, r)
-            
+    # Быстро пишем в базу
+    async with get_db() as db:
+        for i, fn in enumerate(saved_files):
             sat = (datetime.utcnow() + timedelta(seconds=random.randint(MIN_DELAY_SECS, max(md, MIN_DELAY_SECS + 1)))).isoformat()
             sr, pu, pid = rub_each[i], apply_commission(rub_to_usd(rub_each[i])), uuid.uuid4().hex
             await db.execute("INSERT INTO photos (id, user_id, filename, batch_id, base_price, final_price, sale_rub, status, sell_at) VALUES (?,?,?,?,?,?,?,'on_auction',?)", (pid, user_id, fn, bid, pu, pu, sr, sat))
             results.append({"photo_id": pid, "filename": fn, "base_price": pu, "preview_rub": sr, "status": "on_auction"})
         await db.commit()
-    return {"batch_id": bid, "is_pack": is_pack, "photos": results, "total_rub": sum(rub_each), "slot_limit": lim, "active_after": act + len(fs)}
+        
+    return {"batch_id": bid, "is_pack": is_pack, "photos": results, "total_rub": sum(rub_each), "slot_limit": lim, "active_after": act + len(saved_files)}
 
 @app.post("/api/withdraw/check")
 async def api_withdraw_check(request: Request):
@@ -969,7 +1012,7 @@ async def api_withdraw_both(request: Request):
     stars = usd_to_stars(usd) if is_stars else 0
     prio = 1 if vip_level(refs) >= 1 else 0
 
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with get_db() as db:
         await db.execute("UPDATE players SET balance=0 WHERE user_id=?", (uid,))
         await db.execute("INSERT INTO withdrawal_requests (user_id, amount_usd, stars, method, is_priority) VALUES (?,?,?,?,?)", (uid, usd, stars, "stars" if is_stars else "usd", prio))
         await db.commit()
@@ -985,7 +1028,7 @@ async def api_support_send(request: Request):
     uid, text = data.get("user_id"), data.get("text", "").strip()
     if not uid or not text: raise HTTPException(400)
     
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with get_db() as db:
         db.row_factory = aiosqlite.Row
         async with db.execute("SELECT id, claimed_by FROM tickets WHERE user_id=? AND status IN ('open', 'claimed')", (uid,)) as cur:
             tkt = await cur.fetchone()
@@ -1003,14 +1046,25 @@ async def api_support_send(request: Request):
 
 @app.get("/api/support/messages/{user_id}")
 async def api_support_messages(user_id: int):
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with get_db() as db:
         db.row_factory = aiosqlite.Row
         async with db.execute("SELECT * FROM support_messages WHERE user_id=? ORDER BY created_at ASC", (user_id,)) as cur:
             return {"messages": [dict(r) for r in await cur.fetchall()]}
 
-# Из frontend привязка рефералов больше не вызывается, но оставим API на случай резерва
 @app.post("/api/referral/bind")
 async def api_referral_bind(request: Request):
+    data = await request.json()
+    new_uid, ref_param = data.get("user_id"), str(data.get("ref_param") or "").strip()
+    if not new_uid: raise HTTPException(400)
+    
+    ref_id = None
+    if ref_param.startswith("ref_"):
+        try: ref_id = int(ref_param[4:])
+        except: pass
+    elif ref_param.isdigit():
+        ref_id = int(ref_param)
+        
+    await get_or_create_player(new_uid, str(data.get("username") or ""), referred_by=ref_id)
     return {"bound": True}
 
 @app.post(WEBHOOK_PATH)
