@@ -1,15 +1,14 @@
 import asyncio
-import html
 import logging
 import os
 import random
 import urllib.parse
 import uuid
+import math
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import List
-import math
 
 import aiosqlite
 from aiogram import Bot, Dispatcher, F
@@ -43,10 +42,11 @@ WEBHOOK_URL  = f"{WEBAPP_URL}{WEBHOOK_PATH}"
 
 _VOLUME     = os.getenv("RAILWAY_VOLUME_MOUNT_PATH", ".")
 DB_PATH     = os.path.join(_VOLUME, "photoflip.db")
+
 UPLOADS_DIR = Path(os.path.join(_VOLUME, "uploads"))
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 
-SPONSORS_DIR = Path(os.path.join(UPLOADS_DIR, "sponsors"))
+SPONSORS_DIR = Path(os.path.join(_VOLUME, "uploads", "sponsors"))
 SPONSORS_DIR.mkdir(parents=True, exist_ok=True)
 
 _BOT_USERNAME_CACHE = os.path.join(_VOLUME, ".bot_username")
@@ -72,6 +72,11 @@ VIP_TIERS = [
 ]
 MIN_DELAY_SECS = 30
 
+# Основной канал для ВХОДА в приложение
+REQUIRED_CHANNEL_ID   = "@dsdfsdfawer"
+REQUIRED_CHANNEL_URL  = "https://t.me/dsdfsdfawer"
+REQUIRED_CHANNEL_NAME = "PhotoFlip Community"
+
 FAKE_USERS = [
     "u***r7", "a***2", "m***k9", "p***y4", "t***3", "j***8", "k***5", "s***1",
     "PhotoNinja_7", "SniperLens_3", "PixelHunter_2", "SnapMaster_5",
@@ -94,16 +99,15 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # ═══════════════════════════════════════════════════════════════
-#  FSM STATES (Admin CRM)
+#  FSM STATES (Для Админ-панели)
 # ═══════════════════════════════════════════════════════════════
 class AdminPanel(StatesGroup):
-    wait_broadcast_msg = State()
     wait_sponsor_id    = State()
     wait_sponsor_name  = State()
     wait_sponsor_url   = State()
     wait_sponsor_photo = State()
     wait_ticket_reply  = State()
-    wait_close_ticket  = State()
+    wait_broadcast     = State()
 
 # ═══════════════════════════════════════════════════════════════
 #  TRANSLATIONS & HELPERS
@@ -122,7 +126,8 @@ _T = {
         "unsub_warning": "⚠️ <b>Warning!</b> You have an active withdrawal request, but you unsubscribed from our partner channels. Resubscribe within 12 hours or your request will be cancelled.",
         "resub_thanks": "✅ <b>Thank you!</b> We verified your subscription. Your withdrawal will process normally.",
         "ticket_claimed": "👨‍💻 <b>Admin @{admin} joined the chat.</b> Please describe your issue.",
-        "ticket_closed": "✅ <b>Your ticket has been closed.</b> If you need further help, please send a new message."
+        "ticket_closed": "✅ <b>Your ticket has been closed.</b> If you need further help, please send a new message.",
+        "wd_rejected": "❌ <b>Your withdrawal request was cancelled</b> due to unsubscription from sponsors. Funds returned to your balance."
     },
     "ru": {
         "welcome": "👋 Добро пожаловать в <b>PhotoFlip</b>!\n\n📸 Загрузи фото → Оценка → Аукцион → Заработай USD\n\n💰 Баланс: <b>${balance:.2f}</b>\n⭐ VIP Уровень: <b>{vip}</b> · Слотов: <b>{slots}</b>\n\n🔗 Ваша реферальная ссылка:\n<code>{ref_url}</code>\n\nПригласите <b>3 друзей</b> для активации вывода.",
@@ -137,7 +142,8 @@ _T = {
         "unsub_warning": "⚠️ <b>Внимание!</b> У вас есть активная заявка на вывод, но вы отписались от спонсоров. Подпишитесь обратно в течение 12 часов, иначе заявка будет аннулирована.",
         "resub_thanks": "✅ <b>Спасибо!</b> Подписка проверена. Обработка заявки продолжается.",
         "ticket_claimed": "👨‍💻 <b>Администратор @{admin} подключился к диалогу.</b> Пожалуйста, опишите вашу проблему.",
-        "ticket_closed": "✅ <b>Ваш запрос закрыт.</b> Если у вас остались вопросы, просто напишите новое сообщение."
+        "ticket_closed": "✅ <b>Ваш запрос закрыт.</b> Если у вас остались вопросы, просто напишите новое сообщение.",
+        "wd_rejected": "❌ <b>Ваша заявка на вывод аннулирована</b> (отписка от спонсоров). Средства возвращены на баланс."
     }
 }
 
@@ -152,12 +158,12 @@ def vip_max_delay(refs: int) -> int: return VIP_TIERS[vip_level(refs)][1]
 def vip_slot_limit(refs: int) -> int: return VIP_TIERS[vip_level(refs)][2]
 def usd_to_stars(usd: float) -> int: return math.floor(usd / 0.012)
 
-# ═══════════════════════════════════════════════════════════════
-#  DATABASE INIT & CRM TABLES
-# ═══════════════════════════════════════════════════════════════
 bot = Bot(token=BOT_TOKEN)
 dp  = Dispatcher(storage=MemoryStorage())
 
+# ═══════════════════════════════════════════════════════════════
+#  DATABASE INIT & CRM TABLES
+# ═══════════════════════════════════════════════════════════════
 async def init_db():
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute("""CREATE TABLE IF NOT EXISTS players (
@@ -174,11 +180,6 @@ async def init_db():
             status TEXT DEFAULT 'pending', sell_at TEXT, sold_at TEXT,
             buyer TEXT, created_at TEXT DEFAULT (datetime('now')),
             FOREIGN KEY(user_id) REFERENCES players(user_id)
-        )""")
-        
-        await db.execute("""CREATE TABLE IF NOT EXISTS quests (
-            user_id INTEGER, channel_id TEXT, completed INTEGER DEFAULT 0,
-            PRIMARY KEY (user_id, channel_id)
         )""")
         
         await db.execute("""CREATE TABLE IF NOT EXISTS referrals (
@@ -199,8 +200,6 @@ async def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT, ticket_id INTEGER, user_id INTEGER,
             text TEXT, direction TEXT, created_at TEXT DEFAULT (datetime('now'))
         )""")
-        try: await db.execute("ALTER TABLE support_messages ADD COLUMN ticket_id INTEGER")
-        except: pass
         
         await db.execute("""CREATE TABLE IF NOT EXISTS withdrawal_requests (
             id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, amount_usd REAL,
@@ -215,66 +214,7 @@ async def init_db():
         await db.commit()
 
 # ═══════════════════════════════════════════════════════════════
-#  CRM HELPERS
-# ═══════════════════════════════════════════════════════════════
-async def get_sponsors():
-    async with aiosqlite.connect(DB_PATH) as db:
-        db.row_factory = aiosqlite.Row
-        async with db.execute("SELECT * FROM sponsors") as cur:
-            rows = await cur.fetchall()
-    
-    result = []
-    for r in rows:
-        d = dict(r)
-        # Формируем публичную ссылку на аватарку
-        if d.get("avatar_filename"):
-            d["avatar"] = f"{WEBAPP_URL}/uploads/sponsors/{d['avatar_filename']}"
-        else:
-            d["avatar"] = ""
-        result.append(d)
-    return result
-
-async def is_subscribed_to_channel(channel_id: str, user_id: int) -> bool:
-    try:
-        member = await bot.get_chat_member(channel_id, user_id)
-        return member.status in (ChatMemberStatus.MEMBER, ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.CREATOR)
-    except Exception: return False
-
-async def check_all_subs(user_id: int) -> list:
-    sponsors = await get_sponsors()
-    missing = []
-    for sp in sponsors:
-        if not await is_subscribed_to_channel(sp["channel_id"], user_id):
-            missing.append(sp)
-    return missing
-
-async def create_or_get_ticket(user_id: int) -> int:
-    async with aiosqlite.connect(DB_PATH) as db:
-        async with db.execute("SELECT id FROM tickets WHERE user_id=? AND status IN ('open', 'claimed')", (user_id,)) as cur:
-            row = await cur.fetchone()
-        if row: return row[0]
-        
-        await db.execute("INSERT INTO tickets (user_id) VALUES (?)", (user_id,))
-        await db.commit()
-        async with db.execute("SELECT last_insert_rowid()") as cur:
-            return (await cur.fetchone())[0]
-
-async def alert_admins_new_ticket(ticket_id: int, user_id: int, text: str, username: str):
-    admin_ids = await get_admin_ids()
-    kb = InlineKeyboardMarkup(inline_keyboard=[[
-        InlineKeyboardButton(text="🙋‍♂️ Взять в работу", callback_data=f"crm_claim:{ticket_id}")
-    ]])
-    uname = f"@{username}" if username else f"ID {user_id}"
-    for aid in admin_ids:
-        try:
-            await bot.send_message(
-                aid, f"🆘 <b>Новый тикет #{ticket_id}</b>\nОт: {uname}\n\n{text[:200]}...",
-                parse_mode=ParseMode.HTML, reply_markup=kb
-            )
-        except: pass
-
-# ═══════════════════════════════════════════════════════════════
-#  PLAYER HELPERS (Truncated for brevity, standard logic)
+#  HELPERS (DB & CRM)
 # ═══════════════════════════════════════════════════════════════
 async def get_or_create_player(user_id: int, username: str = "", referred_by: int | None = None) -> tuple[dict, bool]:
     async with aiosqlite.connect(DB_PATH) as db:
@@ -287,6 +227,10 @@ async def get_or_create_player(user_id: int, username: str = "", referred_by: in
             async with db.execute("SELECT * FROM players WHERE user_id=?", (user_id,)) as cur:
                 row = await cur.fetchone()
             return dict(row), True
+        if username and username != (row["username"] or ""):
+            await db.execute("UPDATE players SET username=? WHERE user_id=?", (username, user_id))
+            await db.commit()
+            return dict(row) | {"username": username}, False
         return dict(row), False
 
 async def get_player(user_id: int) -> dict | None:
@@ -295,11 +239,6 @@ async def get_player(user_id: int) -> dict | None:
         async with db.execute("SELECT * FROM players WHERE user_id=?", (user_id,)) as cur:
             row = await cur.fetchone()
         return dict(row) if row else None
-
-async def touch_last_seen(user_id: int):
-    async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute("UPDATE players SET last_seen=datetime('now') WHERE user_id=?", (user_id,))
-        await db.commit()
 
 async def get_player_photos(user_id: int, lang: str = "en") -> list:
     async with aiosqlite.connect(DB_PATH) as db:
@@ -337,6 +276,47 @@ async def is_admin(user_id: int) -> bool:
         async with db.execute("SELECT 1 FROM admins WHERE user_id=?", (user_id,)) as cur:
             return bool(await cur.fetchone())
 
+async def get_sponsors():
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute("SELECT * FROM sponsors") as cur:
+            rows = await cur.fetchall()
+    result = []
+    for r in rows:
+        d = dict(r)
+        d["avatar"] = f"{WEBAPP_URL}/uploads/sponsors/{d['avatar_filename']}" if d.get("avatar_filename") else ""
+        result.append(d)
+    return result
+
+async def is_subscribed_to_channel(channel_id: str, user_id: int) -> bool:
+    try:
+        member = await bot.get_chat_member(channel_id, user_id)
+        return member.status in (ChatMemberStatus.MEMBER, ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.CREATOR)
+    except Exception: return False
+
+async def check_all_subs(user_id: int) -> list:
+    sponsors = await get_sponsors()
+    missing = []
+    for sp in sponsors:
+        if not await is_subscribed_to_channel(sp["channel_id"], user_id):
+            missing.append(sp)
+    return missing
+
+async def referral_url(user_id: int) -> str:
+    global _bot_username
+    if not _bot_username:
+        try:
+            me = await bot.get_me()
+            _bot_username = me.username
+            with open(_BOT_USERNAME_CACHE, "w") as f: f.write(_bot_username)
+        except: pass
+    return f"https://t.me/{_bot_username}?start=ref_{user_id}" if _bot_username else ""
+
+_bot_username = None
+try:
+    with open(_BOT_USERNAME_CACHE) as f: _bot_username = f.read().strip()
+except: pass
+
 # ═══════════════════════════════════════════════════════════════
 #  WORKERS
 # ═══════════════════════════════════════════════════════════════
@@ -362,234 +342,281 @@ async def auction_worker():
                     if p:
                         try: await bot.send_message(photo["user_id"], tr(p["lang"], "sold", rub=int(sale_rub), gross=gross, commission=round(gross-net,2), net=net, buyer=buyer, balance=round((p["balance"] or 0)+net, 2)), parse_mode=ParseMode.HTML)
                         except: pass
-        except: pass
+        except Exception as e: logger.error(f"auction_worker error: {e}")
         await asyncio.sleep(15)
 
-async def monitor_withdrawals_worker():
+async def reminder_worker():
     while True:
         await asyncio.sleep(3600)
         try:
+            cutoff = (datetime.utcnow() - timedelta(hours=24)).isoformat()
             async with aiosqlite.connect(DB_PATH) as db:
                 db.row_factory = aiosqlite.Row
-                seven_days_ago = (datetime.utcnow() - timedelta(days=7)).isoformat()
-                async with db.execute("SELECT id, user_id, warning_sent_at FROM withdrawal_requests WHERE status='pending' AND created_at > ?", (seven_days_ago,)) as cur:
-                    requests = await cur.fetchall()
+                async with db.execute("SELECT user_id, lang FROM players WHERE last_seen < ?", (cutoff,)) as cur:
+                    rows = await cur.fetchall()
+            for row in rows:
+                uid, lang = row["user_id"], row["lang"] or "en"
+                ref = await referral_url(uid)
+                try:
+                    await bot.send_message(uid, tr(lang, "remind", ref_url=ref), parse_mode=ParseMode.HTML)
+                    async with aiosqlite.connect(DB_PATH) as db:
+                        await db.execute("UPDATE players SET last_seen=datetime('now') WHERE user_id=?", (uid,))
+                        await db.commit()
+                except: pass
+        except: pass
 
-                for req in requests:
-                    uid, wid, warn_time = req["user_id"], req["id"], req["warning_sent_at"]
+async def monitor_withdrawals_worker():
+    while True:
+        await asyncio.sleep(3600) # Check every 1 hour
+        try:
+            async with aiosqlite.connect(DB_PATH) as db:
+                db.row_factory = aiosqlite.Row
+                async with db.execute("SELECT id, user_id, amount_usd, warning_sent_at FROM withdrawal_requests WHERE status='pending'") as cur:
+                    reqs = await cur.fetchall()
+
+                for req in reqs:
+                    uid, wid, warn_time_str = req["user_id"], req["id"], req["warning_sent_at"]
                     missing = await check_all_subs(uid)
                     p = await get_player(uid)
                     lang = p["lang"] if p else "en"
 
-                    if missing and not warn_time:
-                        try:
-                            await bot.send_message(uid, tr(lang, "unsub_warning"), parse_mode=ParseMode.HTML)
+                    if missing:
+                        if not warn_time_str:
+                            # Not warned yet -> Send warning
                             await db.execute("UPDATE withdrawal_requests SET warning_sent_at=datetime('now') WHERE id=?", (wid,))
                             await db.commit()
-                        except: pass
-                    elif not missing and warn_time:
-                        try:
-                            await bot.send_message(uid, tr(lang, "resub_thanks"), parse_mode=ParseMode.HTML)
+                            try: await bot.send_message(uid, tr(lang, "unsub_warning"), parse_mode=ParseMode.HTML)
+                            except: pass
+                        else:
+                            # Warned already -> Check if 12h passed
+                            try: warn_time = datetime.strptime(warn_time_str, "%Y-%m-%d %H:%M:%S")
+                            except: warn_time = datetime.fromisoformat(warn_time_str)
+                            
+                            if datetime.utcnow() - warn_time > timedelta(hours=12):
+                                # Reject withdrawal
+                                await db.execute("UPDATE withdrawal_requests SET status='rejected' WHERE id=?", (wid,))
+                                await db.execute("UPDATE players SET balance=balance+? WHERE user_id=?", (req["amount_usd"], uid))
+                                await db.commit()
+                                try: await bot.send_message(uid, tr(lang, "wd_rejected"), parse_mode=ParseMode.HTML)
+                                except: pass
+                    else:
+                        if warn_time_str:
+                            # Resubscribed! -> Remove warning
                             await db.execute("UPDATE withdrawal_requests SET warning_sent_at=NULL WHERE id=?", (wid,))
                             await db.commit()
-                        except: pass
-        except: pass
+                            try: await bot.send_message(uid, tr(lang, "resub_thanks"), parse_mode=ParseMode.HTML)
+                            except: pass
+        except Exception as e:
+            logger.error(f"monitor_withdrawals_worker error: {e}")
 
 # ═══════════════════════════════════════════════════════════════
-#  BOT ROUTING & ADMIN PANEL
+#  TELEGRAM BOT ROUTES (Start & Gate)
 # ═══════════════════════════════════════════════════════════════
 @dp.message(CommandStart())
 async def cmd_start(message: Message, command: CommandObject):
-    user = message.from_user
-    args = (command.args or "").strip()
-    referrer_id = int(args[4:]) if args.startswith("ref_") else int(args) if args.isdigit() else None
-    
+    user, args_str = message.from_user, (command.args or "").strip()
+    referrer_id = None
+    if args_str:
+        raw_arg = args_str[4:] if args_str.startswith("ref_") else args_str
+        try: referrer_id = int(raw_arg)
+        except ValueError: pass
+
     await get_or_create_player(user.id, user.username or "")
     if referrer_id and referrer_id != user.id:
         async with aiosqlite.connect(DB_PATH) as db:
             async with db.execute("SELECT referred_by FROM players WHERE user_id=?", (user.id,)) as cur:
-                p = await cur.fetchone()
-            if p and p[0] is None:
-                await db.execute("UPDATE players SET referred_by=? WHERE user_id=?", (referrer_id, user.id))
-                await db.execute("INSERT OR IGNORE INTO referrals (referrer_id, referred_id) VALUES (?,?)", (referrer_id, user.id))
-                await db.execute("UPDATE players SET referrals_count=referrals_count+1 WHERE user_id=?", (referrer_id,))
-                await db.commit()
-                try: await bot.send_message(referrer_id, REFERRAL_NOTIFY_TMPL.format(username=user.username or user.id, user_id=user.id), parse_mode=ParseMode.HTML)
-                except: pass
+                if (await cur.fetchone())[0] is None:
+                    await db.execute("UPDATE players SET referred_by=? WHERE user_id=?", (referrer_id, user.id))
+                    await db.execute("INSERT OR IGNORE INTO referrals (referrer_id, referred_id) VALUES (?,?)", (referrer_id, user.id))
+                    await db.execute("UPDATE players SET referrals_count=referrals_count+1 WHERE user_id=?", (referrer_id,))
+                    await db.commit()
+                    try: await bot.send_message(referrer_id, REFERRAL_NOTIFY_TMPL.format(username=user.username or user.id, user_id=user.id), parse_mode=ParseMode.HTML)
+                    except: pass
 
-    # Welcome msg
+    if not await check_subscription(user.id):
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="📢 Subscribe to Channel", url=REQUIRED_CHANNEL_URL)],
+            [InlineKeyboardButton(text="✅ I've Subscribed", callback_data=f"chksub:{args_str}")]
+        ])
+        await message.answer(f"👋 Welcome to <b>PhotoFlip</b>!\n\n📢 To use the bot you must subscribe to our channel first:\n<a href='{REQUIRED_CHANNEL_URL}'><b>{REQUIRED_CHANNEL_NAME}</b></a>\n\nAfter subscribing tap <b>✅ I've Subscribed</b>.", parse_mode=ParseMode.HTML, reply_markup=kb)
+        return
+
+    await _process_start(message, user, args_str)
+
+async def _process_start(target: Message, user, args: str = ""):
     p = await get_player(user.id)
     lang, ref_count = p["lang"], await get_referral_count(user.id)
-    me = await bot.get_me()
-    ref_url = f"https://t.me/{me.username}?start=ref_{user.id}"
+    ref_url = await referral_url(user.id)
     
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=tr(lang, "btn_open"), web_app=WebAppInfo(url=WEBAPP_URL))]
+        [InlineKeyboardButton(text=tr(lang, "btn_open"), web_app=WebAppInfo(url=WEBAPP_URL))],
+        [InlineKeyboardButton(text=tr(lang, "btn_share"), url=make_share_url(ref_url))] if ref_url else []
     ])
-    await message.answer(tr(lang, "welcome", balance=p["balance"], vip=vip_level(ref_count), slots=vip_slot_limit(ref_count), ref_url=ref_url), parse_mode=ParseMode.HTML, reply_markup=kb)
+    await target.answer(tr(lang, "welcome", balance=p["balance"], vip=vip_level(ref_count), slots=vip_slot_limit(ref_count), ref_url=ref_url), parse_mode=ParseMode.HTML, reply_markup=kb)
 
-# --- ADMIN PANEL ---
+@dp.callback_query(F.data.startswith("chksub:"))
+async def cb_check_sub(cb: CallbackQuery):
+    if not await is_subscribed_to_channel(REQUIRED_CHANNEL_ID, cb.from_user.id):
+        return await cb.answer("❌ You haven't subscribed yet!", show_alert=True)
+    await cb.answer("✅ Subscription confirmed!")
+    try: await cb.message.delete()
+    except: pass
+    await _process_start(cb.message, cb.from_user, cb.data[7:])
+
+# ═══════════════════════════════════════════════════════════════
+#  CRM ADMIN PANEL (Telegram Handlers)
+# ═══════════════════════════════════════════════════════════════
 @dp.message(Command("admin"))
 @dp.message(Command("panel"))
 async def cmd_admin(message: Message, state: FSMContext):
     if not await is_admin(message.from_user.id): return
     await state.clear()
-    
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🤝 Спонсоры", callback_data="crm_sponsors_list"), InlineKeyboardButton(text="🎧 Тикеты", callback_data="crm_tickets_list")],
-        [InlineKeyboardButton(text="💳 Выводы", callback_data="crm_wd_list"), InlineKeyboardButton(text="📢 Рассылка", callback_data="crm_broadcast")],
+        [InlineKeyboardButton(text="🤝 Спонсоры", callback_data="crm_sponsors"), InlineKeyboardButton(text="🎧 Тикеты", callback_data="crm_tickets")],
+        [InlineKeyboardButton(text="💳 Выводы", callback_data="crm_wd"), InlineKeyboardButton(text="📢 Рассылка", callback_data="crm_broadcast")],
     ])
     await message.answer("👑 <b>Админ Панель CRM</b>\nВыберите раздел:", parse_mode=ParseMode.HTML, reply_markup=kb)
 
+@dp.callback_query(F.data == "crm_main")
+async def cq_crm_main(cb: CallbackQuery, state: FSMContext):
+    await cmd_admin(cb.message, state)
+    try: await cb.message.delete()
+    except: pass
+
 # --- Спонсоры ---
-@dp.callback_query(F.data == "crm_sponsors_list")
-async def cq_sponsors_list(cb: CallbackQuery):
+@dp.callback_query(F.data == "crm_sponsors")
+async def cq_sponsors(cb: CallbackQuery):
     sponsors = await get_sponsors()
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=f"❌ Удалить {s['name']}", callback_data=f"crm_sponsor_del:{s['channel_id']}")] for s in sponsors
-    ] + [[InlineKeyboardButton(text="➕ Добавить спонсора", callback_data="crm_sponsor_add")], [InlineKeyboardButton(text="🔙 Назад", callback_data="crm_main")]])
+        [InlineKeyboardButton(text=f"❌ Удалить {s['name']}", callback_data=f"crm_sp_del:{s['channel_id']}")] for s in sponsors
+    ] + [[InlineKeyboardButton(text="➕ Добавить спонсора", callback_data="crm_sp_add")], [InlineKeyboardButton(text="🔙 Назад", callback_data="crm_main")]])
     await cb.message.edit_text(f"🤝 <b>Спонсоры (Всего: {len(sponsors)})</b>\n\nЗдесь можно добавить или удалить каналы.", parse_mode=ParseMode.HTML, reply_markup=kb)
 
-@dp.callback_query(F.data == "crm_sponsor_add")
-async def cq_sponsor_add(cb: CallbackQuery, state: FSMContext):
+@dp.callback_query(F.data == "crm_sp_add")
+async def cq_sp_add(cb: CallbackQuery, state: FSMContext):
     await state.set_state(AdminPanel.wait_sponsor_id)
-    await cb.message.edit_text("1️⃣ Отправьте числовой ID канала (например: <code>-100123456789</code>).\n<i>Не забудьте добавить бота в этот канал администратором!</i>", parse_mode=ParseMode.HTML)
+    await cb.message.edit_text("1️⃣ Отправьте числовой ID канала (например: <code>-100123456789</code>).\n<i>Бот должен быть админом в этом канале!</i>", parse_mode=ParseMode.HTML)
 
 @dp.message(AdminPanel.wait_sponsor_id)
-async def sponsor_id_step(message: Message, state: FSMContext):
+async def sp_id_step(message: Message, state: FSMContext):
     await state.update_data(channel_id=message.text.strip())
     await state.set_state(AdminPanel.wait_sponsor_name)
-    await message.answer("2️⃣ Отправьте красивое название канала (оно будет в плашке):")
+    await message.answer("2️⃣ Отправьте красивое название канала (для плашки):")
 
 @dp.message(AdminPanel.wait_sponsor_name)
-async def sponsor_name_step(message: Message, state: FSMContext):
+async def sp_name_step(message: Message, state: FSMContext):
     await state.update_data(name=message.text.strip())
     await state.set_state(AdminPanel.wait_sponsor_url)
     await message.answer("3️⃣ Отправьте ссылку на канал (можно приватную <code>https://t.me/+...</code>):", parse_mode=ParseMode.HTML)
 
 @dp.message(AdminPanel.wait_sponsor_url)
-async def sponsor_url_step(message: Message, state: FSMContext):
+async def sp_url_step(message: Message, state: FSMContext):
     await state.update_data(url=message.text.strip())
     await state.set_state(AdminPanel.wait_sponsor_photo)
-    await message.answer("4️⃣ Отправьте ФОТО (картинку) для аватарки канала (или нажмите /skip, если без фото).")
+    await message.answer("4️⃣ Отправьте ФОТО (картинку) для аватарки канала (или нажмите /skip).")
 
 @dp.message(AdminPanel.wait_sponsor_photo)
-async def sponsor_photo_step(message: Message, state: FSMContext):
+async def sp_photo_step(message: Message, state: FSMContext):
     data = await state.get_data()
     filename = ""
     if message.photo:
-        photo = message.photo[-1]
         filename = f"sponsor_{uuid.uuid4().hex[:8]}.jpg"
-        file_path = SPONSORS_DIR / filename
-        await bot.download(photo.file_id, destination=file_path)
+        await bot.download(message.photo[-1].file_id, destination=SPONSORS_DIR / filename)
     
     async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute("INSERT OR REPLACE INTO sponsors (channel_id, name, url, avatar_filename) VALUES (?,?,?,?)",
-                         (data["channel_id"], data["name"], data["url"], filename))
+        await db.execute("INSERT OR REPLACE INTO sponsors (channel_id, name, url, avatar_filename) VALUES (?,?,?,?)", (data["channel_id"], data["name"], data["url"], filename))
         await db.commit()
     
     await state.clear()
-    await message.answer("✅ <b>Спонсор успешно добавлен!</b>\nНажмите /admin для возврата.", parse_mode=ParseMode.HTML)
+    await message.answer("✅ <b>Спонсор добавлен!</b>\nНажмите /panel для возврата.", parse_mode=ParseMode.HTML)
 
-@dp.callback_query(F.data.startswith("crm_sponsor_del:"))
-async def cq_sponsor_del(cb: CallbackQuery):
-    ch_id = cb.data.split(":")[1]
+@dp.callback_query(F.data.startswith("crm_sp_del:"))
+async def cq_sp_del(cb: CallbackQuery):
     async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute("DELETE FROM sponsors WHERE channel_id=?", (ch_id,))
+        await db.execute("DELETE FROM sponsors WHERE channel_id=?", (cb.data.split(":")[1],))
         await db.commit()
     await cb.answer("🗑 Спонсор удален!", show_alert=True)
-    await cq_sponsors_list(cb)
+    await cq_sponsors(cb)
 
-# --- Поддержка (Тикеты) ---
-@dp.callback_query(F.data.startswith("crm_claim:"))
-async def cq_claim_ticket(cb: CallbackQuery):
-    if not await is_admin(cb.from_user.id): return
-    ticket_id = int(cb.data.split(":")[1])
-    
+# --- Тикеты ---
+@dp.callback_query(F.data == "crm_tickets")
+async def cq_tickets(cb: CallbackQuery):
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
-        async with db.execute("SELECT * FROM tickets WHERE id=?", (ticket_id,)) as cur:
+        async with db.execute("SELECT t.id, t.user_id, p.username FROM tickets t LEFT JOIN players p ON t.user_id=p.user_id WHERE t.status='open' LIMIT 10") as cur:
+            tkts = await cur.fetchall()
+            
+    if not tkts: return await cb.message.edit_text("Нет новых (открытых) тикетов.", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🔙 Назад", callback_data="crm_main")]]))
+    
+    kb = [[InlineKeyboardButton(text=f"Взять #{t['id']} (@{t['username'] or t['user_id']})", callback_data=f"crm_tclaim:{t['id']}")] for t in tkts]
+    kb.append([InlineKeyboardButton(text="🔙 Назад", callback_data="crm_main")])
+    await cb.message.edit_text("🎧 <b>Открытые тикеты:</b>", parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(inline_keyboard=kb))
+
+@dp.callback_query(F.data.startswith("crm_tclaim:"))
+async def cq_tclaim(cb: CallbackQuery):
+    tkt_id = int(cb.data.split(":")[1])
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute("SELECT user_id, status FROM tickets WHERE id=?", (tkt_id,)) as cur:
             tkt = await cur.fetchone()
-        if not tkt: return await cb.answer("Тикет не найден.")
-        if tkt["status"] != "open": return await cb.answer("Тикет уже взят другим админом или закрыт.", show_alert=True)
+        if not tkt or tkt["status"] != "open": return await cb.answer("Уже взят или закрыт.", show_alert=True)
         
-        await db.execute("UPDATE tickets SET status='claimed', claimed_by=? WHERE id=?", (cb.from_user.id, ticket_id))
+        await db.execute("UPDATE tickets SET status='claimed', claimed_by=? WHERE id=?", (cb.from_user.id, tkt_id))
         await db.commit()
 
-    admin_name = cb.from_user.username or cb.from_user.first_name
+    admin_name = cb.from_user.username or "Admin"
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="✍️ Ответить", callback_data=f"crm_reply:{ticket_id}")],
-        [InlineKeyboardButton(text="🔒 Закрыть тикет", callback_data=f"crm_close:{ticket_id}")]
+        [InlineKeyboardButton(text="✍️ Ответить", callback_data=f"crm_treply:{tkt_id}")],
+        [InlineKeyboardButton(text="🔒 Закрыть тикет", callback_data=f"crm_tclose:{tkt_id}")]
     ])
-    await cb.message.edit_text(cb.message.html_text + f"\n\n<i>✅ Взят в работу: @{admin_name}</i>", reply_markup=kb, parse_mode=ParseMode.HTML)
+    await cb.message.edit_text(f"✅ Вы взяли тикет #{tkt_id} в работу.", reply_markup=kb)
     
     p = await get_player(tkt["user_id"])
-    if p:
-        try: await bot.send_message(tkt["user_id"], tr(p["lang"], "ticket_claimed", admin=admin_name), parse_mode=ParseMode.HTML)
-        except: pass
+    try: await bot.send_message(tkt["user_id"], tr(p["lang"] if p else "en", "ticket_claimed", admin=admin_name), parse_mode=ParseMode.HTML)
+    except: pass
 
-@dp.callback_query(F.data.startswith("crm_reply:"))
-async def cq_reply_ticket(cb: CallbackQuery, state: FSMContext):
-    ticket_id = int(cb.data.split(":")[1])
+@dp.callback_query(F.data.startswith("crm_treply:"))
+async def cq_treply(cb: CallbackQuery, state: FSMContext):
     await state.set_state(AdminPanel.wait_ticket_reply)
-    await state.update_data(ticket_id=ticket_id)
-    await cb.message.reply("✍️ Напишите текст ответа. Для отмены отправьте /cancel")
+    await state.update_data(ticket_id=int(cb.data.split(":")[1]))
+    await cb.message.reply("✍️ Напишите ответ. Для отмены отправьте /cancel")
     await cb.answer()
 
 @dp.message(AdminPanel.wait_ticket_reply)
-async def ticket_reply_step(message: Message, state: FSMContext):
-    data = await state.get_data()
-    ticket_id = data["ticket_id"]
+async def t_reply_step(message: Message, state: FSMContext):
+    tkt_id = (await state.get_data())["ticket_id"]
     text = message.text or message.caption or ""
     
     async with aiosqlite.connect(DB_PATH) as db:
-        async with db.execute("SELECT user_id FROM tickets WHERE id=?", (ticket_id,)) as cur:
+        async with db.execute("SELECT user_id FROM tickets WHERE id=?", (tkt_id,)) as cur:
             uid = (await cur.fetchone())[0]
-        await db.execute("INSERT INTO support_messages (ticket_id, user_id, text, direction) VALUES (?,?,?,'out')", (ticket_id, uid, text))
+        await db.execute("INSERT INTO support_messages (ticket_id, user_id, text, direction) VALUES (?,?,?,'out')", (tkt_id, uid, text))
         await db.commit()
     
     p = await get_player(uid)
     try:
         await bot.send_message(uid, tr(p["lang"] if p else "en", "support_reply", text=text), parse_mode=ParseMode.HTML)
-        await message.answer("✅ Ответ отправлен пользователю.")
-    except:
-        await message.answer("❌ Ошибка доставки.")
+        await message.answer("✅ Ответ отправлен!")
+    except: await message.answer("❌ Ошибка доставки.")
     await state.clear()
 
-@dp.callback_query(F.data.startswith("crm_close:"))
-async def cq_close_ticket(cb: CallbackQuery, state: FSMContext):
-    ticket_id = int(cb.data.split(":")[1])
-    await state.set_state(AdminPanel.wait_close_ticket)
-    await state.update_data(ticket_id=ticket_id)
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Да, уведомить", callback_data="close_notify_yes"), InlineKeyboardButton(text="Нет, молча", callback_data="close_notify_no")]
-    ])
-    await cb.message.answer("Вы хотите закрыть тикет. Уведомить пользователя стандартным текстом?", reply_markup=kb)
-    await cb.answer()
-
-@dp.callback_query(AdminPanel.wait_close_ticket, F.data.startswith("close_notify_"))
-async def close_ticket_step(cb: CallbackQuery, state: FSMContext):
-    data = await state.get_data()
-    ticket_id = data["ticket_id"]
-    notify = cb.data == "close_notify_yes"
-    
+@dp.callback_query(F.data.startswith("crm_tclose:"))
+async def cq_tclose(cb: CallbackQuery):
+    tkt_id = int(cb.data.split(":")[1])
     async with aiosqlite.connect(DB_PATH) as db:
-        async with db.execute("SELECT user_id FROM tickets WHERE id=?", (ticket_id,)) as cur:
+        async with db.execute("SELECT user_id FROM tickets WHERE id=?", (tkt_id,)) as cur:
             uid = (await cur.fetchone())[0]
-        await db.execute("UPDATE tickets SET status='closed' WHERE id=?", (ticket_id,))
+        await db.execute("UPDATE tickets SET status='closed' WHERE id=?", (tkt_id,))
         await db.commit()
     
-    if notify:
-        p = await get_player(uid)
-        try: await bot.send_message(uid, tr(p["lang"] if p else "en", "ticket_closed"), parse_mode=ParseMode.HTML)
-        except: pass
-
-    await cb.message.edit_text("✅ Тикет успешно закрыт.")
-    await state.clear()
+    p = await get_player(uid)
+    try: await bot.send_message(uid, tr(p["lang"] if p else "en", "ticket_closed"), parse_mode=ParseMode.HTML)
+    except: pass
+    await cb.message.edit_text(f"✅ Тикет #{tkt_id} закрыт.")
 
 # --- Выводы ---
-@dp.callback_query(F.data == "crm_wd_list")
-async def cq_wd_list(cb: CallbackQuery):
+@dp.callback_query(F.data == "crm_wd")
+async def cq_wd(cb: CallbackQuery):
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         async with db.execute("SELECT * FROM withdrawal_requests WHERE status='pending' ORDER BY is_priority DESC, created_at ASC LIMIT 10") as cur:
@@ -601,46 +628,57 @@ async def cq_wd_list(cb: CallbackQuery):
     kb = []
     for w in wds:
         prio = "⭐ " if w["is_priority"] else ""
-        mth = w["method"].upper()
-        amt = f"${w['amount_usd']:.2f}" if mth=='USD' else f"{w['stars']} ⭐"
+        amt = f"${w['amount_usd']:.2f}" if w['method']=='usd' else f"{w['stars']} ⭐"
         text += f"ID <code>{w['id']}</code> | Юзер <code>{w['user_id']}</code> | {prio}<b>{amt}</b>\n"
         kb.append([
-            InlineKeyboardButton(text=f"✅ {w['id']}", callback_data=f"crm_wd_ok:{w['id']}"),
-            InlineKeyboardButton(text=f"❌ {w['id']}", callback_data=f"crm_wd_rej:{w['id']}")
+            InlineKeyboardButton(text=f"✅ Одобрить {w['id']}", callback_data=f"crm_wdok:{w['id']}"),
+            InlineKeyboardButton(text=f"❌ Отклонить {w['id']}", callback_data=f"crm_wdrej:{w['id']}")
         ])
     kb.append([InlineKeyboardButton(text="🔙 Назад", callback_data="crm_main")])
     await cb.message.edit_text(text, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(inline_keyboard=kb))
 
-@dp.callback_query(F.data.startswith("crm_wd_ok:"))
-async def cq_wd_ok(cb: CallbackQuery):
-    wid = int(cb.data.split(":")[1])
+@dp.callback_query(F.data.startswith("crm_wdok:"))
+async def cq_wdok(cb: CallbackQuery):
     async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute("UPDATE withdrawal_requests SET status='completed' WHERE id=?", (wid,))
+        await db.execute("UPDATE withdrawal_requests SET status='completed' WHERE id=?", (cb.data.split(":")[1],))
         await db.commit()
-    await cb.answer("Заявка отмечена как ВЫПОЛНЕНА", show_alert=True)
-    await cq_wd_list(cb)
+    await cb.answer("✅ ВЫПОЛНЕНА", show_alert=True)
+    await cq_wd(cb)
 
-@dp.callback_query(F.data.startswith("crm_wd_rej:"))
-async def cq_wd_rej(cb: CallbackQuery):
+@dp.callback_query(F.data.startswith("crm_wdrej:"))
+async def cq_wdrej(cb: CallbackQuery):
     wid = int(cb.data.split(":")[1])
     async with aiosqlite.connect(DB_PATH) as db:
-        # Вернем баланс
         async with db.execute("SELECT user_id, amount_usd FROM withdrawal_requests WHERE id=?", (wid,)) as cur:
             req = await cur.fetchone()
         await db.execute("UPDATE withdrawal_requests SET status='rejected' WHERE id=?", (wid,))
         await db.execute("UPDATE players SET balance=balance+? WHERE user_id=?", (req[1], req[0]))
         await db.commit()
-        
-        try: await bot.send_message(req[0], "❌ <b>Ваша заявка на вывод отклонена.</b> Средства возвращены на баланс.", parse_mode=ParseMode.HTML)
-        except: pass
-    await cb.answer("Заявка ОТКЛОНЕНА, баланс возвращен.", show_alert=True)
-    await cq_wd_list(cb)
-
-@dp.callback_query(F.data == "crm_main")
-async def cq_main(cb: CallbackQuery, state: FSMContext):
-    await cmd_admin(cb.message, state)
-    try: await cb.message.delete()
+    
+    try: await bot.send_message(req[0], "❌ <b>Ваша заявка на вывод отклонена.</b> Средства возвращены на баланс.", parse_mode=ParseMode.HTML)
     except: pass
+    await cb.answer("❌ ОТКЛОНЕНА, баланс возвращен.", show_alert=True)
+    await cq_wd(cb)
+
+# --- Рассылка ---
+@dp.callback_query(F.data == "crm_broadcast")
+async def cq_broad(cb: CallbackQuery, state: FSMContext):
+    await state.set_state(AdminPanel.wait_broadcast)
+    await cb.message.edit_text("Отправьте текст для рассылки всем пользователям:")
+
+@dp.message(AdminPanel.wait_broadcast)
+async def broad_step(message: Message, state: FSMContext):
+    user_ids = await get_all_user_ids()
+    delivered = 0
+    await message.answer(f"📣 Начинаем рассылку ({len(user_ids)} юзеров)...")
+    for uid in user_ids:
+        try:
+            await bot.send_message(uid, message.html_text, parse_mode=ParseMode.HTML)
+            delivered += 1
+        except: pass
+        await asyncio.sleep(0.05)
+    await message.answer(f"✅ Рассылка завершена. Доставлено: {delivered}")
+    await state.clear()
 
 # ═══════════════════════════════════════════════════════════════
 #  FASTAPI APP
@@ -680,13 +718,9 @@ async def api_get_player(user_id: int, username: str = ""):
     player, _ = await get_or_create_player(user_id, username)
     lang = player.get("lang", "en")
     
-    # Check sponsors silently for the quest ticks
-    sponsors = await get_sponsors()
-    async with aiosqlite.connect(DB_PATH) as db:
-        for sp in sponsors:
-            ok = await is_subscribed_to_channel(sp["channel_id"], user_id)
-            await db.execute("INSERT OR REPLACE INTO quests (user_id, channel_id, completed) VALUES (?,?,?)", (user_id, sp["channel_id"], int(ok)))
-        await db.commit()
+    # Только входная подписка на основной канал
+    if not await is_admin(user_id) and not await is_subscribed_to_channel(REQUIRED_CHANNEL_ID, user_id):
+        return JSONResponse(status_code=402, content={"error": "subscription_required", "channels": [{"id": REQUIRED_CHANNEL_ID, "url": REQUIRED_CHANNEL_URL, "name": REQUIRED_CHANNEL_NAME}], "message": tr(lang, "sub_required_ru") if lang == "ru" else tr(lang, "sub_required_en")})
 
     ref_count = await get_referral_count(user_id)
     player["referrals_count"] = ref_count
@@ -748,8 +782,7 @@ async def api_upload(user_id: int = Form(...), username: str = Form(""), files: 
 async def api_withdraw_check(request: Request):
     user_id = (await request.json()).get("user_id")
     missing = await check_all_subs(user_id)
-    if missing:
-        return {"ok": False, "channels": missing}
+    if missing: return {"ok": False, "channels": missing}
     return {"ok": True}
 
 @app.post("/api/withdraw")
@@ -771,8 +804,12 @@ async def api_withdraw_both(request: Request):
 
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute("UPDATE players SET balance=0 WHERE user_id=?", (user_id,))
-        await db.execute("INSERT INTO withdrawal_requests (user_id, amount_usd, stars, method, is_priority) VALUES (?,?,?,?,?)", (user_id, amt_usd, stars, "stars" if is_stars else "usd", prio))
+        await db.execute("INSERT INTO withdrawal_requests (user_id, amount_usd, stars, method, is_priority, status) VALUES (?,?,?,?,?,'pending')", (user_id, amt_usd, stars, "stars" if is_stars else "usd", prio))
         await db.commit()
+
+    for aid in await get_admin_ids():
+        try: await bot.send_message(aid, f"💳 <b>{'Stars' if is_stars else 'USD'} Withdrawal</b>\n{'⭐ VIP PRIORITY' if prio else ''}\nUser: <code>{user_id}</code>\nAmount: <b>{stars} ⭐</b>" if is_stars else f"💳 <b>USD Withdrawal</b>\n{'⭐ VIP PRIORITY' if prio else ''}\nUser: <code>{user_id}</code>\nAmount: <b>${amt_usd:.2f}</b>", parse_mode=ParseMode.HTML)
+        except: pass
 
     return {"success": True, "message": tr(lang, "withdraw_processing")}
 
@@ -780,30 +817,42 @@ async def api_withdraw_both(request: Request):
 async def api_support_send(request: Request):
     data = await request.json()
     user_id, text = data.get("user_id"), data.get("text", "").strip()
-    
-    ticket_id = await create_or_get_ticket(user_id)
+    if not user_id or not text: raise HTTPException(400)
     
     async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute("INSERT INTO support_messages (ticket_id, user_id, text, direction) VALUES (?,?,?,'in')", (ticket_id, user_id, text))
-        
-        # Check if claimed
         db.row_factory = aiosqlite.Row
-        async with db.execute("SELECT claimed_by FROM tickets WHERE id=?", (ticket_id,)) as cur:
+        async with db.execute("SELECT id, claimed_by FROM tickets WHERE user_id=? AND status IN ('open', 'claimed')", (user_id,)) as cur:
             tkt = await cur.fetchone()
+        
+        if not tkt:
+            await db.execute("INSERT INTO tickets (user_id) VALUES (?)", (user_id,))
+            await db.commit()
+            async with db.execute("SELECT last_insert_rowid()") as cur:
+                tkt_id = (await cur.fetchone())[0]
+            claimed_by = None
+        else:
+            tkt_id, claimed_by = tkt["id"], tkt["claimed_by"]
+            
+        await db.execute("INSERT INTO support_messages (ticket_id, user_id, text, direction) VALUES (?,?,?,'in')", (tkt_id, user_id, text))
         await db.commit()
+        
+    p = await get_player(user_id)
+    uname = p["username"] if p else str(user_id)
 
-    player = await get_player(user_id)
-    uname = player["username"] if player else ""
-
-    if tkt and tkt["claimed_by"]:
-        # Alert specific admin
-        try: await bot.send_message(tkt["claimed_by"], f"📨 <b>Ответ в тикете #{ticket_id}</b> от @{uname}:\n\n{text}", parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="✍️ Ответить", callback_data=f"crm_reply:{ticket_id}")]]))
+    if claimed_by:
+        try: await bot.send_message(claimed_by, f"💬 <b>Ответ в тикете #{tkt_id}</b> от @{uname}:\n\n{text}\n\n/panel -> Тикеты", parse_mode=ParseMode.HTML)
         except: pass
     else:
-        # Alert all admins
-        await alert_admins_new_ticket(ticket_id, user_id, text, uname)
+        await alert_admins_new_ticket(tkt_id, user_id, text, uname)
 
     return {"success": True}
+
+async def alert_admins_new_ticket(tkt_id, uid, text, uname):
+    admin_ids = await get_admin_ids()
+    kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🙋‍♂️ Взять в работу", callback_data=f"crm_tclaim:{tkt_id}")]])
+    for aid in admin_ids:
+        try: await bot.send_message(aid, f"🆘 <b>Новый тикет #{tkt_id}</b>\nОт: @{uname}\n\n{text[:200]}...", parse_mode=ParseMode.HTML, reply_markup=kb)
+        except: pass
 
 @app.get("/api/support/messages/{user_id}")
 async def api_support_messages(user_id: int):
