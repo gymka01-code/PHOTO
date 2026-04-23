@@ -791,7 +791,8 @@ async function init(){
   buildLiveFeed();
   setInterval(tickCountdowns, 1000);
   setInterval(() => loadPlayer(true), 30000);
-  setInterval(pollSupportReplies, 15000);
+  // ИЗМЕНЁН ИНТЕРВАЛ ПОЛУЧЕНИЯ СООБЩЕНИЙ ЧАТА: с 15 сек на 3 сек
+  setInterval(pollSupportReplies, 3000);
   setInterval(tickLiveFeed, 7000);
 }
 
