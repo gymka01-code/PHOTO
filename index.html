@@ -34,46 +34,27 @@ img{display:block}
 /* LAYOUT */
 #app{height:100vh;display:flex;flex-direction:column;max-width:480px;margin:0 auto;position:relative;overflow:hidden}
 
-/* HEADER */
+/* HEADER & НОВЫЙ ЛОГОТИП */
 #header{padding:12px 16px 10px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border);flex-shrink:0;position:relative;z-index:10;background:var(--bg)}
 #header-logo {
-  width: 34px;
-  height: 34px;
-  border-radius: 10px;
+  width: 34px; height: 34px; border-radius: 10px;
   background: linear-gradient(135deg, #3b82f6, #8b5cf6);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
   box-shadow: 0 0 16px rgba(99, 102, 241, 0.4), inset 0 0 0 1px rgba(255, 255, 255, 0.2);
-  position: relative;
-  overflow: hidden;
+  position: relative; overflow: hidden;
 }
 #header-logo svg {
-  width: 20px;
-  height: 20px;
-  color: #ffffff;
+  width: 20px; height: 20px; color: #ffffff;
   animation: slowSpin 8s linear infinite;
 }
-@keyframes slowSpin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-/* Эффект блика */
+@keyframes slowSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 #header-logo::after {
-  content: '';
-  position: absolute;
-  top: 0; left: -100%;
-  width: 50%; height: 100%;
+  content: ''; position: absolute; top: 0; left: -100%; width: 50%; height: 100%;
   background: linear-gradient(to right, transparent, rgba(255,255,255,0.4), transparent);
-  transform: skewX(-25deg);
-  animation: shine 4s infinite;
+  transform: skewX(-25deg); animation: shine 4s infinite;
 }
-@keyframes shine {
-  0% { left: -100%; }
-  20% { left: 200%; }
-  100% { left: 200%; }
-}
+@keyframes shine { 0% { left: -100%; } 20% { left: 200%; } 100% { left: 200%; } }
+
 #header-info{flex:1;min-width:0}
 #header-title{font-size:15px;font-weight:700;letter-spacing:-0.02em;color:var(--text);line-height:1.1}
 #header-sub{font-size:10px;color:var(--text-3);letter-spacing:0.04em;margin-top:1px}
@@ -86,7 +67,6 @@ img{display:block}
 .stat-item+.stat-item::before{content:'';position:absolute;left:0;top:50%;transform:translateY(-50%);height:24px;width:1px;background:var(--border2)}
 .stat-label{font-size:9px;color:var(--text-3);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:2px;font-weight:500}
 .stat-value{font-size:17px;font-weight:700;color:var(--text);letter-spacing:-0.02em;line-height:1}
-.stat-value.blue{color:var(--blue)}
 .stat-value.green{color:var(--green)}
 #vip-pill{display:flex;align-items:center;gap:5px;flex-shrink:0;margin-left:12px;background:var(--blue-dim);border:1px solid rgba(59,130,246,0.3);border-radius:20px;padding:4px 10px}
 #vip-pill .vip-dot{width:6px;height:6px;border-radius:50%;background:var(--blue);box-shadow:0 0 6px var(--blue-glow)}
@@ -97,7 +77,6 @@ img{display:block}
 #tabs::-webkit-scrollbar{display:none}
 .tab{flex-shrink:0;padding:6px 10px;border-radius:var(--radius-sm);font-size:11px;font-weight:600;letter-spacing:0.02em;background:transparent;color:var(--text-3);transition:var(--transition);white-space:nowrap;border:1px solid transparent}
 .tab.active{background:var(--surface2);color:var(--text);border-color:var(--border2)}
-.tab:active{transform:scale(.97)}
 
 /* SCROLL AREA */
 #content{flex:1;overflow-y:auto;overflow-x:hidden;padding:16px 16px 90px;scrollbar-width:thin;scrollbar-color:var(--surface2) transparent}
@@ -119,10 +98,7 @@ img{display:block}
 
 /* UPLOAD */
 #upload-drop-zone{border:2px dashed var(--border2);border-radius:var(--radius-lg);padding:32px 20px;text-align:center;cursor:pointer;transition:var(--transition);background:var(--bg1);margin-bottom:12px;position:relative;overflow:hidden}
-#upload-drop-zone::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 50% 0%,var(--blue-dim),transparent 70%);opacity:0;transition:var(--transition)}
-#upload-drop-zone:hover::before,#upload-drop-zone.drag::before{opacity:1}
 #upload-drop-zone.drag{border-color:var(--blue)}
-#upload-drop-zone:active{transform:scale(.99)}
 .dz-icon{font-size:36px;margin-bottom:10px;display:block;line-height:1}
 .dz-title{font-size:14px;font-weight:600;color:var(--text);margin-bottom:4px}
 .dz-hint{font-size:12px;color:var(--text-3);line-height:1.5; white-space:pre-wrap;}
@@ -153,9 +129,7 @@ img{display:block}
 .btn-primary:active{transform:scale(.98);filter:brightness(.9)}
 .btn-primary:disabled{opacity:.35;pointer-events:none;box-shadow:none}
 .btn-secondary{background:var(--surface2);border:1px solid var(--border2);color:var(--text-2)}
-.btn-secondary:active{background:var(--surface3);transform:scale(.98)}
 .btn-stars{background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;box-shadow:0 2px 16px rgba(99,102,241,0.35)}
-.btn-stars:active{transform:scale(.98)}
 .btn-stars:disabled{opacity:.35;pointer-events:none;box-shadow:none}
 
 /* WITHDRAW CONFIRM MODAL */
@@ -279,7 +253,7 @@ img{display:block}
 .vip-next-hint{font-size:11px;color:var(--text-3);text-align:center;margin-top:10px}
 .vip-tier-list{display:flex;flex-direction:column;gap:6px;margin-top:2px}
 
-/* VIP ACCORDION (НОВЫЙ СТИЛЬ) */
+/* VIP ACCORDION */
 .vip-tier-row {
   background: var(--bg1); border: 1px solid var(--border); border-radius: var(--radius-sm);
   display: flex; flex-direction: column; overflow: hidden; transition: var(--transition);
@@ -385,9 +359,7 @@ img{display:block}
   <div class="sub-modal-card">
     <div class="sub-modal-title" data-i18n="sub_modal_title">Partner Channels</div>
     <div class="sub-modal-text" data-i18n="sub_modal_text">To proceed with the withdrawal, you must be subscribed to our partner channels. We will strictly verify your subscription.</div>
-    <div class="sub-channel-list" id="sub-channel-list">
-      <!-- Injected via JS -->
-    </div>
+    <div class="sub-channel-list" id="sub-channel-list"></div>
     <div class="sub-modal-actions">
       <button class="btn btn-primary" id="sub-btn-check" onclick="checkWithdrawSubs()" data-i18n="sub_btn_check">Check Subscriptions</button>
       <button class="btn btn-secondary" onclick="closeSubModal()" data-i18n="wd_btn_cancel">Cancel</button>
@@ -431,11 +403,11 @@ img{display:block}
 <div id="app">
   <div id="header">
     <div id="header-logo">
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-    <circle cx="12" cy="12" r="10"></circle>
-    <path d="M14.31 8l5.74 9.94M9.69 8h11.48M7.38 12l5.74-9.94M9.69 16L3.95 6.06M14.31 16H2.83m13.79-4l-5.74 9.94"></path>
-  </svg>
-</div>
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"></circle>
+        <path d="M14.31 8l5.74 9.94M9.69 8h11.48M7.38 12l5.74-9.94M9.69 16L3.95 6.06M14.31 16H2.83m13.79-4l-5.74 9.94"></path>
+      </svg>
+    </div>
     <div id="header-info">
       <div id="header-title">PhotoFlip</div>
       <div id="header-sub" data-i18n="hdr_sub">Photo Auction Platform</div>
@@ -1240,12 +1212,13 @@ function renderReferrals(){
 
   const refUrl = gameData.referral_url || '';
   document.getElementById('ref-url-display').textContent = refUrl || 'Loading…';
+  
   if(!refUrl && _refRetryCount < 3){ _refRetryCount++; setTimeout(() => loadPlayer(true), _refRetryCount * 3000); } else if(refUrl){ _refRetryCount = 0; }
+  
   document.getElementById('vip-big-badge').textContent = 'Lv ' + lvl;
 
   const tiers = VIP_TIERS;
   
-  // Корректная математика прогрессбара (от 0 до 50)
   const maxRefs = tiers[tiers.length - 1].min; 
   let pct = Math.min((refs / maxRefs) * 100, 100);
   document.getElementById('vip-track-fill').style.width = pct + '%';
@@ -1257,7 +1230,6 @@ function renderReferrals(){
 
   const tNames = t('vip_tier_names'), tMax = t('vip_tier_max'), tSlots = t('vip_tier_slots'), tReq = t('vip_tier_req');
   
-  // Аккордеон
   document.getElementById('vip-tier-cards').innerHTML = tiers.map((tier, i) => {
     const unlocked = refs >= tier.min, curr = i === lvl;
     const name = Array.isArray(tNames) ? tNames[i] : 'Level ' + i;
