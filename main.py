@@ -13,7 +13,7 @@ from typing import List
 
 import aiosqlite
 from aiogram import Bot, Dispatcher, F
-from aiogram.enums import ChatMemberStatus, ParseMode, ContentType
+from aiogram.enums import ChatMemberStatus, ParseMode
 from aiogram.filters import Command, CommandObject, CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
@@ -98,11 +98,11 @@ FEED_ACTIONS = [
 ]
 
 WHEEL_PRIZES = [
-    {"id": 0, "type": "usd", "val": 0.05, "label": "$0.05", "color": "#3b82f6", "chance": 25},
-    {"id": 1, "type": "lose", "val": 0, "label": "Lose", "color": "#1e1e1e", "chance": 40},
-    {"id": 2, "type": "usd", "val": 0.20, "label": "$0.20", "color": "#8b5cf6", "chance": 15},
-    {"id": 3, "type": "slot", "val": 1, "label": "+1 Slot", "color": "#f59e0b", "chance": 15},
-    {"id": 4, "type": "usd", "val": 1.00, "label": "$1.00!", "color": "#22c55e", "chance": 5},
+    {"id": 0, "type": "usd", "val": 0.05, "label": "$0.05", "color": "#1e3a8a", "chance": 25},
+    {"id": 1, "type": "lose", "val": 0, "label": "Lose", "color": "#111111", "chance": 40},
+    {"id": 2, "type": "usd", "val": 0.20, "label": "$0.20", "color": "#4c1d95", "chance": 15},
+    {"id": 3, "type": "slot", "val": 1, "label": "+1 Slot", "color": "#b45309", "chance": 15},
+    {"id": 4, "type": "usd", "val": 1.00, "label": "$1.00!", "color": "#064e3b", "chance": 5},
 ]
 
 logging.basicConfig(level=logging.INFO)
@@ -161,6 +161,7 @@ def vip_level(refs: int) -> int:
     return lvl
 
 def vip_max_delay(refs: int) -> int: return VIP_TIERS[vip_level(refs)][1]
+def vip_slot_limit(refs: int) -> int: return VIP_TIERS[vip_level(refs)][2]
 def usd_to_stars(usd: float) -> int: return math.floor(usd / 0.012)
 
 def make_share_url(ref_url: str) -> str:
@@ -173,11 +174,15 @@ dp  = Dispatcher(storage=MemoryStorage())
 # --- INIT DB ---
 async def init_db():
     async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute("""CREATE TABLE IF NOT EXISTS players (user_id INTEGER PRIMARY KEY, username TEXT, balance REAL DEFAULT 0.0, total_earned REAL DEFAULT 0.0, photos_sold INTEGER DEFAULT 0, referrals_count INTEGER DEFAULT 0, referred_by INTEGER DEFAULT NULL, lang TEXT DEFAULT 'en', extra_slots INTEGER DEFAULT 0, last_spin TEXT DEFAULT NULL, last_seen TEXT DEFAULT (datetime('now')), created_at TEXT DEFAULT (datetime('now')))""")
-        # Миграция старых колонок
+        await db.execute("""CREATE TABLE IF NOT EXISTS players (user_id INTEGER PRIMARY KEY, username TEXT, balance REAL DEFAULT 0.0, total_earned REAL DEFAULT 0.0, photos_sold INTEGER DEFAULT 0, referrals_count INTEGER DEFAULT 0, referred_by INTEGER DEFAULT NULL, lang TEXT DEFAULT 'en', last_seen TEXT DEFAULT (datetime('now')), created_at TEXT DEFAULT (datetime('now')))""")
+        
+        # БЕЗОПАСНАЯ МИГРАЦИЯ ДЛЯ СУЩЕСТВУЮЩИХ БД
         for col in ["extra_slots INTEGER DEFAULT 0", "last_spin TEXT DEFAULT NULL"]:
-            try: await db.execute(f"ALTER TABLE players ADD COLUMN {col}")
-            except: pass
+            try:
+                await db.execute(f"ALTER TABLE players ADD COLUMN {col}")
+            except Exception:
+                pass
+                
         await db.execute("""CREATE TABLE IF NOT EXISTS photos (id TEXT PRIMARY KEY, user_id INTEGER, filename TEXT, batch_id TEXT, base_price REAL, final_price REAL, sale_rub REAL DEFAULT 0, status TEXT DEFAULT 'pending', sell_at TEXT, sold_at TEXT, buyer TEXT, created_at TEXT DEFAULT (datetime('now')), FOREIGN KEY(user_id) REFERENCES players(user_id))""")
         await db.execute("""CREATE TABLE IF NOT EXISTS referrals (referrer_id INTEGER, referred_id INTEGER PRIMARY KEY, created_at TEXT DEFAULT (datetime('now')))""")
         await db.execute("""CREATE TABLE IF NOT EXISTS sponsors (channel_id TEXT PRIMARY KEY, name TEXT, url TEXT, avatar_filename TEXT, created_at TEXT DEFAULT (datetime('now')))""")
@@ -467,7 +472,6 @@ async def on_successful_payment(message: Message):
             await db.execute("UPDATE players SET extra_slots=extra_slots+5 WHERE user_id=?", (uid,))
             await message.answer("✅ <b>Purchase successful!</b>\nYou permanently gained +5 Auction Slots. Open the app to use them.", parse_mode=ParseMode.HTML)
         await db.commit()
-
 
 # --- ОПТИМИЗИРОВАННЫЙ СВАЙП-ОТВЕТ ДЛЯ АДМИНОВ ---
 @dp.message(F.reply_to_message)
@@ -859,7 +863,7 @@ async def api_wheel_spin(request: Request):
 async def api_buy_item(request: Request):
     data = await request.json()
     user_id = data.get("user_id")
-    item = data.get("item") # 'spin' or 'slots'
+    item = data.get("item")
     
     if item == "spin":
         title, desc, payload, price = "Extra Spin", "1 additional Wheel Spin", "buy_spin", 20
@@ -868,12 +872,11 @@ async def api_buy_item(request: Request):
     else:
         raise HTTPException(400, "Invalid item")
         
-    # Формируем счет для Telegram Stars (XTR)
     link = await bot.create_invoice_link(
         title=title,
         description=desc,
         payload=payload,
-        provider_token="", # Для XTR всегда пусто
+        provider_token="", # Для Telegram Stars (XTR) всегда пусто!
         currency="XTR",
         prices=[LabeledPrice(label=title, amount=price)]
     )
@@ -895,7 +898,7 @@ async def api_referrals(user_id: int):
 @app.post("/api/upload")
 async def api_upload(user_id: int = Form(...), username: str = Form(""), files: List[UploadFile] = File(...)):
     player, _ = await get_or_create_player(user_id, username)
-    # ПРАВИЛО УДАЛЕНО: if (player["balance"] or 0) > 0: raise HTTPException(403, "Withdraw balance first.")
+    # Убрали блокировку по балансу!
     
     files_data = [(f.filename or "photo.jpg", await f.read()) for f in files]
     ref_count, active = await get_referral_count(user_id), await get_active_photo_count(user_id)
