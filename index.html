@@ -359,9 +359,24 @@ img{display:block}
 .inline-spinner{display:inline-block;width:12px;height:12px;border:2px solid rgba(255,255,255,.2);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite;vertical-align:middle;margin-right:5px}
 @keyframes spin{to{transform:rotate(360deg)}}
 .notice{background:var(--blue-dim);border:1px solid rgba(59,130,246,0.2);border-radius:var(--radius-sm);padding:10px 12px;font-size:11px;color:var(--slate-light);line-height:1.6;margin-bottom:12px}
+
+/* BAN SCREEN */
+#ban-overlay { display:none; position:fixed; inset:0; background:var(--bg); z-index:9999; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:32px; }
+#ban-overlay.active { display:flex; }
+.ban-icon { font-size:60px; margin-bottom:20px; }
+.ban-title { font-size:20px; font-weight:700; color:var(--red); margin-bottom:10px; }
+.ban-desc { font-size:14px; color:var(--text-2); line-height:1.6; margin-bottom:30px; max-width:280px; }
+.ban-btn { background:var(--surface2); border:1px solid var(--border2); color:var(--text); padding:12px 24px; border-radius:var(--radius); font-weight:600; font-size:14px; cursor:pointer; }
 </style>
 </head>
 <body>
+
+<div id="ban-overlay">
+  <div class="ban-icon">🚫</div>
+  <div class="ban-title" data-i18n="ban_title">Account Suspended</div>
+  <div class="ban-desc" data-i18n="ban_desc">Your account has been blocked for violation of terms. If you believe this is a mistake, close this app and send a message directly to the bot to contact support.</div>
+  <button class="ban-btn" onclick="tg.close()">Close App</button>
+</div>
 
 <!-- WD CONFIRM MODAL -->
 <div id="wd-modal">
@@ -500,7 +515,7 @@ img{display:block}
       <button class="btn btn-primary" id="upload-btn" onclick="startUpload()" data-i18n="upload_btn">Analyse &amp; List</button>
     </div>
 
-    <!-- BONUS (НОВАЯ ВКЛАДКА) -->
+    <!-- BONUS -->
     <div class="panel" id="panel-bonus">
       <div class="section-head">
         <div class="section-title" data-i18n="wheel_title">Wheel of Fortune</div>
@@ -723,6 +738,8 @@ const TRANSLATIONS = {
     auction_in:"Sells in", err_no_file:"Select at least one photo.",
     err_slots_full:"Not enough auction slots. Wait or Buy Extra Slots.",
     ref_count_sub:"referrals",
+    ban_title:"Account Suspended",
+    ban_desc:"Your account has been blocked for violation of terms. If you believe this is a mistake, close this app and send a message directly to the bot to contact support."
   },
   ru:{
     hdr_sub:"Платформа аукциона фото",
@@ -789,6 +806,8 @@ const TRANSLATIONS = {
     auction_in:"Продажа через", err_no_file:"Выберите хотя бы одно фото.",
     err_slots_full:"Нет слотов. Подождите продаж или купите слоты.",
     ref_count_sub:"рефералов",
+    ban_title:"Аккаунт Заблокирован",
+    ban_desc:"Ваш аккаунт был заблокирован за нарушение правил. Если вы считаете, что это ошибка, закройте приложение и напишите сообщение прямо в бота для связи с поддержкой."
   }
 };
 
@@ -821,12 +840,7 @@ if(tg){
   const u = tg.initDataUnsafe?.user;
   if(u){ userId = u.id; username = u.username || u.first_name || ''; }
   
-  // Принудительное обновление если юзер свернул и развернул бота
-  tg.onEvent('viewportChanged', () => {
-    if(tg.isExpanded) {
-        loadPlayer(true);
-    }
-  });
+  tg.onEvent('viewportChanged', () => { if(tg.isExpanded) loadPlayer(true); });
 }
 if(!userId) userId = 999999;
 
@@ -850,22 +864,11 @@ const VIP_ICONS = ['🔵','🟤','⚪','🟡','⚫','💎'];
 
 async function init(){
   applyTranslations();
-  (function(){
-    try{
-      const sp = window.Telegram?.WebApp?.initDataUnsafe?.start_param;
-      if(sp && sp.startsWith('ref_') && userId && userId !== 999999){
-        const u = window.Telegram?.WebApp?.initDataUnsafe?.user || {};
-        fetch('/api/referral/bind', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ user_id: userId, ref_param: sp, first_name: u.first_name || '', username: u.username || ''}) }).catch(()=>{});
-      }
-    }catch(e){}
-  })();
+  // Вызов привязки убран из frontend, так как он теперь делается мгновенно в backend (cmd_start)
   await loadPlayer();
   buildLiveFeed();
   setInterval(tickCountdowns, 1000);
-  
-  // ОПРОС ТЕПЕРЬ КАЖДЫЕ 5 СЕКУНД (чтобы окошко продажи всплывало почти мгновенно)
   setInterval(() => loadPlayer(true), 5000); 
-  
   setInterval(pollSupportReplies, 3000);
   setInterval(tickLiveFeed, 7000);
 }
@@ -874,21 +877,26 @@ async function loadPlayer(silent = false){
   try{
     const r = await fetch(`${BASE}/api/player/${userId}?username=${encodeURIComponent(username)}`);
     const data = await r.json();
+    
+    // Проверка на БАН
+    if(r.status === 403 && data.error === 'banned') {
+        document.getElementById('ban-overlay').classList.add('active');
+        return;
+    }
+    
     if(!r.ok){
       if(data.error === 'subscription_required') showSubGate(data);
       return;
     }
+    
     gameData = data;
     updateHeader(gameData.player);
     renderPortfolio(); renderWalletInfo(); updateUploadLock(); renderWithdrawPreviews();
     renderVipBadge(gameData.vip_level); renderReferrals();
     
     if(data.wheel) {
-      if(data.wheel.can_spin) {
-        nextSpinMs = 0;
-      } else {
-        nextSpinMs = data.wheel.next_spin_ms;
-      }
+      if(data.wheel.can_spin) nextSpinMs = 0;
+      else nextSpinMs = data.wheel.next_spin_ms;
       updateWheelUI();
     }
   }catch(e){ if(!silent) console.error(e); }
@@ -897,7 +905,6 @@ async function loadPlayer(silent = false){
 function showSubGate(data){
   const ch = (data.channels || []);
   window._lastSubGateData = data;
-
   const url = ch.length ? ch[0].url : 'https://t.me/dsdfsdfawer';
   const name = ch.length ? ch[0].name : 'PhotoFlip Community';
   const isRu = currentLang === 'ru';
@@ -941,14 +948,12 @@ async function recheckSub(){
     if(r){
       const d = await r.json().catch(() => ({}));
       if(d?.error === 'subscription_required') showSubGate(d);
+      if(d?.error === 'banned') document.getElementById('ban-overlay').classList.add('active');
     }
     return;
   }
   const data = await r.json();
-  if(data.error){
-    if(btn) btn.textContent = isRu ? '✅ Я подписался — Проверить' : "✅ I've Subscribed — Check";
-    return;
-  }
+  if(data.error) return;
 
   const ov = document.getElementById('sub-gate-overlay');
   if(ov) ov.remove();
@@ -1111,11 +1116,8 @@ function updateWheelUI() {
     clearInterval(wheelTimer);
     wheelTimer = setInterval(() => {
       nextSpinMs -= 1000;
-      if (nextSpinMs <= 0) {
-        updateWheelUI();
-      } else {
-        updateWheelTimer();
-      }
+      if (nextSpinMs <= 0) updateWheelUI();
+      else updateWheelTimer();
     }, 1000);
   }
 }
