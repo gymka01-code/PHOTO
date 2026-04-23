@@ -75,11 +75,10 @@ MIN_DELAY_SECS = 30
 PARTNER_CHANNELS = [
     {"-1003642113064": "@dsdfsdfawer", "name": "PhotoFlip Community",
      "url": "https://t.me/dsdfsdfawer"},
-    {"-1002484263962": "@ehche", "Первый парт": "ГОВНОХАБ НЕ ПОДПИСЫВАЙТЕСЬ",
-     "url": "t.me/ehche"},
+    {"-1002977372900": "@zmnxj", "Первый": "ГАВНО ГАВНО",
+     "url": "https://t.me/zmnxj"},
 ]
 
-# ── Required subscription channel ─────────────────────────────
 REQUIRED_CHANNEL_ID   = "@dsdfsdfawer"
 REQUIRED_CHANNEL_URL  = "https://t.me/dsdfsdfawer"
 REQUIRED_CHANNEL_NAME = "PhotoFlip Community"
@@ -191,6 +190,15 @@ _T = {
             "Your request is being processed.\n"
             "Payouts take 1–7 business days."
         ),
+        "unsub_warning": (
+            "⚠️ <b>Warning!</b>\n"
+            "You have an active withdrawal request, but you unsubscribed from our partner channels.\n\n"
+            "If you don't resubscribe within <b>12 hours</b>, your withdrawal request will be cancelled and funds will not be paid."
+        ),
+        "resub_thanks": (
+            "✅ <b>Thank you!</b>\n"
+            "We verified your subscription. Your withdrawal request will continue to process normally."
+        ),
     },
     "ru": {
         "welcome": (
@@ -239,6 +247,15 @@ _T = {
             "Ваша заявка обрабатывается.\n"
             "Выплаты занимают 1–7 рабочих дней."
         ),
+        "unsub_warning": (
+            "⚠️ <b>Внимание!</b>\n"
+            "У вас есть активная заявка на вывод средств, но вы отписались от спонсорских каналов.\n\n"
+            "В случае, если вы не подпишетесь обратно в течение <b>12 часов</b>, заявка будет отклонена и средства уплачены не будут."
+        ),
+        "resub_thanks": (
+            "✅ <b>Спасибо!</b>\n"
+            "Мы проверили подписку. Обработка вашей заявки на вывод средств продолжается в штатном режиме."
+        ),
     },
 }
 
@@ -268,6 +285,9 @@ def vip_slot_limit(refs: int) -> int:
 
 def usd_to_stars(usd: float) -> int:
     return math.floor(usd / 0.012)
+
+bot = Bot(token=BOT_TOKEN)
+dp  = Dispatcher(storage=MemoryStorage())
 
 async def init_db():
     async with aiosqlite.connect(DB_PATH) as db:
@@ -350,15 +370,21 @@ async def init_db():
         """)
         await db.execute("""
             CREATE TABLE IF NOT EXISTS withdrawal_requests (
-                id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id     INTEGER,
-                amount_usd  REAL,
-                stars       INTEGER DEFAULT 0,
-                method      TEXT,
-                is_priority INTEGER DEFAULT 0,
-                created_at  TEXT DEFAULT (datetime('now'))
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id         INTEGER,
+                amount_usd      REAL,
+                stars           INTEGER DEFAULT 0,
+                method          TEXT,
+                is_priority     INTEGER DEFAULT 0,
+                status          TEXT DEFAULT 'pending',
+                warning_sent_at TEXT DEFAULT NULL,
+                created_at      TEXT DEFAULT (datetime('now'))
             )
         """)
+        for col_def in ["status TEXT DEFAULT 'pending'", "warning_sent_at TEXT DEFAULT NULL"]:
+            try: await db.execute(f"ALTER TABLE withdrawal_requests ADD COLUMN {col_def}")
+            except Exception: pass
+
         await db.execute("""
             CREATE TABLE IF NOT EXISTS admins (
                 user_id    INTEGER PRIMARY KEY,
@@ -423,17 +449,6 @@ async def get_referral_count(user_id: int) -> int:
             row = await cur.fetchone()
         return row[0] if row else 0
 
-async def get_quest_status(user_id: int) -> list:
-    result = []
-    async with aiosqlite.connect(DB_PATH) as db:
-        db.row_factory = aiosqlite.Row
-        for ch in PARTNER_CHANNELS:
-            channel_id = list(ch.keys())[0]
-            async with db.execute("SELECT completed FROM quests WHERE user_id=? AND channel_id=?", (user_id, channel_id)) as cur:
-                row = await cur.fetchone()
-            result.append({**ch, "id": channel_id, "completed": bool(row["completed"]) if row else False})
-    return result
-
 async def get_referral_list(referrer_id: int) -> list:
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
@@ -462,16 +477,15 @@ async def get_admin_stats() -> dict:
             pending = round((await cur.fetchone())["s"], 2)
     return {"users": users, "photos": photos, "pending_withdraw_usd": pending}
 
-async def channels_all_subscribed(user_id: int) -> bool:
-    async with aiosqlite.connect(DB_PATH) as db:
-        db.row_factory = aiosqlite.Row
-        for ch in PARTNER_CHANNELS:
-            channel_id = list(ch.keys())[0]
-            async with db.execute("SELECT completed FROM quests WHERE user_id=? AND channel_id=?", (user_id, channel_id)) as cur:
-                row = await cur.fetchone()
-            if not row or not row["completed"]:
-                return False
-    return True
+async def is_subscribed_to_channel(channel_id: str, user_id: int) -> bool:
+    try:
+        member = await bot.get_chat_member(channel_id, user_id)
+        return member.status in (ChatMemberStatus.MEMBER, ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.CREATOR)
+    except Exception: return False
+
+async def check_subscription(user_id: int) -> bool:
+    if await is_admin(user_id): return True
+    return await is_subscribed_to_channel(REQUIRED_CHANNEL_ID, user_id)
 
 async def referral_url(user_id: int) -> str:
     global _bot_username
@@ -609,8 +623,53 @@ async def reminder_worker():
                 except Exception: pass
         except Exception: pass
 
-bot = Bot(token=BOT_TOKEN)
-dp  = Dispatcher(storage=MemoryStorage())
+# --- НОВЫЙ ВОРКЕР МОНИТОРИНГА ОТПИСОК ---
+async def monitor_withdrawals_worker():
+    while True:
+        await asyncio.sleep(3600)  # Check every hour
+        try:
+            async with aiosqlite.connect(DB_PATH) as db:
+                db.row_factory = aiosqlite.Row
+                seven_days_ago = (datetime.utcnow() - timedelta(days=7)).isoformat()
+                async with db.execute(
+                    "SELECT id, user_id, warning_sent_at FROM withdrawal_requests WHERE status='pending' AND created_at > ?",
+                    (seven_days_ago,)
+                ) as cur:
+                    requests = await cur.fetchall()
+
+                for req in requests:
+                    uid, wid, warn_time = req["user_id"], req["id"], req["warning_sent_at"]
+
+                    all_subbed = True
+                    for ch in PARTNER_CHANNELS:
+                        ch_id = list(ch.keys())[0]
+                        if not await is_subscribed_to_channel(ch_id, uid):
+                            all_subbed = False
+                            break
+
+                    player = await get_player(uid)
+                    lang = player.get("lang", "en") if player else "en"
+
+                    if not all_subbed:
+                        if not warn_time:
+                            # User unsubscribed -> send warning
+                            msg = tr(lang, "unsub_warning")
+                            try:
+                                await bot.send_message(uid, msg, parse_mode=ParseMode.HTML)
+                                await db.execute("UPDATE withdrawal_requests SET warning_sent_at=datetime('now') WHERE id=?", (wid,))
+                                await db.commit()
+                            except Exception: pass
+                    else:
+                        if warn_time:
+                            # User resubscribed -> clear warning
+                            msg = tr(lang, "resub_thanks")
+                            try:
+                                await bot.send_message(uid, msg, parse_mode=ParseMode.HTML)
+                                await db.execute("UPDATE withdrawal_requests SET warning_sent_at=NULL WHERE id=?", (wid,))
+                                await db.commit()
+                            except Exception: pass
+        except Exception as e:
+            logger.error(f"Monitor worker error: {e}")
 
 def _load_cached_bot_username() -> str | None:
     u = os.getenv("BOT_USERNAME", "").strip()
@@ -627,16 +686,6 @@ def _save_cached_bot_username(username: str):
     except Exception: pass
 
 _bot_username: str | None = _load_cached_bot_username()
-
-async def is_subscribed_to_channel(user_id: int) -> bool:
-    try:
-        member = await bot.get_chat_member(REQUIRED_CHANNEL_ID, user_id)
-        return member.status in (ChatMemberStatus.MEMBER, ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.CREATOR)
-    except Exception: return False
-
-async def check_subscription(user_id: int) -> bool:
-    if await is_admin(user_id): return True
-    return await is_subscribed_to_channel(user_id)
 
 def _sub_gate_keyboard(args_str: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
@@ -758,7 +807,7 @@ async def cmd_start(message: Message, command: CommandObject):
 
 @dp.callback_query(F.data.startswith("chksub:"))
 async def cb_check_sub(cb: CallbackQuery):
-    if not await is_subscribed_to_channel(cb.from_user.id):
+    if not await is_subscribed_to_channel(REQUIRED_CHANNEL_ID, cb.from_user.id):
         await cb.answer("❌ You haven't subscribed yet!", show_alert=True)
         return
     user_id = cb.from_user.id
@@ -867,9 +916,11 @@ async def lifespan(app: FastAPI):
         _bot_username = (await bot.get_me()).username
         _save_cached_bot_username(_bot_username)
     except Exception: pass
-    t1, t2 = asyncio.create_task(auction_worker()), asyncio.create_task(reminder_worker())
+    t1 = asyncio.create_task(auction_worker())
+    t2 = asyncio.create_task(reminder_worker())
+    t3 = asyncio.create_task(monitor_withdrawals_worker())
     yield
-    t1.cancel(); t2.cancel()
+    t1.cancel(); t2.cancel(); t3.cancel()
     try: await bot.delete_webhook()
     except Exception: pass
 
@@ -897,18 +948,9 @@ async def api_get_player(user_id: int, username: str = ""):
     lang = player.get("lang", "en")
     
     if not await is_admin(user_id):
-        try:
-            live_ok = await is_subscribed_to_channel(user_id)
-            async with aiosqlite.connect(DB_PATH) as db:
-                for ch in PARTNER_CHANNELS:
-                    await db.execute("INSERT OR REPLACE INTO quests (user_id, channel_id, completed) VALUES (?,?,?)", (user_id, list(ch.keys())[0], 1 if live_ok else 0))
-                await db.commit()
-            subscribed = live_ok
-        except Exception:
-            subscribed = await channels_all_subscribed(user_id)
-        
-        if not subscribed:
-            return JSONResponse(status_code=402, content={"error": "subscription_required", "channels": [{"id": list(ch.keys())[0], "url": ch.get("url", ""), "name": ch.get("name", "")} for ch in PARTNER_CHANNELS], "message": tr(lang, "sub_required_ru") if lang == "ru" else tr(lang, "sub_required_en"), "required_channel": REQUIRED_CHANNEL_URL})
+        live_ok = await is_subscribed_to_channel(REQUIRED_CHANNEL_ID, user_id)
+        if not live_ok:
+            return JSONResponse(status_code=402, content={"error": "subscription_required", "channels": [{"id": REQUIRED_CHANNEL_ID, "url": REQUIRED_CHANNEL_URL, "name": REQUIRED_CHANNEL_NAME}], "message": tr(lang, "sub_required_ru") if lang == "ru" else tr(lang, "sub_required_en")})
 
     ref_count = await get_referral_count(user_id)
     player["referrals_count"] = ref_count
@@ -917,7 +959,6 @@ async def api_get_player(user_id: int, username: str = ""):
     return {
         "player": player,
         "photos": await get_player_photos(user_id, lang),
-        "quests": await get_quest_status(user_id),
         "withdraw_unlocked": ref_count >= MIN_REFERRALS_WITHDRAW,
         "vip_level": vip_level(ref_count),
         "vip_tiers": [{"min": t[0], "max_delay": t[1], "slots": t[2]} for t in VIP_TIERS],
@@ -949,7 +990,6 @@ async def api_upload(user_id: int = Form(...), username: str = Form(""), files: 
     player, _ = await get_or_create_player(user_id, username)
     if (player["balance"] or 0) > 0: raise HTTPException(403, "Withdraw balance first.")
     
-    # ── РАЗРЕШАЕМ ДО 30 ФАЙЛОВ ДЛЯ ВИПОВ ──
     if not (1 <= len(files) <= 30): raise HTTPException(400, "1 to 30 photos allowed.")
 
     files_data = []
@@ -962,7 +1002,6 @@ async def api_upload(user_id: int = Form(...), username: str = Form(""), files: 
     slot_limit = vip_slot_limit(ref_count)
     if active + len(files_data) > slot_limit: raise HTTPException(403, "Slot limit reached.")
 
-    # Логика "пакета" — если загружено 5 или более файлов за раз
     is_pack = len(files_data) >= PACK_SIZE
     rub_each = []
     if is_pack:
@@ -985,24 +1024,25 @@ async def api_upload(user_id: int = Form(...), username: str = Form(""), files: 
         await db.commit()
     return {"batch_id": batch_id, "is_pack": is_pack, "photos": results, "total_rub": sum(rub_each), "slot_limit": slot_limit, "active_after": active + len(files_data)}
 
-@app.post("/api/quest/complete")
-async def api_quest_complete(request: Request):
-    data = await request.json()
-    user_id, channel_id = data.get("user_id"), data.get("channel_id")
-    if not user_id or not channel_id: raise HTTPException(400, "Missing data")
-    try:
-        member = await bot.get_chat_member(channel_id, user_id)
-        if member.status not in (ChatMemberStatus.MEMBER, ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.CREATOR): raise HTTPException(403, "Not joined")
-    except Exception: pass
-
-    async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute("INSERT OR REPLACE INTO quests (user_id, channel_id, completed) VALUES (?,?,1)", (user_id, channel_id))
-        await db.commit()
-    return {"quests": await get_quest_status(user_id), "withdraw_unlocked": await get_referral_count(user_id) >= MIN_REFERRALS_WITHDRAW}
-
-def _build_sub_required_response(lang: str) -> JSONResponse:
-    msg = tr(lang, "sub_required_ru") if lang == "ru" else tr(lang, "sub_required_en")
-    return JSONResponse(status_code=402, content={"error": "subscription_required", "channels": [{"id": list(ch.keys())[0], "url": ch.get("url", ""), "name": ch.get("name", "")} for ch in PARTNER_CHANNELS], "message": msg})
+# ── СТРОГАЯ ПРОВЕРКА ПОДПИСОК ПЕРЕД ВЫВОДОМ ──
+@app.post("/api/withdraw/check")
+async def api_withdraw_check(request: Request):
+    user_id = (await request.json()).get("user_id")
+    if not user_id: raise HTTPException(400, "Missing user_id")
+    
+    missing_channels = []
+    for ch in PARTNER_CHANNELS:
+        ch_id = list(ch.keys())[0]
+        if not await is_subscribed_to_channel(ch_id, user_id):
+            missing_channels.append({
+                "id": ch_id,
+                "url": ch.get("url", ""),
+                "name": ch.get("name", "")
+            })
+            
+    if missing_channels:
+        return {"ok": False, "channels": missing_channels}
+    return {"ok": True}
 
 @app.post("/api/withdraw")
 async def api_withdraw(request: Request):
@@ -1012,13 +1052,17 @@ async def api_withdraw(request: Request):
     lang, ref_count = player.get("lang", "en"), await get_referral_count(user_id)
 
     if ref_count < MIN_REFERRALS_WITHDRAW: raise HTTPException(403, tr(lang, "withdraw_locked"))
-    if not await channels_all_subscribed(user_id): return _build_sub_required_response(lang)
+    
+    for ch in PARTNER_CHANNELS:
+        if not await is_subscribed_to_channel(list(ch.keys())[0], user_id):
+            raise HTTPException(403, "You must subscribe to partner channels first.")
+
     if (player["balance"] or 0) <= 0: raise HTTPException(400, "Nothing to withdraw.")
 
     amount, is_priority = round(player["balance"], 2), 1 if vip_level(ref_count) >= 1 else 0
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute("UPDATE players SET balance=0 WHERE user_id=?", (user_id,))
-        await db.execute("INSERT INTO withdrawal_requests (user_id, amount_usd, method, is_priority) VALUES (?,?,'usd',?)", (user_id, amount, is_priority))
+        await db.execute("INSERT INTO withdrawal_requests (user_id, amount_usd, method, is_priority, status) VALUES (?,?,'usd',?,'pending')", (user_id, amount, is_priority))
         await db.commit()
 
     for aid in await get_admin_ids():
@@ -1034,13 +1078,17 @@ async def api_withdraw_stars(request: Request):
     lang, ref_count = player.get("lang", "en"), await get_referral_count(user_id)
 
     if ref_count < MIN_REFERRALS_WITHDRAW: raise HTTPException(403, tr(lang, "withdraw_locked"))
-    if not await channels_all_subscribed(user_id): return _build_sub_required_response(lang)
+
+    for ch in PARTNER_CHANNELS:
+        if not await is_subscribed_to_channel(list(ch.keys())[0], user_id):
+            raise HTTPException(403, "You must subscribe to partner channels first.")
+
     if (player["balance"] or 0) <= 0: raise HTTPException(400, "Nothing to withdraw.")
 
     usd_amount, stars_amount, is_priority = round(player["balance"], 2), usd_to_stars(round(player["balance"], 2)), 1 if vip_level(ref_count) >= 1 else 0
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute("UPDATE players SET balance=0 WHERE user_id=?", (user_id,))
-        await db.execute("INSERT INTO withdrawal_requests (user_id, amount_usd, stars, method, is_priority) VALUES (?,?,?,'stars',?)", (user_id, usd_amount, stars_amount, is_priority))
+        await db.execute("INSERT INTO withdrawal_requests (user_id, amount_usd, stars, method, is_priority, status) VALUES (?,?,?,'stars',?,'pending')", (user_id, usd_amount, stars_amount, is_priority))
         await db.commit()
 
     for aid in await get_admin_ids():
