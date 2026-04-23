@@ -96,6 +96,7 @@ class AdminPanel(StatesGroup):
     wait_edit_user_balance, wait_edit_user_slots = State(), State()
     wait_edit_user_refs, wait_edit_user_earned, wait_edit_user_vip = State(), State(), State()
     wait_broadcast = State()
+    wait_new_admin_id = State()
 
 _T = {
     "en": {
@@ -231,7 +232,6 @@ async def get_player_photos(user_id: int, lang: str = "en") -> list:
 
 async def get_active_photo_count(user_id: int) -> int:
     async with get_db() as db:
-        # +3 hours converts UTC to MSK. We check if the MSK date matches today's MSK date.
         async with db.execute("SELECT COUNT(*) FROM photos WHERE user_id=? AND date(datetime(created_at, '+3 hours')) = date(datetime('now', '+3 hours'))", (user_id,)) as cur:
             return (await cur.fetchone())[0]
 
@@ -454,7 +454,7 @@ async def cmd_admin(message: Message, state: FSMContext):
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="👤 Юзеры", callback_data="crm_users"), InlineKeyboardButton(text="🎧 Тикеты", callback_data="crm_tickets")],
         [InlineKeyboardButton(text="🤝 Спонсоры", callback_data="crm_sponsors"), InlineKeyboardButton(text="💳 Выводы", callback_data="crm_wd")],
-        [InlineKeyboardButton(text="📢 Рассылка", callback_data="crm_broadcast")],
+        [InlineKeyboardButton(text="📢 Рассылка", callback_data="crm_broadcast"), InlineKeyboardButton(text="👮 Админы", callback_data="crm_admins")],
     ])
     await message.answer("👑 <b>Админ Панель CRM</b>\nВыберите раздел:", parse_mode=ParseMode.HTML, reply_markup=kb)
 
@@ -463,6 +463,66 @@ async def cq_crm_main(cb: CallbackQuery, state: FSMContext):
     await cmd_admin(cb.message, state)
     try: await cb.message.delete()
     except: pass
+
+@dp.callback_query(F.data == "crm_admins")
+async def cq_admins(cb: CallbackQuery):
+    async with get_db() as db:
+        async with db.execute("SELECT user_id, username FROM admins") as cur:
+            db_admins = await cur.fetchall()
+            
+    text = f"👮 <b>Администраторы:</b>\n\nГлавный админ (ENV): <code>{ADMIN_ID}</code>\n"
+    for a in db_admins:
+        text += f"• <code>{a[0]}</code> (@{a[1] or '?'})\n"
+    
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="➕ Добавить", callback_data="crm_admin_add"), InlineKeyboardButton(text="❌ Удалить", callback_data="crm_admin_del_menu")],
+        [InlineKeyboardButton(text="🔙 Назад", callback_data="crm_main")]
+    ])
+    await cb.message.edit_text(text, parse_mode=ParseMode.HTML, reply_markup=kb)
+
+@dp.callback_query(F.data == "crm_admin_add")
+async def cq_admin_add(cb: CallbackQuery, state: FSMContext):
+    await state.set_state(AdminPanel.wait_new_admin_id)
+    await cb.message.edit_text("Отправьте Telegram ID нового администратора:", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="Отмена", callback_data="crm_admins")]]))
+
+@dp.message(AdminPanel.wait_new_admin_id)
+async def msg_admin_add(m: Message, state: FSMContext):
+    if not m.text.strip().isdigit():
+        return await m.answer("❌ ID должен состоять только из цифр.")
+    new_id = int(m.text.strip())
+    async with get_db() as db:
+        async with db.execute("SELECT username FROM players WHERE user_id=?", (new_id,)) as cur:
+            row = await cur.fetchone()
+            un = row[0] if row else None
+        await db.execute("INSERT OR REPLACE INTO admins (user_id, username, added_by) VALUES (?, ?, ?)", (new_id, un, m.from_user.id))
+        await db.commit()
+    await state.clear()
+    await m.answer(f"✅ Админ {new_id} добавлен. /panel")
+
+@dp.callback_query(F.data == "crm_admin_del_menu")
+async def cq_admin_del_menu(cb: CallbackQuery):
+    async with get_db() as db:
+        async with db.execute("SELECT user_id, username FROM admins") as cur:
+            db_admins = await cur.fetchall()
+            
+    if not db_admins:
+        return await cb.answer("Нет добавленных админов (кроме главного из ENV).", show_alert=True)
+    
+    kb = []
+    for a in db_admins:
+        kb.append([InlineKeyboardButton(text=f"❌ {a[0]} (@{a[1] or '?'})", callback_data=f"crm_admin_del:{a[0]}")])
+    kb.append([InlineKeyboardButton(text="🔙 Назад", callback_data="crm_admins")])
+    
+    await cb.message.edit_text("Кого удалить?", reply_markup=InlineKeyboardMarkup(inline_keyboard=kb))
+
+@dp.callback_query(F.data.startswith("crm_admin_del:"))
+async def cq_admin_del(cb: CallbackQuery):
+    del_id = int(cb.data.split(":")[1])
+    async with get_db() as db:
+        await db.execute("DELETE FROM admins WHERE user_id=?", (del_id,))
+        await db.commit()
+    await cb.answer("Удален.")
+    await cq_admins(cb) 
 
 @dp.callback_query(F.data == "crm_users")
 async def cq_crm_users(cb: CallbackQuery, state: FSMContext):
