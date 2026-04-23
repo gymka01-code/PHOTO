@@ -5,6 +5,7 @@ import random
 import urllib.parse
 import uuid
 import math
+import re
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -284,23 +285,17 @@ async def _bind_referral(new_user_id: int, referrer_id: int) -> bool:
     if referrer_id == new_user_id: return False
     try:
         async with aiosqlite.connect(DB_PATH) as db:
-            # 1. Проверяем существует ли реферер
             async with db.execute("SELECT 1 FROM players WHERE user_id=?", (referrer_id,)) as cur:
                 if not await cur.fetchone(): return False
-
-            # 2. Проверяем нет ли уже реферера у нового юзера
             async with db.execute("SELECT referred_by FROM players WHERE user_id=?", (new_user_id,)) as cur:
                 row = await cur.fetchone()
                 if row is None or row[0] is not None:
                     return False
-
-            # 3. Привязываем
             await db.execute("UPDATE players SET referred_by=? WHERE user_id=?", (referrer_id, new_user_id))
             await db.execute("INSERT OR IGNORE INTO referrals (referrer_id, referred_id) VALUES (?,?)", (referrer_id, new_user_id))
             await db.execute("UPDATE players SET referrals_count=referrals_count+1 WHERE user_id=?", (referrer_id,))
             await db.commit()
 
-        # Отправляем уведомление
         try:
             new_player = await get_player(new_user_id)
             display = f"@{new_player['username']}" if new_player and new_player.get("username") else str(new_user_id)
@@ -443,6 +438,50 @@ async def cb_check_sub(cb: CallbackQuery):
     await _process_start(cb.message, cb.from_user, cb.data[7:])
 
 
+# --- ОПТИМИЗИРОВАННЫЙ СВАЙП-ОТВЕТ ДЛЯ АДМИНОВ ---
+@dp.message(F.reply_to_message)
+async def admin_native_reply(message: Message):
+    if not await is_admin(message.from_user.id): return
+    
+    replied = message.reply_to_message
+    original_text = replied.text or replied.caption
+    if not original_text: return
+    
+    # Ищем фразу "Тикет #ID"
+    match = re.search(r"Тикет #(\d+)", original_text, re.IGNORECASE)
+    if not match: return
+    
+    tkt_id = int(match.group(1))
+    reply_text = message.text or message.caption or ""
+    if not reply_text: return
+    
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute("SELECT user_id, status FROM tickets WHERE id=?", (tkt_id,)) as cur:
+            tkt = await cur.fetchone()
+            
+        if not tkt: return
+        uid, status = tkt[0], tkt[1]
+        
+        if status == 'closed':
+            return await message.reply("⚠️ Этот тикет уже закрыт.")
+            
+        # Если тикет "Новый", автоматически назначаем админа
+        if status == 'open':
+            await db.execute("UPDATE tickets SET status='claimed', claimed_by=? WHERE id=?", (message.from_user.id, tkt_id))
+            admin_name = message.from_user.username or "Admin"
+            system_text = f"👨‍💻 Агент поддержки @{admin_name} подключился к диалогу."
+            await db.execute("INSERT INTO support_messages (ticket_id, user_id, text, direction) VALUES (?,?,?, 'system')", (tkt_id, uid, system_text))
+            
+        await db.execute("INSERT INTO support_messages (ticket_id, user_id, text, direction) VALUES (?,?,?,'out')", (tkt_id, uid, reply_text))
+        await db.commit()
+        
+    p = await get_player(uid)
+    try:
+        await bot.send_message(uid, tr(p["lang"] if p else "en", "support_reply", text=reply_text), parse_mode=ParseMode.HTML)
+        await message.reply(f"✅ Ответ отправлен (Тикет #{tkt_id}).")
+    except:
+        await message.reply("❌ Ошибка отправки пользователю (Возможно, бот заблокирован).")
+
 # --- CRM ADMIN PANEL ---
 @dp.message(Command("admin"))
 @dp.message(Command("panel"))
@@ -543,10 +582,10 @@ async def cq_tview(cb: CallbackQuery):
             msg_text = msg["text"] if msg else "Нет текста"
 
     uname = tkt["username"] or tkt["user_id"]
-    text = f"📨 <b>Тикет #{tkt_id}</b> от @{uname}\n\nПоследнее сообщение:\n<i>{msg_text}</i>\n\nВыберите действие:"
+    text = f"📨 <b>Новый Тикет #{tkt_id}</b> от @{uname}\n\nПоследнее сообщение:\n<i>{msg_text}</i>\n\nВыберите действие:"
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🙋‍♂️ Взять в работу", callback_data=f"crm_tclaim:{tkt_id}")],
-        [InlineKeyboardButton(text="🔙 К списку тикетов", callback_data="crm_tickets")]
+        [InlineKeyboardButton(text="🔙 К списку", callback_data="crm_tickets")]
     ])
     await cb.message.edit_text(text, parse_mode=ParseMode.HTML, reply_markup=kb)
 
@@ -567,39 +606,9 @@ async def cq_tclaim(cb: CallbackQuery):
         await db.commit()
 
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="✍️ Ответить", callback_data=f"crm_treply:{tkt_id}")],
         [InlineKeyboardButton(text="🔒 Закрыть тикет", callback_data=f"crm_tclose:{tkt_id}")]
     ])
-    await cb.message.edit_text(f"✅ Вы взяли тикет #{tkt_id} в работу.", reply_markup=kb)
-
-@dp.callback_query(F.data.startswith("crm_treply:"))
-async def cq_treply(cb: CallbackQuery, state: FSMContext):
-    await state.set_state(AdminPanel.wait_ticket_reply)
-    await state.update_data(ticket_id=int(cb.data.split(":")[1]))
-    await cb.message.reply("✍️ Напишите ответ. Для отмены отправьте /cancel")
-    await cb.answer()
-
-@dp.message(AdminPanel.wait_ticket_reply)
-async def t_reply_step(message: Message, state: FSMContext):
-    if message.text == "/cancel":
-        await state.clear()
-        return await message.answer("❌ Отменено.")
-        
-    tkt_id = (await state.get_data())["ticket_id"]
-    text = message.text or message.caption or ""
-    
-    async with aiosqlite.connect(DB_PATH) as db:
-        async with db.execute("SELECT user_id FROM tickets WHERE id=?", (tkt_id,)) as cur:
-            uid = (await cur.fetchone())[0]
-        await db.execute("INSERT INTO support_messages (ticket_id, user_id, text, direction) VALUES (?,?,?,'out')", (tkt_id, uid, text))
-        await db.commit()
-    
-    p = await get_player(uid)
-    try:
-        await bot.send_message(uid, tr(p["lang"] if p else "en", "support_reply", text=text), parse_mode=ParseMode.HTML)
-        await message.answer("✅ Ответ отправлен!")
-    except: await message.answer("❌ Ошибка доставки.")
-    await state.clear()
+    await cb.message.edit_text(f"✅ Вы взяли <b>Тикет #{tkt_id}</b> в работу.\nТеперь просто <b>ответьте (Reply)</b> на любое сообщение пользователя из этого тикета.", parse_mode=ParseMode.HTML, reply_markup=kb)
 
 @dp.callback_query(F.data.startswith("crm_tclose:"))
 async def cq_tclose(cb: CallbackQuery):
@@ -708,7 +717,6 @@ async def lifespan(app: FastAPI):
     try: await bot.set_webhook(WEBHOOK_URL, drop_pending_updates=True, request_timeout=30)
     except: pass
     
-    # КЕШИРУЕМ ЮЗЕРНЕЙМ БОТА ПРИ СТАРТЕ ДЛЯ РЕФ. ССЫЛОК
     try:
         global _bot_username
         me = await bot.get_me()
@@ -753,7 +761,6 @@ async def api_get_player(user_id: int, username: str = ""):
     ref_count = await get_referral_count(user_id)
     player["referrals_count"] = ref_count
     
-    # Кэшируем юзернейм на всякий случай
     if username and username != player.get("username"):
         async with aiosqlite.connect(DB_PATH) as db:
             await db.execute("UPDATE players SET username=? WHERE user_id=?", (username, user_id))
@@ -872,14 +879,15 @@ async def api_support_send(request: Request):
     p = await get_player(user_id)
     uname = p["username"] if p else str(user_id)
 
+    kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🔒 Закрыть тикет", callback_data=f"crm_tclose:{tkt_id}")]])
+
     if claimed_by:
-        try: await bot.send_message(claimed_by, f"💬 <b>Ответ в тикете #{tkt_id}</b> от @{uname}:\n\n{text}\n\n/panel -> Тикеты", parse_mode=ParseMode.HTML)
+        try: await bot.send_message(claimed_by, f"💬 <b>Тикет #{tkt_id}</b> | @{uname}\n\n{text}", parse_mode=ParseMode.HTML, reply_markup=kb)
         except: pass
     else:
         admin_ids = await get_admin_ids()
-        kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🙋‍♂️ Взять в работу", callback_data=f"crm_tclaim:{tkt_id}")]])
         for aid in admin_ids:
-            try: await bot.send_message(aid, f"🆘 <b>Новый тикет #{tkt_id}</b>\nОт: @{uname}\n\n{text[:200]}...", parse_mode=ParseMode.HTML, reply_markup=kb)
+            try: await bot.send_message(aid, f"🆘 <b>Новый Тикет #{tkt_id}</b>\nОт: @{uname}\n\n{text[:300]}", parse_mode=ParseMode.HTML, reply_markup=kb)
             except: pass
 
     return {"success": True}
