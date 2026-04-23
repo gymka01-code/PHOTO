@@ -113,6 +113,7 @@ img{display:block}
 .slot-bar-fill.warn{background:var(--amber)}
 .slot-bar-fill.full{background:var(--red)}
 .slot-count{font-size:11px;font-weight:700;color:var(--text-2)}
+#slot-reset-timer{display:none; color:var(--amber); font-size:11px; text-align:center; margin-bottom:8px; font-weight:600;}
 
 /* 💥 КРАСИВОЕ КОЛЕСО ФОРТУНЫ 💥 */
 .wheel-glass-card {
@@ -497,6 +498,7 @@ img{display:block}
         </div>
         <div class="slot-count" id="slot-count">0 / 5</div>
       </div>
+      <div id="slot-reset-timer"></div>
       
       <div style="margin-bottom: 12px;">
         <button class="btn btn-stars" onclick="buyItem('slots')" data-i18n="buy_slots">+1 Slot ($50)</button>
@@ -527,15 +529,15 @@ img{display:block}
             <div class="wheel-pointer">▼</div>
             <div class="wheel-border">
                 <div class="wheel" id="wheel-bg">
-                    <div class="wheel-slice" style="transform: rotate(36deg);"><span>$0.05</span></div>
+                    <div class="wheel-slice" style="transform: rotate(36deg);"><span>$0.50</span></div>
                     <div class="wheel-divider" style="transform: rotate(72deg);"></div>
                     <div class="wheel-slice" style="transform: rotate(108deg);"><span>LOSE</span></div>
                     <div class="wheel-divider" style="transform: rotate(144deg);"></div>
-                    <div class="wheel-slice" style="transform: rotate(180deg);"><span>$0.20</span></div>
+                    <div class="wheel-slice" style="transform: rotate(180deg);"><span>$2.00</span></div>
                     <div class="wheel-divider" style="transform: rotate(216deg);"></div>
-                    <div class="wheel-slice" style="transform: rotate(252deg);"><span>+1 SLOT</span></div>
+                    <div class="wheel-slice" style="transform: rotate(252deg);"><span>+2 SLOTS</span></div>
                     <div class="wheel-divider" style="transform: rotate(288deg);"></div>
-                    <div class="wheel-slice" style="transform: rotate(324deg);"><span>$1.00</span></div>
+                    <div class="wheel-slice" style="transform: rotate(324deg); color:#fbbf24; text-shadow: 0 0 8px rgba(251,191,36,0.8);"><span>JACKPOT</span></div>
                     <div class="wheel-divider" style="transform: rotate(0deg);"></div>
                 </div>
                 <div class="wheel-center-glass"></div>
@@ -680,6 +682,7 @@ const TRANSLATIONS = {
     upload_hint:"JPG, PNG, WEBP · up to 10 MB each\nUpload 5+ together for pack pricing",
     upload_btn:"Analyse & List",
     slots_label:"Auction Slots",
+    slots_reset_in:"Slots update in {h}h {m}m {s}s",
     pack_notice:"📦 Pack mode active (5+ photos). Pack pricing applied.",
     portfolio_title:"My Portfolio", portfolio_empty:"No photos yet. Upload your first shot!",
     wallet_title:"Wallet",
@@ -718,7 +721,7 @@ const TRANSLATIONS = {
     vip_next_hint:"Invite {n} more friend(s) to reach Level {l}",
     vip_max_hint:"Maximum VIP level reached!",
     
-    label_req:"Requirement:", label_slots:"Auction Slots:", label_delay:"Sale Delay:",
+    label_req:"Requirement:", label_slots:"Daily Limit:", label_delay:"Sale Delay:",
     
     ref_list_title:"My Referrals", ref_list_empty:"No referrals yet. Invite friends!", ref_active:"Active", ref_new:"New",
     support_title:"Support Chat", support_sub:"Replies within 24h",
@@ -751,6 +754,7 @@ const TRANSLATIONS = {
     upload_hint:"JPG, PNG, WEBP · до 10 МБ каждое\nВыберите 5+ сразу для пакетной оценки",
     upload_btn:"Анализировать и выставить",
     slots_label:"Слоты аукциона",
+    slots_reset_in:"Слоты обновятся через {h}ч {m}м {s}с",
     pack_notice:"📦 Пакетный режим (5+ фото). Применена повышенная оценка.",
     portfolio_title:"Портфолио", portfolio_empty:"Фото нет. Загрузите первый снимок!",
     wallet_title:"Кошелёк",
@@ -784,12 +788,12 @@ const TRANSLATIONS = {
     vip_current_level:"Текущий Уровень",
     vip_tier_names:["Старт","Бронза","Серебро","Золото","Платина","Алмаз"],
     vip_tier_max:["Макс. 60 мин","Макс. 45 мин","Макс. 30 мин","Макс. 15 мин","Макс. 5 мин","Мгновенно"],
-    vip_tier_slots:["5 слотов","10 слотов","15 слотов","20 слотов","25 слотов","30 слотов"],
+    vip_tier_slots:["5 слотов/д","10 слотов/д","15 слотов/д","20 слотов/д","25 слотов/д","30 слотов/д"],
     vip_tier_req:["0 рефералов","3 реферала","5 рефералов","10 рефералов","25 рефералов","50 рефералов"],
     vip_next_hint:"Пригласите ещё {n} для Уровня {l}",
     vip_max_hint:"Максимальный VIP уровень достигнут!",
     
-    label_req:"Требование:", label_slots:"Слотов для фото:", label_delay:"Время продажи:",
+    label_req:"Требование:", label_slots:"Дневной Лимит:", label_delay:"Время продажи:",
 
     ref_list_title:"Мои рефералы", ref_list_empty:"Пока нет рефералов. Пригласите друзей!", ref_active:"Активен", ref_new:"Новый",
     support_title:"Чат поддержки", support_sub:"Ответ в течение 24 часов",
@@ -877,7 +881,6 @@ async function loadPlayer(silent = false){
     const r = await fetch(`${BASE}/api/player/${userId}?username=${encodeURIComponent(username)}`);
     const data = await r.json();
     
-    // Проверка на БАН
     if(r.status === 403 && data.error === 'banned') {
         document.getElementById('ban-overlay').classList.add('active');
         return;
@@ -1006,6 +1009,18 @@ function updateUploadLock(){
   fill.style.width = pct + '%';
   fill.className = 'slot-bar-fill' + (pct >= 100 ? ' full' : pct >= 80 ? ' warn' : '');
   document.getElementById('slot-count').textContent = `${active} / ${slotLimit}`;
+
+  if(pct >= 100) {
+      document.getElementById('slot-reset-timer').style.display = 'block';
+      document.getElementById('upload-drop-zone').style.opacity = '0.5';
+      document.getElementById('upload-drop-zone').style.pointerEvents = 'none';
+      document.getElementById('upload-btn').disabled = true;
+  } else {
+      document.getElementById('slot-reset-timer').style.display = 'none';
+      document.getElementById('upload-drop-zone').style.opacity = '1';
+      document.getElementById('upload-drop-zone').style.pointerEvents = 'auto';
+      document.getElementById('upload-btn').disabled = false;
+  }
 }
 
 document.getElementById('file-input').addEventListener('change', e => {
@@ -1197,6 +1212,17 @@ function tickCountdowns(){
     const s = Math.floor(diff / 1000) % 60, m = Math.floor(diff / 60000) % 60, h = Math.floor(diff / 3600000);
     el.textContent = `${t('auction_in')} ${h ? h + 'h ' : ''}${m}m ${s}s`;
   });
+
+  const resetEl = document.getElementById('slot-reset-timer');
+  if(resetEl && resetEl.style.display !== 'none') {
+      const now = new Date();
+      const tomorrow = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1));
+      const diff = tomorrow - now;
+      const h = Math.floor(diff / 3600000);
+      const m = Math.floor((diff % 3600000) / 60000);
+      const s = Math.floor((diff % 60000) / 1000);
+      resetEl.textContent = t('slots_reset_in').replace('{h}', h).replace('{m}', m).replace('{s}', s);
+  }
 }
 
 const FAKE_USERS = ['u***r7','a***2','m***k9','p***y4','t***3','j***8','k***5','s***1','x***z2','q***9','r***m3','b***6','c***w5','n***4','f***h1','d***7','w***l8','e***v3','g***o6','h***i2','y***t5','o***p1','z***k4','v***s9','i***b3','l***n7','R***a8','M***e2','A***i6','T***o4','PhotoNinja_7','SniperLens_3','PixelHunter_2','SnapMaster_5','ArtClipper_9','LensPro_4','FrameKing_1','ShotWizard_6','GoldenHour_8','NightShooter_3','UrbanLens_5','NatureSnap_7','MacroKing_2','ArtFlip_6','StreetPhoto_4','GalleryMod_9','AuctionAce_1','BidMaster_3','PhotoTrader_7','ClickBoss_5','VintageSnap_8','ColorPop_2','DarkroomPro_6','HighRes_4','LensFlare_9','ShutterBug_1','ExposureX_3','FocalPoint_7','RAWmaster_5','DepthChaser_2','SkilledTrader','CryptoKing','MasterPhoto','Dimon777','Alena_V','PhotoPro99','NightOwl42','LuckyStar88','TraderMax','Sergey_K','Anna_Photo','DenisFlip','KatyaBest','VolodiaT','RuslanPro','Misha_88','Tanya2024','IgorAuction','SvetaFlip','AlexPhoto','NatalyV','PavelX','OlegMaster','VikaBoss','ArtemTrade','DashaPro','KirilPhoto','ZoyaFlip','TimurK','LenaAuction','FedorPix','GalyaX','BorisTrade','ZinaPhoto','YuraBest','MilaFlip','KostikPro','NikaAuction','Andrey777','photo_ninja'];
