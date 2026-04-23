@@ -36,7 +36,44 @@ img{display:block}
 
 /* HEADER */
 #header{padding:12px 16px 10px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border);flex-shrink:0;position:relative;z-index:10;background:var(--bg)}
-#header-logo{width:32px;height:32px;border-radius:8px;background:var(--blue);display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0;font-weight:700;box-shadow:0 0 16px var(--blue-glow)}
+#header-logo {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 0 16px rgba(99, 102, 241, 0.4), inset 0 0 0 1px rgba(255, 255, 255, 0.2);
+  position: relative;
+  overflow: hidden;
+}
+#header-logo svg {
+  width: 20px;
+  height: 20px;
+  color: #ffffff;
+  animation: slowSpin 8s linear infinite;
+}
+@keyframes slowSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+/* Эффект блика */
+#header-logo::after {
+  content: '';
+  position: absolute;
+  top: 0; left: -100%;
+  width: 50%; height: 100%;
+  background: linear-gradient(to right, transparent, rgba(255,255,255,0.4), transparent);
+  transform: skewX(-25deg);
+  animation: shine 4s infinite;
+}
+@keyframes shine {
+  0% { left: -100%; }
+  20% { left: 200%; }
+  100% { left: 200%; }
+}
 #header-info{flex:1;min-width:0}
 #header-title{font-size:15px;font-weight:700;letter-spacing:-0.02em;color:var(--text);line-height:1.1}
 #header-sub{font-size:10px;color:var(--text-3);letter-spacing:0.04em;margin-top:1px}
