@@ -88,7 +88,7 @@ img{display:block}
 #upload-drop-zone:active{transform:scale(.99)}
 .dz-icon{font-size:36px;margin-bottom:10px;display:block;line-height:1}
 .dz-title{font-size:14px;font-weight:600;color:var(--text);margin-bottom:4px}
-.dz-hint{font-size:12px;color:var(--text-3);line-height:1.5}
+.dz-hint{font-size:12px;color:var(--text-3);line-height:1.5; white-space:pre-wrap;}
 #upload-previews{display:none;gap:8px;flex-wrap:wrap;margin-bottom:12px}
 .preview-thumb{width:72px;height:72px;object-fit:cover;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--bg2);flex-shrink:0}
 .preview-thumb-wrap{position:relative;flex-shrink:0}
@@ -115,9 +115,21 @@ img{display:block}
 .btn-primary{background:var(--blue);color:#fff;box-shadow:0 2px 16px var(--blue-glow)}
 .btn-primary:active{transform:scale(.98);filter:brightness(.9)}
 .btn-primary:disabled{opacity:.35;pointer-events:none;box-shadow:none}
+.btn-secondary{background:var(--surface2);border:1px solid var(--border2);color:var(--text-2)}
+.btn-secondary:active{background:var(--surface3);transform:scale(.98)}
 .btn-stars{background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;box-shadow:0 2px 16px rgba(99,102,241,0.35)}
 .btn-stars:active{transform:scale(.98)}
 .btn-stars:disabled{opacity:.35;pointer-events:none;box-shadow:none}
+
+/* WITHDRAW CONFIRM MODAL */
+#wd-modal{display:none;position:fixed;inset:0;z-index:500;background:rgba(0,0,0,0.85);backdrop-filter:blur(8px);align-items:center;justify-content:center;padding:20px;opacity:0;transition:opacity 0.2s ease;}
+#wd-modal.open{display:flex;opacity:1;}
+.wd-modal-card{background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius-lg);padding:20px;max-width:360px;width:100%;}
+.wd-modal-title{font-size:16px;font-weight:700;color:var(--text);margin-bottom:12px;}
+.wd-modal-text{font-size:13px;color:var(--text-2);margin-bottom:12px;line-height:1.5;}
+.wd-modal-upsell{background:var(--blue-dim);border:1px solid rgba(59,130,246,0.25);border-radius:var(--radius-sm);padding:10px;font-size:12px;color:var(--blue);margin-bottom:12px;font-weight:500;line-height:1.4;}
+.wd-modal-footer{background:var(--surface2);border-radius:var(--radius-sm);padding:10px;font-size:11px;color:var(--text-3);margin-bottom:16px;line-height:1.4;}
+.wd-modal-actions{display:flex;gap:10px;}
 
 /* AI MODAL */
 #ai-modal{display:none;position:fixed;inset:0;z-index:100;background:rgba(0,0,0,0.88);backdrop-filter:blur(16px);align-items:center;justify-content:center;padding:20px}
@@ -287,6 +299,21 @@ img{display:block}
 </head>
 <body>
 
+<!-- WD CONFIRM MODAL -->
+<div id="wd-modal">
+  <div class="wd-modal-card">
+    <div class="wd-modal-title" data-i18n="wd_modal_title">Withdrawal Request</div>
+    <div class="wd-modal-text" data-i18n="wd_modal_p1">Funds from auction sales are currently clearing.</div>
+    <div class="wd-modal-text" data-i18n="wd_modal_p2">Within 1-7 business days, our support team will contact you to request your payment details. Processing is done in order of queue and VIP priority.</div>
+    <div class="wd-modal-upsell" data-i18n="wd_modal_upsell">💡 Tip: Increase your VIP status to speed up the withdrawal process.</div>
+    <div class="wd-modal-footer" data-i18n="wd_modal_footer">⏱ The final transfer takes 1-7 business days from the moment payment details are provided.</div>
+    <div class="wd-modal-actions">
+      <button class="btn btn-secondary" onclick="closeWithdrawModal()" data-i18n="wd_btn_cancel">Cancel</button>
+      <button class="btn btn-primary" id="wd-btn-confirm" onclick="confirmWithdraw()" data-i18n="wd_btn_confirm">Confirm Request</button>
+    </div>
+  </div>
+</div>
+
 <div id="sold-flash">
   <div class="sold-burst">
     <div class="sb-icon">✅</div>
@@ -382,13 +409,13 @@ img{display:block}
 
       <div id="upload-drop-zone" onclick="document.getElementById('file-input').click()">
         <span class="dz-icon">🖼</span>
-        <div class="dz-title" data-i18n="upload_cta">Select up to 5 photos</div>
-        <div class="dz-hint" data-i18n="upload_hint">JPG, PNG, WEBP · up to 10 MB each<br/>Upload 5 photos together for pack pricing</div>
+        <div class="dz-title" data-i18n="upload_cta">Select photos</div>
+        <div class="dz-hint" data-i18n="upload_hint">JPG, PNG, WEBP · up to 10 MB each<br/>Upload 5+ photos together for pack pricing</div>
       </div>
       <input type="file" id="file-input" accept="image/*" multiple/>
       <div id="upload-previews"></div>
       <div class="notice" id="pack-notice" style="display:none" data-i18n="pack_notice">
-        📦 Pack mode — 5 photos selected. Pack pricing applied.
+        📦 Pack mode active (5+ photos). Pack pricing applied.
       </div>
       <button class="btn btn-primary" id="upload-btn" onclick="startUpload()" data-i18n="upload_btn">Analyse &amp; List</button>
     </div>
@@ -445,13 +472,13 @@ img{display:block}
         </div>
         <div id="withdraw-usd-panel">
           <div class="withdraw-amount-display" id="withdraw-usd-preview">$0.00</div>
-          <button class="btn btn-primary" id="withdraw-btn-usd" onclick="doWithdrawUSD()" disabled data-i18n="withdraw_btn_locked">🔒 Locked</button>
+          <button class="btn btn-primary" id="withdraw-btn-usd" onclick="openWithdrawModal('usd')" disabled data-i18n="withdraw_btn_locked">🔒 Locked</button>
         </div>
         <div id="withdraw-stars-panel" style="display:none">
           <div class="withdraw-amount-display" style="color:var(--blue)" id="withdraw-stars-preview">0 ⭐</div>
           <div class="withdraw-rate-note" data-i18n="stars_rate">100 Stars = $1.20 · Rate: 1 USD = 83 Stars</div>
           <div style="margin-top:12px">
-            <button class="btn btn-stars" id="withdraw-btn-stars" onclick="doWithdrawStars()" disabled data-i18n="withdraw_btn_locked">🔒 Locked</button>
+            <button class="btn btn-stars" id="withdraw-btn-stars" onclick="openWithdrawModal('stars')" disabled data-i18n="withdraw_btn_locked">🔒 Locked</button>
           </div>
         </div>
       </div>
@@ -484,13 +511,10 @@ img{display:block}
       </div>
       <div class="vip-tier-list" id="vip-tier-cards"></div>
 
-      <!-- REFERRALS LIST SECTION -->
       <div class="section-head" style="margin-top:24px; margin-bottom: 10px;">
         <div class="section-title" data-i18n="ref_list_title">My Referrals</div>
       </div>
-      <div id="referrals-list" class="referrals-list-container">
-        <!-- populated via JS -->
-      </div>
+      <div id="referrals-list" class="referrals-list-container"></div>
     </div>
 
     <!-- SUPPORT -->
@@ -521,12 +545,12 @@ const TRANSLATIONS = {
     tab_upload:"Upload", tab_portfolio:"Portfolio", tab_market:"Market",
     tab_wallet:"Wallet", tab_vip:"VIP", tab_support:"Support",
     live_label:"LIVE", live_sub:"Real-time transactions",
-    upload_cta:"Select up to 5 photos",
-    upload_hint:"JPG, PNG, WEBP · up to 10 MB each\nUpload 5 together for pack pricing",
+    upload_cta:"Select photos",
+    upload_hint:"JPG, PNG, WEBP · up to 10 MB each\nUpload 5+ together for pack pricing",
     upload_btn:"Analyse & List",
     lock_title:"Upload Locked", lock_text:"You have an active balance. Withdraw your earnings first.",
     slots_label:"Auction Slots",
-    pack_notice:"📦 Pack mode — 5 photos selected. Pack pricing: 1,000–3,000 ₽ total.",
+    pack_notice:"📦 Pack mode active (5+ photos). Pack pricing applied.",
     portfolio_title:"My Portfolio", portfolio_empty:"No photos yet. Upload your first shot!",
     wallet_title:"Wallet", channels_label:"Partner Channels",
     ruc_title:"Withdrawal Unlock Progress", ruc_hint:"Invite 3 friends to unlock withdrawal.",
@@ -536,6 +560,14 @@ const TRANSLATIONS = {
     wtab_usd:"💵 USD", wtab_stars:"⭐ Stars",
     withdraw_btn_locked:"🔒 Locked", withdraw_btn_usd:"Withdraw $", withdraw_btn_stars:"Withdraw Stars",
     stars_rate:"100 Stars = $1.20 · Rate: 1 USD = 83 Stars",
+    
+    wd_modal_title:"Withdrawal Confirmation",
+    wd_modal_p1:"Funds from auction sales are currently clearing.",
+    wd_modal_p2:"Within 1-7 business days, our support team will contact you to request your payment details. Processing is done in order of queue and VIP priority.",
+    wd_modal_upsell:"💡 Tip: Increase your VIP status to speed up the withdrawal process.",
+    wd_modal_footer:"⏱ The final transfer takes 1-7 business days from the moment payment details are provided.",
+    wd_btn_confirm:"Confirm Request", wd_btn_cancel:"Cancel",
+
     vip_title:"VIP Programme", ref_link_label:"Your Referral Link", ref_copy:"Copy", ref_share:"📤 Share",
     vip_current_level:"Current Level",
     vip_tier_names:["Starter","Bronze","Silver","Gold","Platinum","Diamond"],
@@ -563,7 +595,7 @@ const TRANSLATIONS = {
     quest_desc:"Join this channel to support our community.",
     quest_join:"Join", quest_done:"✓ Done", quest_verify:"Checking…",
     auction_in:"Sells in", err_no_file:"Select at least one photo.",
-    err_too_many:"Maximum 5 photos at once.", err_slots_full:"Not enough auction slots. Upgrade your VIP level.",
+    err_slots_full:"Not enough auction slots. Upgrade your VIP level.",
     ref_count_sub:"referrals",
   },
   ru:{
@@ -572,12 +604,12 @@ const TRANSLATIONS = {
     tab_upload:"Загрузка", tab_portfolio:"Портфолио", tab_market:"Лента",
     tab_wallet:"Кошелёк", tab_vip:"VIP", tab_support:"Поддержка",
     live_label:"ЛАЙВ", live_sub:"Сделки в реальном времени",
-    upload_cta:"Выберите до 5 фото",
-    upload_hint:"JPG, PNG, WEBP · до 10 МБ каждое\nВыберите 5 сразу для пакетной цены",
+    upload_cta:"Выберите фото",
+    upload_hint:"JPG, PNG, WEBP · до 10 МБ каждое\nВыберите 5+ сразу для пакетной оценки",
     upload_btn:"Анализировать и выставить",
     lock_title:"Загрузка заблокирована", lock_text:"У вас есть активный баланс. Сначала выведите средства.",
     slots_label:"Слоты аукциона",
-    pack_notice:"📦 Пакет — выбрано 5 фото. Пакетная цена: 1 000–3 000 ₽.",
+    pack_notice:"📦 Пакетный режим (5+ фото). Применена повышенная оценка.",
     portfolio_title:"Портфолио", portfolio_empty:"Фото нет. Загрузите первый снимок!",
     wallet_title:"Кошелёк", channels_label:"Партнёрские Каналы",
     ruc_title:"Прогресс разблокировки вывода", ruc_hint:"Пригласите 3 друзей, чтобы разблокировать вывод.",
@@ -587,6 +619,14 @@ const TRANSLATIONS = {
     wtab_usd:"💵 USD", wtab_stars:"⭐ Звёзды",
     withdraw_btn_locked:"🔒 Заблокировано", withdraw_btn_usd:"Вывести $", withdraw_btn_stars:"Вывести ⭐",
     stars_rate:"100 Звёзд = $1.20 · Курс: 1 USD = 83 Звезды",
+    
+    wd_modal_title:"Подтверждение вывода",
+    wd_modal_p1:"Ваши средства с продажи на аукционе находятся в процессе обработки клирингом.",
+    wd_modal_p2:"В течение 1-7 рабочих дней поддержка свяжется с вами для уточнения реквизитов. Выплаты осуществляются в порядке живой очереди и с учетом VIP-приоритета.",
+    wd_modal_upsell:"💡 Подсказка: Если вы хотите ускорить процесс вывода, необходимо повысить свой VIP статус.",
+    wd_modal_footer:"⏱ Зачисление средств осуществляется в течение 1-7 рабочих дней с момента предоставления реквизитов.",
+    wd_btn_confirm:"Подтвердить заявку", wd_btn_cancel:"Отмена",
+
     vip_title:"VIP Программа", ref_link_label:"Ваша реферальная ссылка", ref_copy:"Копировать", ref_share:"📤 Поделиться",
     vip_current_level:"Текущий Уровень",
     vip_tier_names:["Старт","Бронза","Серебро","Золото","Платина","Алмаз"],
@@ -611,16 +651,14 @@ const TRANSLATIONS = {
     quest_desc:"Вступите в этот канал.",
     quest_join:"Вступить", quest_done:"✓ Готово", quest_verify:"Проверка…",
     auction_in:"Продажа через", err_no_file:"Выберите хотя бы одно фото.",
-    err_too_many:"Максимум 5 фото за раз.", err_slots_full:"Нет свободных слотов. Повысьте VIP уровень.",
+    err_slots_full:"Нет свободных слотов. Повысьте VIP уровень.",
     ref_count_sub:"рефералов",
   }
 };
 
 let currentLang = 'en';
 
-function t(key){
-  return (TRANSLATIONS[currentLang]||{})[key] || (TRANSLATIONS['en']||{})[key] || key;
-}
+function t(key){ return (TRANSLATIONS[currentLang]||{})[key] || (TRANSLATIONS['en']||{})[key] || key; }
 
 function applyTranslations(){
   document.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = t(el.getAttribute('data-i18n')); });
@@ -654,6 +692,7 @@ let gameData = null;
 let selectedFiles = [];
 let pendingUploadResult = null;
 let withdrawTab = 'usd';
+let pendingWithdrawMethod = null;
 let supportMsgsLoaded = false, lastSupportMsgId = 0;
 let lastSoldCount = 0;
 let _subGateChannelIds = [];
@@ -820,8 +859,10 @@ function updateUploadLock(){
 document.getElementById('file-input').addEventListener('change', e => {
   const newFiles = Array.from(e.target.files || []);
   if(!newFiles.length) return;
-  if(selectedFiles.length + newFiles.length > 5){ showToast(t('err_too_many'), 'error'); return; }
-  selectedFiles = [...selectedFiles, ...newFiles].slice(0, 5);
+  const available = (gameData?.slot_limit || 5) - (gameData?.active_slots || 0);
+  const toAdd = newFiles.slice(0, available - selectedFiles.length);
+  if(newFiles.length > toAdd.length) showToast(t('err_slots_full'), 'error');
+  selectedFiles = [...selectedFiles, ...toAdd];
   renderFilePreviews(); e.target.value = '';
 });
 
@@ -830,7 +871,7 @@ function renderFilePreviews(){
   if(!selectedFiles.length){ container.style.display = 'none'; packNotice.style.display = 'none'; return; }
   container.style.display = 'flex';
   container.innerHTML = selectedFiles.map((f, i) => `<div class="preview-thumb-wrap"><img class="preview-thumb" src="${URL.createObjectURL(f)}" alt=""/><div class="preview-remove" onclick="removeFile(${i})">×</div></div>`).join('');
-  packNotice.style.display = selectedFiles.length === 5 ? 'block' : 'none';
+  packNotice.style.display = selectedFiles.length >= 5 ? 'block' : 'none';
 }
 
 function removeFile(idx){ selectedFiles.splice(idx, 1); renderFilePreviews(); }
@@ -841,7 +882,10 @@ dz.addEventListener('dragleave', () => dz.classList.remove('drag'));
 dz.addEventListener('drop', e => {
   e.preventDefault(); dz.classList.remove('drag');
   const dropped = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'));
-  selectedFiles = [...selectedFiles, ...dropped.slice(0, 5 - selectedFiles.length)];
+  const available = (gameData?.slot_limit || 5) - (gameData?.active_slots || 0);
+  const toAdd = dropped.slice(0, available - selectedFiles.length);
+  if(dropped.length > toAdd.length) showToast(t('err_slots_full'), 'error');
+  selectedFiles = [...selectedFiles, ...toAdd];
   renderFilePreviews();
 });
 
@@ -881,7 +925,7 @@ function showAiResult(){
   document.getElementById('score-badges').innerHTML = badges.map(b => `<span class="badge">${b}</span>`).join('');
   document.getElementById('ai-verdict').textContent = t(score >= 85 ? 'ai_verdict_hi' : score >= 75 ? 'ai_verdict_mid' : 'ai_verdict_lo');
 
-  const totalRub = selectedFiles.length === 5 ? Math.floor(Math.random() * 2000) + 1000 : selectedFiles.length * (Math.floor(Math.random() * 400) + 200);
+  const totalRub = selectedFiles.length >= 5 ? selectedFiles.length * (Math.floor(Math.random() * 600) + 200) : selectedFiles.length * (Math.floor(Math.random() * 400) + 200);
   const grossUsd = (totalRub / 92).toFixed(2), netUsd = (totalRub / 92 * 0.98).toFixed(2);
   document.getElementById('ai-price-box').innerHTML = `<div class="aipb-row"><span>Estimated price</span><span>${totalRub.toLocaleString()} ₽</span></div><div class="aipb-row"><span>USD gross</span><span>$${grossUsd}</span></div><div class="aipb-row"><span>Fee (2%)</span><span>−$${(grossUsd - netUsd).toFixed(2)}</span></div><div class="aipb-row"><span>You receive</span><span style="color:var(--green)">$${netUsd}</span></div>`;
   document.getElementById('ai-result').style.display = 'block';
@@ -1000,47 +1044,43 @@ function selectWithdrawTab(tab){
   document.getElementById('withdraw-stars-panel').style.display = tab === 'stars' ? '' : 'none';
 }
 
-async function doWithdrawUSD(){
-  const btn = document.getElementById('withdraw-btn-usd');
+function openWithdrawModal(method){
+  pendingWithdrawMethod = method;
+  document.getElementById('wd-modal').classList.add('open');
+}
+
+function closeWithdrawModal(){
+  document.getElementById('wd-modal').classList.remove('open');
+  pendingWithdrawMethod = null;
+}
+
+async function confirmWithdraw(){
+  const method = pendingWithdrawMethod;
+  const btn = document.getElementById('wd-btn-confirm');
   const originalText = btn.textContent;
   btn.disabled = true; btn.textContent = 'Processing…';
+  
+  const endpoint = method === 'usd' ? `${BASE}/api/withdraw` : `${BASE}/api/withdraw/stars`;
+
   try{
-    const r = await fetch(`${BASE}/api/withdraw`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ user_id: userId }) });
+    const r = await fetch(endpoint, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ user_id: userId }) });
     const wdata = await r.json().catch(() => ({}));
     if(!r.ok) {
         if (wdata.error === 'subscription_required') {
+            closeWithdrawModal();
             showSubGate(wdata);
             btn.disabled = false; btn.textContent = originalText;
             return;
         }
         throw new Error(wdata.detail || wdata.message || t('toast_withdraw_err'));
     }
+    closeWithdrawModal();
+    btn.disabled = false; btn.textContent = originalText;
     showToast(wdata.message || t('toast_withdrawn'), 'success');
     await loadPlayer(false);
   }catch(e){
-    showToast(e.message || t('toast_withdraw_err'), 'error');
-    renderWithdrawPreviews();
-  }
-}
-
-async function doWithdrawStars(){
-  const btn = document.getElementById('withdraw-btn-stars');
-  const originalText = btn.textContent;
-  btn.disabled = true; btn.textContent = 'Processing…';
-  try{
-    const r = await fetch(`${BASE}/api/withdraw/stars`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ user_id: userId }) });
-    const wdata = await r.json().catch(() => ({}));
-    if(!r.ok) {
-        if (wdata.error === 'subscription_required') {
-            showSubGate(wdata);
-            btn.disabled = false; btn.textContent = originalText;
-            return;
-        }
-        throw new Error(wdata.detail || wdata.message || t('toast_withdraw_err'));
-    }
-    showToast(wdata.message || t('toast_stars_ok'), 'success');
-    await loadPlayer(false);
-  }catch(e){
+    closeWithdrawModal();
+    btn.disabled = false; btn.textContent = originalText;
     showToast(e.message || t('toast_withdraw_err'), 'error');
     renderWithdrawPreviews();
   }
@@ -1062,7 +1102,6 @@ function renderReferrals(){
   const prevMin = lvl > 0 ? tiers[lvl].min : 0;
   const nextMin = nextTier ? nextTier.min : tiers[tiers.length - 1].min;
 
-  // ИСПРАВЛЕНА формула полоски прогресса
   let pct = 0;
   if (lvl >= tiers.length - 1) {
     pct = 100;
@@ -1086,7 +1125,6 @@ function renderReferrals(){
   }).join('');
 }
 
-// ДОБАВЛЕНА логика для списка рефералов
 async function loadReferralsList() {
     try {
         const r = await fetch(`${BASE}/api/referrals/${userId}`);

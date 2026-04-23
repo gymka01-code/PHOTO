@@ -75,6 +75,7 @@ MIN_DELAY_SECS = 30
 PARTNER_CHANNELS = [
     {"-1003642113064": "@dsdfsdfawer", "name": "PhotoFlip Community",
      "url": "https://t.me/dsdfsdfawer"},
+
 ]
 
 # ── Required subscription channel ─────────────────────────────
@@ -946,7 +947,9 @@ async def api_referrals(user_id: int):
 async def api_upload(user_id: int = Form(...), username: str = Form(""), files: List[UploadFile] = File(...)):
     player, _ = await get_or_create_player(user_id, username)
     if (player["balance"] or 0) > 0: raise HTTPException(403, "Withdraw balance first.")
-    if not (1 <= len(files) <= 5): raise HTTPException(400, "1 to 5 photos.")
+    
+    # ── РАЗРЕШАЕМ ДО 30 ФАЙЛОВ ДЛЯ ВИПОВ ──
+    if not (1 <= len(files) <= 30): raise HTTPException(400, "1 to 30 photos allowed.")
 
     files_data = []
     for f in files:
@@ -958,8 +961,16 @@ async def api_upload(user_id: int = Form(...), username: str = Form(""), files: 
     slot_limit = vip_slot_limit(ref_count)
     if active + len(files_data) > slot_limit: raise HTTPException(403, "Slot limit reached.")
 
-    is_pack = len(files_data) == PACK_SIZE
-    rub_each = [random.randint(PACK_MIN_RUB, PACK_MAX_RUB) // PACK_SIZE] * PACK_SIZE if is_pack else [random.randint(SINGLE_MIN_RUB, SINGLE_MAX_RUB) for _ in range(len(files_data))]
+    # Логика "пакета" — если загружено 5 или более файлов за раз
+    is_pack = len(files_data) >= PACK_SIZE
+    rub_each = []
+    if is_pack:
+        for _ in range(len(files_data)):
+            rub_each.append(random.randint(PACK_MIN_RUB, PACK_MAX_RUB) // PACK_SIZE)
+    else:
+        for _ in range(len(files_data)):
+            rub_each.append(random.randint(SINGLE_MIN_RUB, SINGLE_MAX_RUB))
+
     batch_id, max_delay, results = uuid.uuid4().hex, vip_max_delay(ref_count), []
 
     async with aiosqlite.connect(DB_PATH) as db:
