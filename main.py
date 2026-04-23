@@ -72,7 +72,6 @@ VIP_TIERS = [
 ]
 MIN_DELAY_SECS = 30
 
-# Основной канал для ВХОДА в приложение
 REQUIRED_CHANNEL_ID   = "@dsdfsdfawer"
 REQUIRED_CHANNEL_URL  = "https://t.me/dsdfsdfawer"
 REQUIRED_CHANNEL_NAME = "PhotoFlip Community"
@@ -99,7 +98,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # ═══════════════════════════════════════════════════════════════
-#  FSM STATES (Для Админ-панели)
+#  FSM STATES (Для Админ-панели CRM)
 # ═══════════════════════════════════════════════════════════════
 class AdminPanel(StatesGroup):
     wait_sponsor_id    = State()
@@ -157,6 +156,16 @@ def vip_level(refs: int) -> int: return next((i for i, (thr, _, _) in enumerate(
 def vip_max_delay(refs: int) -> int: return VIP_TIERS[vip_level(refs)][1]
 def vip_slot_limit(refs: int) -> int: return VIP_TIERS[vip_level(refs)][2]
 def usd_to_stars(usd: float) -> int: return math.floor(usd / 0.012)
+
+def make_share_url(ref_url: str) -> str:
+    text = (
+        "Твоя камера теперь печатает деньги. Серьезно. 🖼💰\n"
+        "PhotoFlip — это как биржа, только вместо акций — твои фото. "
+        "Флипай лоты, лови профит в баксах и выводи.\n"
+        "Залетай по моей ссылке: 🔗\n"
+        "Проверим, чей лот купят быстрее? 😉"
+    )
+    return f"https://t.me/share/url?url={urllib.parse.quote(ref_url, safe='')}&text={urllib.parse.quote(text, safe='')}"
 
 bot = Bot(token=BOT_TOKEN)
 dp  = Dispatcher(storage=MemoryStorage())
@@ -240,6 +249,11 @@ async def get_player(user_id: int) -> dict | None:
             row = await cur.fetchone()
         return dict(row) if row else None
 
+async def touch_last_seen(user_id: int):
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute("UPDATE players SET last_seen=datetime('now') WHERE user_id=?", (user_id,))
+        await db.commit()
+
 async def get_player_photos(user_id: int, lang: str = "en") -> list:
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
@@ -262,6 +276,11 @@ async def get_referral_list(referrer_id: int) -> list:
         db.row_factory = aiosqlite.Row
         async with db.execute("SELECT r.referred_id, r.created_at, p.username, CASE WHEN p.photos_sold > 0 THEN 1 ELSE 0 END AS is_active FROM referrals r LEFT JOIN players p ON p.user_id = r.referred_id WHERE r.referrer_id = ? ORDER BY r.created_at DESC", (referrer_id,)) as cur:
             return [dict(r) for r in await cur.fetchall()]
+
+async def get_all_user_ids() -> list[int]:
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute("SELECT user_id FROM players") as cur:
+            return [r[0] for r in await cur.fetchall()]
 
 async def get_admin_ids() -> set[int]:
     ids: set[int] = {ADMIN_ID} if ADMIN_ID else set()
@@ -294,6 +313,10 @@ async def is_subscribed_to_channel(channel_id: str, user_id: int) -> bool:
         return member.status in (ChatMemberStatus.MEMBER, ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.CREATOR)
     except Exception: return False
 
+async def check_subscription(user_id: int) -> bool:
+    if await is_admin(user_id): return True
+    return await is_subscribed_to_channel(REQUIRED_CHANNEL_ID, user_id)
+
 async def check_all_subs(user_id: int) -> list:
     sponsors = await get_sponsors()
     missing = []
@@ -317,6 +340,27 @@ try:
     with open(_BOT_USERNAME_CACHE) as f: _bot_username = f.read().strip()
 except: pass
 
+async def _bind_referral(new_user_id: int, referrer_id: int) -> bool:
+    if referrer_id == new_user_id: return False
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute("SELECT 1 FROM players WHERE user_id=?", (referrer_id,)) as cur:
+            if not await cur.fetchone(): return False
+        async with db.execute("SELECT referred_by FROM players WHERE user_id=?", (new_user_id,)) as cur:
+            prow = await cur.fetchone()
+        if prow is None or prow[0] is not None: return False
+
+        await db.execute("UPDATE players SET referred_by=? WHERE user_id=?", (referrer_id, new_user_id))
+        await db.execute("INSERT OR IGNORE INTO referrals (referrer_id, referred_id) VALUES (?,?)", (referrer_id, new_user_id))
+        await db.execute("UPDATE players SET referrals_count=referrals_count+1 WHERE user_id=?", (referrer_id,))
+        await db.commit()
+
+    try:
+        new_player = await get_player(new_user_id)
+        display = f"@{new_player['username']}" if new_player and new_player.get("username") else str(new_user_id)
+        await bot.send_message(referrer_id, f"🔔 <b>Новый реферал!</b>\nПользователь {display} зарегистрировался по вашей ссылке.", parse_mode=ParseMode.HTML)
+    except: pass
+    return True
+
 # ═══════════════════════════════════════════════════════════════
 #  WORKERS
 # ═══════════════════════════════════════════════════════════════
@@ -334,6 +378,7 @@ async def auction_worker():
                     sale_rub = photo["sale_rub"] or random.randint(SINGLE_MIN_RUB, SINGLE_MAX_RUB)
                     gross = rub_to_usd(float(sale_rub))
                     net = apply_commission(gross)
+                    
                     await db.execute("UPDATE photos SET status='sold', sold_at=datetime('now'), buyer=?, final_price=?, sale_rub=? WHERE id=?", (buyer, net, sale_rub, photo["id"]))
                     await db.execute("UPDATE players SET balance=balance+?, total_earned=total_earned+?, photos_sold=photos_sold+1 WHERE user_id=?", (net, net, photo["user_id"]))
                     await db.commit()
@@ -367,7 +412,7 @@ async def reminder_worker():
 
 async def monitor_withdrawals_worker():
     while True:
-        await asyncio.sleep(3600) # Check every 1 hour
+        await asyncio.sleep(3600) # Проверка каждый час
         try:
             async with aiosqlite.connect(DB_PATH) as db:
                 db.row_factory = aiosqlite.Row
@@ -382,18 +427,15 @@ async def monitor_withdrawals_worker():
 
                     if missing:
                         if not warn_time_str:
-                            # Not warned yet -> Send warning
                             await db.execute("UPDATE withdrawal_requests SET warning_sent_at=datetime('now') WHERE id=?", (wid,))
                             await db.commit()
                             try: await bot.send_message(uid, tr(lang, "unsub_warning"), parse_mode=ParseMode.HTML)
                             except: pass
                         else:
-                            # Warned already -> Check if 12h passed
                             try: warn_time = datetime.strptime(warn_time_str, "%Y-%m-%d %H:%M:%S")
                             except: warn_time = datetime.fromisoformat(warn_time_str)
                             
                             if datetime.utcnow() - warn_time > timedelta(hours=12):
-                                # Reject withdrawal
                                 await db.execute("UPDATE withdrawal_requests SET status='rejected' WHERE id=?", (wid,))
                                 await db.execute("UPDATE players SET balance=balance+? WHERE user_id=?", (req["amount_usd"], uid))
                                 await db.commit()
@@ -401,16 +443,14 @@ async def monitor_withdrawals_worker():
                                 except: pass
                     else:
                         if warn_time_str:
-                            # Resubscribed! -> Remove warning
                             await db.execute("UPDATE withdrawal_requests SET warning_sent_at=NULL WHERE id=?", (wid,))
                             await db.commit()
                             try: await bot.send_message(uid, tr(lang, "resub_thanks"), parse_mode=ParseMode.HTML)
                             except: pass
-        except Exception as e:
-            logger.error(f"monitor_withdrawals_worker error: {e}")
+        except Exception as e: logger.error(f"monitor_withdrawals_worker error: {e}")
 
 # ═══════════════════════════════════════════════════════════════
-#  TELEGRAM BOT ROUTES (Start & Gate)
+#  TELEGRAM BOT ROUTES
 # ═══════════════════════════════════════════════════════════════
 @dp.message(CommandStart())
 async def cmd_start(message: Message, command: CommandObject):
@@ -422,16 +462,8 @@ async def cmd_start(message: Message, command: CommandObject):
         except ValueError: pass
 
     await get_or_create_player(user.id, user.username or "")
-    if referrer_id and referrer_id != user.id:
-        async with aiosqlite.connect(DB_PATH) as db:
-            async with db.execute("SELECT referred_by FROM players WHERE user_id=?", (user.id,)) as cur:
-                if (await cur.fetchone())[0] is None:
-                    await db.execute("UPDATE players SET referred_by=? WHERE user_id=?", (referrer_id, user.id))
-                    await db.execute("INSERT OR IGNORE INTO referrals (referrer_id, referred_id) VALUES (?,?)", (referrer_id, user.id))
-                    await db.execute("UPDATE players SET referrals_count=referrals_count+1 WHERE user_id=?", (referrer_id,))
-                    await db.commit()
-                    try: await bot.send_message(referrer_id, REFERRAL_NOTIFY_TMPL.format(username=user.username or user.id, user_id=user.id), parse_mode=ParseMode.HTML)
-                    except: pass
+    if referrer_id:
+        await _bind_referral(user.id, referrer_id)
 
     if not await check_subscription(user.id):
         kb = InlineKeyboardMarkup(inline_keyboard=[
@@ -464,7 +496,7 @@ async def cb_check_sub(cb: CallbackQuery):
     await _process_start(cb.message, cb.from_user, cb.data[7:])
 
 # ═══════════════════════════════════════════════════════════════
-#  CRM ADMIN PANEL (Telegram Handlers)
+#  CRM ADMIN PANEL
 # ═══════════════════════════════════════════════════════════════
 @dp.message(Command("admin"))
 @dp.message(Command("panel"))
@@ -584,6 +616,10 @@ async def cq_treply(cb: CallbackQuery, state: FSMContext):
 
 @dp.message(AdminPanel.wait_ticket_reply)
 async def t_reply_step(message: Message, state: FSMContext):
+    if message.text == "/cancel":
+        await state.clear()
+        return await message.answer("❌ Отменено.")
+        
     tkt_id = (await state.get_data())["ticket_id"]
     text = message.text or message.caption or ""
     
@@ -655,7 +691,7 @@ async def cq_wdrej(cb: CallbackQuery):
         await db.execute("UPDATE players SET balance=balance+? WHERE user_id=?", (req[1], req[0]))
         await db.commit()
     
-    try: await bot.send_message(req[0], "❌ <b>Ваша заявка на вывод отклонена.</b> Средства возвращены на баланс.", parse_mode=ParseMode.HTML)
+    try: await bot.send_message(req[0], "❌ <b>Ваша заявка на вывод отклонена администратором.</b> Средства возвращены на баланс.", parse_mode=ParseMode.HTML)
     except: pass
     await cb.answer("❌ ОТКЛОНЕНА, баланс возвращен.", show_alert=True)
     await cq_wd(cb)
@@ -679,6 +715,7 @@ async def broad_step(message: Message, state: FSMContext):
         await asyncio.sleep(0.05)
     await message.answer(f"✅ Рассылка завершена. Доставлено: {delivered}")
     await state.clear()
+
 
 # ═══════════════════════════════════════════════════════════════
 #  FASTAPI APP
@@ -718,7 +755,6 @@ async def api_get_player(user_id: int, username: str = ""):
     player, _ = await get_or_create_player(user_id, username)
     lang = player.get("lang", "en")
     
-    # Только входная подписка на основной канал
     if not await is_admin(user_id) and not await is_subscribed_to_channel(REQUIRED_CHANNEL_ID, user_id):
         return JSONResponse(status_code=402, content={"error": "subscription_required", "channels": [{"id": REQUIRED_CHANNEL_ID, "url": REQUIRED_CHANNEL_URL, "name": REQUIRED_CHANNEL_NAME}], "message": tr(lang, "sub_required_ru") if lang == "ru" else tr(lang, "sub_required_en")})
 
@@ -808,7 +844,7 @@ async def api_withdraw_both(request: Request):
         await db.commit()
 
     for aid in await get_admin_ids():
-        try: await bot.send_message(aid, f"💳 <b>{'Stars' if is_stars else 'USD'} Withdrawal</b>\n{'⭐ VIP PRIORITY' if prio else ''}\nUser: <code>{user_id}</code>\nAmount: <b>{stars} ⭐</b>" if is_stars else f"💳 <b>USD Withdrawal</b>\n{'⭐ VIP PRIORITY' if prio else ''}\nUser: <code>{user_id}</code>\nAmount: <b>${amt_usd:.2f}</b>", parse_mode=ParseMode.HTML)
+        try: await bot.send_message(aid, f"💳 <b>{'Stars' if is_stars else 'USD'} Withdrawal</b>\n{'⭐ VIP PRIORITY' if prio else ''}\nUser: <code>{user_id}</code>\nAmount: <b>{stars} ⭐</b>" if is_stars else f"💳 <b>USD Withdrawal</b>\n{'⭐ VIP PRIORITY' if prio else ''}\nUser: <code>{user_id}</code>\nAmount: <b>${amt_usd:.2f}</b>\n\n/panel -> Выводы", parse_mode=ParseMode.HTML)
         except: pass
 
     return {"success": True, "message": tr(lang, "withdraw_processing")}
@@ -843,16 +879,13 @@ async def api_support_send(request: Request):
         try: await bot.send_message(claimed_by, f"💬 <b>Ответ в тикете #{tkt_id}</b> от @{uname}:\n\n{text}\n\n/panel -> Тикеты", parse_mode=ParseMode.HTML)
         except: pass
     else:
-        await alert_admins_new_ticket(tkt_id, user_id, text, uname)
+        admin_ids = await get_admin_ids()
+        kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🙋‍♂️ Взять в работу", callback_data=f"crm_tclaim:{tkt_id}")]])
+        for aid in admin_ids:
+            try: await bot.send_message(aid, f"🆘 <b>Новый тикет #{tkt_id}</b>\nОт: @{uname}\n\n{text[:200]}...", parse_mode=ParseMode.HTML, reply_markup=kb)
+            except: pass
 
     return {"success": True}
-
-async def alert_admins_new_ticket(tkt_id, uid, text, uname):
-    admin_ids = await get_admin_ids()
-    kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🙋‍♂️ Взять в работу", callback_data=f"crm_tclaim:{tkt_id}")]])
-    for aid in admin_ids:
-        try: await bot.send_message(aid, f"🆘 <b>Новый тикет #{tkt_id}</b>\nОт: @{uname}\n\n{text[:200]}...", parse_mode=ParseMode.HTML, reply_markup=kb)
-        except: pass
 
 @app.get("/api/support/messages/{user_id}")
 async def api_support_messages(user_id: int):
@@ -867,19 +900,13 @@ async def api_referral_bind(request: Request):
     data = await request.json()
     new_user_id, ref_param = data.get("user_id"), str(data.get("ref_param") or "").strip()
     if not new_user_id: raise HTTPException(400)
+    
     referrer_id = int(ref_param[4:]) if ref_param.startswith("ref_") else int(ref_param) if ref_param.isdigit() else None
     if not referrer_id or referrer_id == new_user_id: return {"bound": False}
-    await get_or_create_player(new_user_id, str(data.get("username") or ""))
     
-    async with aiosqlite.connect(DB_PATH) as db:
-        async with db.execute("SELECT referred_by FROM players WHERE user_id=?", (new_user_id,)) as cur:
-            if (await cur.fetchone())[0] is None:
-                await db.execute("UPDATE players SET referred_by=? WHERE user_id=?", (referrer_id, new_user_id))
-                await db.execute("INSERT OR IGNORE INTO referrals (referrer_id, referred_id) VALUES (?,?)", (referrer_id, new_user_id))
-                await db.execute("UPDATE players SET referrals_count=referrals_count+1 WHERE user_id=?", (referrer_id,))
-                await db.commit()
-                return {"bound": True}
-    return {"bound": False}
+    await get_or_create_player(new_user_id, str(data.get("username") or ""))
+    bound = await _bind_referral(new_user_id, referrer_id)
+    return {"bound": bound}
 
 @app.post(WEBHOOK_PATH)
 async def bot_webhook(request: Request):
