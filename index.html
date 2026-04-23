@@ -960,6 +960,8 @@ async function recheckSub(){
 }
 
 function updateHeader(p){
+  document.getElementById('header-sub').textContent = t('hdr_sub') + ' • ID: ' + p.user_id;
+
   document.getElementById('balance-val').textContent = '$' + fmt(p.balance);
   document.getElementById('earned-val').textContent  = '$' + fmt(p.total_earned);
   document.getElementById('sold-val').textContent    = p.photos_sold || 0;
@@ -1188,7 +1190,7 @@ function renderPortfolio(){
   document.getElementById('portfolio-list').innerHTML = photos.map(p => {
     const isAuction = p.status === 'on_auction', isSold = p.status === 'sold';
     const thumb = p.filename ? `<img class="photo-thumb" src="/uploads/${p.filename}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"/><div class="photo-thumb-ph" style="display:none">🖼</div>` : `<div class="photo-thumb-ph">🖼</div>`;
-    return `<div class="photo-card">${thumb}<div class="photo-info"><div class="photo-name">Photo #${p.id.slice(0,6).toUpperCase()}</div><div class="photo-meta">${p.sale_rub ? parseInt(p.sale_rub).toLocaleString() + ' ₽' : ''} ${isSold && p.buyer ? ` · ${p.buyer}` : ''}</div><div><span class="photo-status ${isAuction ? 'status-auction' : isSold ? 'status-sold' : 'status-pending'}">${t(isAuction ? 'status_auction' : isSold ? 'status_sold' : 'status_pending')}</span></div>${isAuction && p.sell_at ? `<div class="countdown" data-sell="${p.sell_at}">${t('auction_in')} …</div>` : ''}</div><div class="photo-price ${isSold ? 'green' : ''}">${isSold ? `+$${fmt(p.final_price)}` : p.base_price ? `~$${fmt(p.base_price)}` : ''}</div></div>`;
+    return `<div class="photo-card">${thumb}<div class="photo-info"><div class="photo-name">Photo #${p.id.slice(0,6).toUpperCase()}</div><div class="photo-meta">${p.sale_rub ? parseInt(p.sale_rub).toLocaleString() + ' ₽' : ''} ${isSold && p.buyer ? ` · ${p.buyer}` : ''}</div><div><span class="photo-status ${isAuction ? 'status-auction' : isSold ? 'status-sold' : 'status_pending'}">${t(isAuction ? 'status_auction' : isSold ? 'status_sold' : 'status_pending')}</span></div>${isAuction && p.sell_at ? `<div class="countdown" data-sell="${p.sell_at}">${t('auction_in')} …</div>` : ''}</div><div class="photo-price ${isSold ? 'green' : ''}">${isSold ? `+$${fmt(p.final_price)}` : p.base_price ? `~$${fmt(p.base_price)}` : ''}</div></div>`;
   }).join('');
 }
 
@@ -1294,7 +1296,6 @@ async function initiateWithdraw(method) {
 function renderSubModal(channels) {
     const list = document.getElementById('sub-channel-list');
     list.innerHTML = channels.map(ch => {
-        // Добавляем блок описания (если оно есть)
         const descHtml = ch.description ? `<div class="sub-channel-desc">${escHtml(ch.description)}</div>` : '';
         return `
         <div class="sub-channel-item">
