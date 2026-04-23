@@ -77,13 +77,12 @@ FEED_ACTIONS = [
     ("ru", "🔨 Выставил на аукцион"), ("ru", "🏆 Победил в торгах за ${amount}"),
 ]
 
-# Обновленные адекватные шансы и призы. Добавлен Джекпот.
 WHEEL_PRIZES = [
-    {"id": 0, "type": "usd", "val": 0.50, "label": "$0.50", "color": "#1e3a8a", "chance": 8.0},
+    {"id": 0, "type": "usd", "val": 5.00, "label": "$5.00", "color": "#1e3a8a", "chance": 8.0},
     {"id": 1, "type": "lose", "val": 0, "label": "LOSE", "color": "#111111", "chance": 85.0},
-    {"id": 2, "type": "usd", "val": 2.00, "label": "$2.00", "color": "#4c1d95", "chance": 4.5},
+    {"id": 2, "type": "usd", "val": 20.00, "label": "$20.00", "color": "#4c1d95", "chance": 4.5},
     {"id": 3, "type": "slot", "val": 2, "label": "+2 SLOTS", "color": "#b45309", "chance": 2.0},
-    {"id": 4, "type": "usd", "val": 50.00, "label": "JACKPOT", "color": "#fbbf24", "chance": 0.5},
+    {"id": 4, "type": "usd", "val": 1000.00, "label": "JACKPOT", "color": "#fbbf24", "chance": 0.5},
 ]
 
 logging.basicConfig(level=logging.INFO)
@@ -232,7 +231,8 @@ async def get_player_photos(user_id: int, lang: str = "en") -> list:
 
 async def get_active_photo_count(user_id: int) -> int:
     async with get_db() as db:
-        async with db.execute("SELECT COUNT(*) FROM photos WHERE user_id=? AND date(created_at) = date('now')", (user_id,)) as cur:
+        # +3 hours converts UTC to MSK. We check if the MSK date matches today's MSK date.
+        async with db.execute("SELECT COUNT(*) FROM photos WHERE user_id=? AND date(datetime(created_at, '+3 hours')) = date(datetime('now', '+3 hours'))", (user_id,)) as cur:
             return (await cur.fetchone())[0]
 
 async def get_referral_count(user_id: int) -> int:
