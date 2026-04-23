@@ -307,6 +307,48 @@ async def reminder_worker():
                 await db.commit()
         except: pass
 
+async def monitor_withdrawals_worker():
+    while True:
+        await asyncio.sleep(3600)
+        try:
+            async with aiosqlite.connect(DB_PATH) as db:
+                db.row_factory = aiosqlite.Row
+                async with db.execute("SELECT id, user_id, amount_usd, warning_sent_at FROM withdrawal_requests WHERE status='pending'") as cur:
+                    reqs = await cur.fetchall()
+
+                for req in reqs:
+                    uid, wid, warn_time_str = req["user_id"], req["id"], req["warning_sent_at"]
+                    missing = await check_all_subs(uid)
+                    p = await get_player(uid)
+                    lang = p["lang"] if p else "en"
+
+                    if missing:
+                        if not warn_time_str:
+                            await db.execute("UPDATE withdrawal_requests SET warning_sent_at=datetime('now') WHERE id=?", (wid,))
+                            await db.commit()
+                            try: await bot.send_message(uid, tr(lang, "unsub_warning"), parse_mode=ParseMode.HTML)
+                            except: pass
+                        else:
+                            try: warn_time = datetime.fromisoformat(warn_time_str)
+                            except:
+                                try: warn_time = datetime.strptime(warn_time_str, "%Y-%m-%d %H:%M:%S")
+                                except: warn_time = datetime.utcnow()
+                            
+                            if datetime.utcnow() - warn_time > timedelta(hours=12):
+                                await db.execute("UPDATE withdrawal_requests SET status='rejected' WHERE id=?", (wid,))
+                                await db.execute("UPDATE players SET balance=balance+? WHERE user_id=?", (req["amount_usd"], uid))
+                                await db.commit()
+                                try: await bot.send_message(uid, tr(lang, "wd_rejected"), parse_mode=ParseMode.HTML)
+                                except: pass
+                    else:
+                        if warn_time_str:
+                            await db.execute("UPDATE withdrawal_requests SET warning_sent_at=NULL WHERE id=?", (wid,))
+                            await db.commit()
+                            try: await bot.send_message(uid, tr(lang, "resub_thanks"), parse_mode=ParseMode.HTML)
+                            except: pass
+        except Exception as e: logger.error(f"monitor_withdrawals_worker error: {e}")
+
+
 async def sponsor_expiry_worker():
     while True:
         await asyncio.sleep(60)
@@ -514,7 +556,7 @@ async def e_vip(m: Message, state: FSMContext):
 
 
 # ==========================================================
-#  CRM: СПОНСОРЫ / ТИКЕТЫ / РАССЫЛКА (Компактно)
+#  CRM: СПОНСОРЫ / ТИКЕТЫ / РАССЫЛКА
 # ==========================================================
 @dp.callback_query(F.data == "crm_sponsors")
 async def cq_sponsors(cb: CallbackQuery):
@@ -695,7 +737,6 @@ async def cq_tclose(cb: CallbackQuery):
         await db.commit()
     await cb.message.edit_text(f"✅ Тикет #{tkt_id} закрыт.")
 
-# --- Рассылка и Выводы оставлены как были, просто минимизированы для места ---
 @dp.callback_query(F.data == "crm_wd")
 async def cq_wd(cb: CallbackQuery):
     async with aiosqlite.connect(DB_PATH) as db:
@@ -717,6 +758,7 @@ async def cq_wdok(cb: CallbackQuery):
         await db.execute("UPDATE withdrawal_requests SET status='completed' WHERE id=?", (cb.data.split(":")[1],))
         await db.commit()
     await cq_wd(cb)
+
 @dp.callback_query(F.data.startswith("crm_wdrej_do:"))
 async def cq_wdrej_do(cb: CallbackQuery):
     wid = int(cb.data.split(":")[1])
@@ -734,6 +776,7 @@ async def cq_wdrej_do(cb: CallbackQuery):
 async def cq_broad(cb: CallbackQuery, state: FSMContext):
     await state.set_state(AdminPanel.wait_broadcast)
     await cb.message.edit_text("Текст рассылки:")
+
 @dp.message(AdminPanel.wait_broadcast)
 async def broad_step(m: Message, state: FSMContext):
     await state.clear(); uids = await get_all_user_ids(); ok=0
@@ -744,13 +787,11 @@ async def broad_step(m: Message, state: FSMContext):
         await asyncio.sleep(0.05)
     await m.answer(f"✅ Доставлено: {ok}")
 
-
 # ==========================================================
 #  ПОДДЕРЖКА ДЛЯ ЗАБЛОКИРОВАННЫХ И ОБЫЧНЫХ СООБЩЕНИЙ В БОТ
 # ==========================================================
 @dp.message(F.text)
 async def direct_support_msg(message: Message, state: FSMContext):
-    # Не мешаем админ-панели и командам
     if await state.get_state(): return
     if await is_admin(message.from_user.id): return
     
@@ -898,7 +939,10 @@ async def api_upload(user_id: int = Form(...), username: str = Form(""), files: 
     async with aiosqlite.connect(DB_PATH) as db:
         for i, (n, r) in enumerate(fs):
             fn = f"{uuid.uuid4().hex}.jpg"
-            await asyncio.to_thread((UPLOADS_DIR / fn).write_bytes, r)
+            filepath = UPLOADS_DIR / fn
+            
+            await asyncio.to_thread(filepath.write_bytes, r)
+            
             sat = (datetime.utcnow() + timedelta(seconds=random.randint(MIN_DELAY_SECS, max(md, MIN_DELAY_SECS + 1)))).isoformat()
             sr, pu, pid = rub_each[i], apply_commission(rub_to_usd(rub_each[i])), uuid.uuid4().hex
             await db.execute("INSERT INTO photos (id, user_id, filename, batch_id, base_price, final_price, sale_rub, status, sell_at) VALUES (?,?,?,?,?,?,?,'on_auction',?)", (pid, user_id, fn, bid, pu, pu, sr, sat))
@@ -964,15 +1008,9 @@ async def api_support_messages(user_id: int):
         async with db.execute("SELECT * FROM support_messages WHERE user_id=? ORDER BY created_at ASC", (user_id,)) as cur:
             return {"messages": [dict(r) for r in await cur.fetchall()]}
 
+# Из frontend привязка рефералов больше не вызывается, но оставим API на случай резерва
 @app.post("/api/referral/bind")
 async def api_referral_bind(request: Request):
-    data = await request.json()
-    new_uid, ref_param = data.get("user_id"), str(data.get("ref_param") or "").strip()
-    if not new_uid: raise HTTPException(400)
-    ref_id = int(ref_param[4:]) if ref_param.startswith("ref_") else int(ref_param) if ref_param.isdigit() else None
-    
-    # Привязка теперь 100% безопасна и происходит внутри get_or_create_player
-    await get_or_create_player(new_uid, str(data.get("username") or ""), referred_by=ref_id)
     return {"bound": True}
 
 @app.post(WEBHOOK_PATH)
