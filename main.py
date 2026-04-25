@@ -60,8 +60,8 @@ VIP_TIERS = [
     (10,  900, 20), (25,  300, 25), (50,   60, 30),
 ]
 
-REQUIRED_CHANNEL_ID   = "@dsdfsdfawer"
-REQUIRED_CHANNEL_URL  = "https://t.me/dsdfsdfawer"
+REQUIRED_CHANNEL_ID   = "@Photo_Flip_Market"
+REQUIRED_CHANNEL_URL  = "https://t.me/Photo_Flip_Market"
 REQUIRED_CHANNEL_NAME = "PhotoFlip Community"
 
 FAKE_USERS = [
