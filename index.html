@@ -859,7 +859,7 @@ if(tg){
 }
 if(!userId) userId = 999999;
 
-// ЗАЩИЩЕННЫЙ FETCH
+// 🔒 ЗАЩИЩЕННЫЙ FETCH
 async function authFetch(url, options = {}) {
     options.headers = options.headers || {};
     if (tg && tg.initData) {
