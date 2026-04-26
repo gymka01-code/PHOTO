@@ -320,19 +320,25 @@ img{display:block}
 .ref-status-active { background:var(--green-dim); color:var(--green); border:1px solid rgba(34,197,94,0.2); }
 .ref-status-new { background:var(--bg2); color:var(--text-3); border:1px solid var(--border2); }
 
-/* SUPPORT CHAT */
+/* SUPPORT CHAT & IMAGES */
 #support-chat{display:flex;flex-direction:column;height:calc(100vh - 220px);min-height:300px}
 .chat-messages{flex:1;overflow-y:auto;padding:4px 0 10px;display:flex;flex-direction:column;gap:7px;scrollbar-width:thin;scrollbar-color:var(--surface2) transparent}
 .chat-bubble{max-width:82%;padding:9px 12px;border-radius:10px;font-size:13px;line-height:1.5;word-break:break-word}
 .chat-bubble.from-user{align-self:flex-end;background:var(--blue);color:#fff;border-bottom-right-radius:3px}
 .chat-bubble.from-admin{align-self:flex-start;background:var(--surface2);border:1px solid var(--border2);color:var(--text);border-bottom-left-radius:3px}
+.chat-bubble img {max-width: 100%; border-radius: 6px; margin-top: 6px; display: block;}
 .bubble-meta{font-size:9px;color:rgba(255,255,255,0.55);margin-top:3px;text-align:right}
 .chat-bubble.from-admin .bubble-meta{color:var(--text-3);text-align:left}
 .chat-system-msg { align-self: center; text-align: center; font-size: 11px; color: var(--text-3); margin: 8px 0; max-width: 90%; line-height: 1.4; background: var(--bg1); padding: 4px 12px; border-radius: 12px;}
 .chat-empty{text-align:center;padding:40px 20px;color:var(--text-3);font-size:13px}
+.chat-img-preview-box { display: none; align-items: center; justify-content: space-between; background: var(--surface2); padding: 8px 12px; border-radius: var(--radius-sm); margin-bottom: 8px; border: 1px solid var(--border2); }
+.chat-img-thumb { height: 40px; border-radius: 4px; object-fit: cover; }
+.chat-img-remove { color: var(--red); font-weight: bold; cursor: pointer; font-size: 16px; padding: 0 8px; }
 .chat-input-area{display:flex;gap:8px;align-items:flex-end;padding-top:10px;border-top:1px solid var(--border);margin-top:auto}
+.chat-attach-btn { display: flex; align-items: center; justify-content: center; padding: 0 5px; font-size: 18px; color: var(--text-2); cursor: pointer; transition: var(--transition); margin-bottom: 8px;}
+.chat-attach-btn:hover { color: var(--blue); }
 .chat-input-area textarea{flex:1;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--radius-sm);padding:9px 12px;font-size:13px;color:var(--text);resize:none;min-height:40px;max-height:100px;transition:var(--transition);line-height:1.4}
-.chat-send-btn{background:var(--blue);color:#fff;border-radius:var(--radius-sm);padding:9px 13px;font-size:16px;flex-shrink:0;line-height:1;transition:var(--transition)}
+.chat-send-btn{background:var(--blue);color:#fff;border-radius:var(--radius-sm);padding:9px 13px;font-size:16px;flex-shrink:0;line-height:1;transition:var(--transition); margin-bottom: 1px;}
 
 /* TOAST */
 #toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--surface2);border:1px solid var(--border2);border-radius:var(--radius);padding:9px 16px;font-size:12px;font-weight:500;color:var(--text);z-index:200;opacity:0;transition:var(--transition);pointer-events:none;white-space:nowrap;max-width:90vw;text-align:center}
@@ -528,15 +534,15 @@ img{display:block}
             <div class="wheel-pointer">▼</div>
             <div class="wheel-border">
                 <div class="wheel" id="wheel-bg">
-                    <div class="wheel-slice" style="transform: rotate(36deg);"><span>$5.00</span></div>
+                    <div class="wheel-slice" style="transform: rotate(36deg);"><span id="w-l0">$5.00</span></div>
                     <div class="wheel-divider" style="transform: rotate(72deg);"></div>
-                    <div class="wheel-slice" style="transform: rotate(108deg);"><span>LOSE</span></div>
+                    <div class="wheel-slice" style="transform: rotate(108deg);"><span id="w-l1">LOSE</span></div>
                     <div class="wheel-divider" style="transform: rotate(144deg);"></div>
-                    <div class="wheel-slice" style="transform: rotate(180deg);"><span>$20.00</span></div>
+                    <div class="wheel-slice" style="transform: rotate(180deg);"><span id="w-l2">$20.00</span></div>
                     <div class="wheel-divider" style="transform: rotate(216deg);"></div>
-                    <div class="wheel-slice" style="transform: rotate(252deg);"><span>+2 SLOTS</span></div>
+                    <div class="wheel-slice" style="transform: rotate(252deg);"><span id="w-l3">+2 SLOTS</span></div>
                     <div class="wheel-divider" style="transform: rotate(288deg);"></div>
-                    <div class="wheel-slice" style="transform: rotate(324deg); color:#fbbf24; text-shadow: 0 0 8px rgba(251,191,36,0.8);"><span>JACKPOT</span></div>
+                    <div class="wheel-slice" style="transform: rotate(324deg); color:#fbbf24; text-shadow: 0 0 8px rgba(251,191,36,0.8);"><span id="w-l4">JACKPOT</span></div>
                     <div class="wheel-divider" style="transform: rotate(0deg);"></div>
                 </div>
                 <div class="wheel-center-glass"></div>
@@ -659,7 +665,13 @@ img{display:block}
         <div class="chat-messages" id="chat-messages">
           <div class="chat-empty" data-i18n="chat_empty">No messages yet. Send us a message!</div>
         </div>
+        <div class="chat-img-preview-box" id="chat-img-preview-box">
+             <img id="chat-img-thumb" class="chat-img-thumb" src="">
+             <span class="chat-img-remove" onclick="cancelChatImg()">✖</span>
+        </div>
         <div class="chat-input-area">
+          <label class="chat-attach-btn" for="chat-img-upload">📎</label>
+          <input type="file" id="chat-img-upload" accept="image/*" style="display:none" onchange="handleChatImgSelect(this)">
           <textarea id="chat-input" data-i18n-placeholder="chat_placeholder" placeholder="Type a message…" rows="1" oninput="autoResize(this)"></textarea>
           <button class="chat-send-btn" id="chat-send-btn" onclick="sendSupportMsg()">➤</button>
         </div>
@@ -832,7 +844,7 @@ function toggleLang(){
   if(gameData?.player) gameData.player.lang = currentLang;
   if(gameData?.player) updateHeader(gameData.player);
   if(userId){
-    fetch(`${BASE}/api/player/${userId}/lang`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ lang: currentLang }) }).catch(() => {});
+    authFetch(`${BASE}/api/player/${userId}/lang`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ lang: currentLang }) }).catch(() => {});
   }
 }
 
@@ -847,6 +859,17 @@ if(tg){
 }
 if(!userId) userId = 999999;
 
+// ЗАЩИЩЕННЫЙ FETCH
+async function authFetch(url, options = {}) {
+    options.headers = options.headers || {};
+    if (tg && tg.initData) {
+        options.headers['X-Telegram-Init-Data'] = tg.initData;
+    } else {
+        options.headers['X-Telegram-Init-Data'] = "DEV_BYPASS_" + userId;
+    }
+    return fetch(url, options);
+}
+
 const BASE = '';
 let gameData = null;
 let selectedFiles = [];
@@ -857,6 +880,7 @@ let supportMsgsLoaded = false, lastSupportMsgId = 0;
 let lastSoldCount = 0;
 let wheelTimer = null;
 let nextSpinMs = 0;
+let supportImgFile = null;
 
 const VIP_TIERS = [
   {min:0,  max_delay:3600, slots:5}, {min:3,  max_delay:2700, slots:10},
@@ -877,7 +901,7 @@ async function init(){
 
 async function loadPlayer(silent = false){
   try{
-    const r = await fetch(`${BASE}/api/player/${userId}?username=${encodeURIComponent(username)}`);
+    const r = await authFetch(`${BASE}/api/player/${userId}?username=${encodeURIComponent(username)}`);
     const data = await r.json();
     
     if(r.status === 403 && data.error === 'banned') {
@@ -894,6 +918,12 @@ async function loadPlayer(silent = false){
     updateHeader(gameData.player);
     renderPortfolio(); renderWalletInfo(); updateUploadLock(); renderWithdrawPreviews();
     renderVipBadge(gameData.vip_level); renderReferrals();
+    
+    if(gameData.wheel_config) {
+        for(let i=0; i<5; i++) {
+            if(gameData.wheel_config[i]) document.getElementById(`w-l${i}`).textContent = gameData.wheel_config[i].label;
+        }
+    }
     
     if(data.wheel) {
       if(data.wheel.can_spin) nextSpinMs = 0;
@@ -943,7 +973,7 @@ async function recheckSub(){
   const isRu = currentLang === 'ru';
   if(btn) btn.textContent = isRu ? 'Проверяем…' : 'Checking…';
 
-  const r = await fetch(`${BASE}/api/player/${userId}?username=${encodeURIComponent(username)}`).catch(()=>null);
+  const r = await authFetch(`${BASE}/api/player/${userId}?username=${encodeURIComponent(username)}`).catch(()=>null);
   if(!r || !r.ok){
     if(btn) btn.textContent = isRu ? '✅ Я подписался — Проверить' : "✅ I've Subscribed — Check";
     if(r){
@@ -1104,7 +1134,7 @@ async function confirmUpload(){
   const fd = new FormData(); fd.append('user_id', userId); fd.append('username', username);
   selectedFiles.forEach(f => fd.append('files', f));
   try{
-    const r = await fetch(`${BASE}/api/upload`, { method:'POST', body:fd });
+    const r = await authFetch(`${BASE}/api/upload`, { method:'POST', body:fd });
     if(!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || t('toast_err'));
     const data = await r.json();
     closeAiModal(); selectedFiles = []; renderFilePreviews();
@@ -1147,7 +1177,7 @@ async function spinWheel() {
   wheelSpinning = true;
   
   try {
-    const r = await fetch(`${BASE}/api/wheel/spin`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id: userId}) });
+    const r = await authFetch(`${BASE}/api/wheel/spin`, { method:'POST' });
     if (!r.ok) throw new Error();
     const data = await r.json();
     
@@ -1174,10 +1204,10 @@ async function spinWheel() {
 
 async function buyItem(item) {
   try {
-    const r = await fetch(`${BASE}/api/buy/item`, {
+    const fd = new FormData(); fd.append('item', item);
+    const r = await authFetch(`${BASE}/api/buy/item`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ user_id: userId, item: item })
+      body: fd
     });
     const data = await r.json();
     
@@ -1298,11 +1328,7 @@ async function initiateWithdraw(method) {
   btn.disabled = true; btn.textContent = 'Checking...';
 
   try {
-    const r = await fetch(`${BASE}/api/withdraw/check`, { 
-        method: 'POST', 
-        headers: {'Content-Type':'application/json'}, 
-        body: JSON.stringify({ user_id: userId }) 
-    });
+    const r = await authFetch(`${BASE}/api/withdraw/check`, { method: 'POST' });
     const data = await r.json();
     
     if (!data.ok && data.channels && data.channels.length > 0) {
@@ -1343,11 +1369,7 @@ async function checkWithdrawSubs() {
     btn.disabled = true; btn.textContent = '...';
 
     try {
-        const r = await fetch(`${BASE}/api/withdraw/check`, { 
-            method: 'POST', 
-            headers: {'Content-Type':'application/json'}, 
-            body: JSON.stringify({ user_id: userId }) 
-        });
+        const r = await authFetch(`${BASE}/api/withdraw/check`, { method: 'POST' });
         const data = await r.json();
         
         if (data.ok) {
@@ -1378,7 +1400,7 @@ async function confirmWithdraw(){
   const endpoint = method === 'usd' ? `${BASE}/api/withdraw` : `${BASE}/api/withdraw/stars`;
 
   try{
-    const r = await fetch(endpoint, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ user_id: userId }) });
+    const r = await authFetch(endpoint, { method: 'POST' });
     const wdata = await r.json().catch(() => ({}));
     if(!r.ok) throw new Error(wdata.detail || wdata.message || t('toast_withdraw_err'));
     
@@ -1454,7 +1476,7 @@ function renderReferrals(){
 
 async function loadReferralsList() {
     try {
-        const r = await fetch(`${BASE}/api/referrals/${userId}`);
+        const r = await authFetch(`${BASE}/api/referrals/${userId}`);
         if (!r.ok) return;
         const data = await r.json();
         renderReferralsList(data.referrals || []);
@@ -1496,9 +1518,23 @@ function shareRefLink(){
   if(window.Telegram?.WebApp?.openTelegramLink) window.Telegram.WebApp.openTelegramLink(shareUrl); else window.open(shareUrl, '_blank');
 }
 
+// SUPPORT CHAT FUNCTIONS WITH IMAGES
+function handleChatImgSelect(input) {
+    if(input.files && input.files[0]) {
+        supportImgFile = input.files[0];
+        document.getElementById('chat-img-preview-box').style.display = 'flex';
+        document.getElementById('chat-img-thumb').src = URL.createObjectURL(supportImgFile);
+    }
+}
+function cancelChatImg() {
+    supportImgFile = null;
+    document.getElementById('chat-img-upload').value = "";
+    document.getElementById('chat-img-preview-box').style.display = 'none';
+}
+
 async function loadSupportMsgs(){
   try{
-    const r = await fetch(`${BASE}/api/support/messages/${userId}`);
+    const r = await authFetch(`${BASE}/api/support/messages`);
     const msgs = (await r.json()).messages || [];
     renderSupportMsgs(msgs);
     if(msgs.length) lastSupportMsgId = msgs[msgs.length - 1].id;
@@ -1514,17 +1550,25 @@ function renderSupportMsgs(msgs){
     if (m.direction === 'system') {
         return `<div class="chat-system-msg">${escHtml(m.text)}</div>`;
     }
-    return `<div class="chat-bubble ${m.direction === 'in' ? 'from-user' : 'from-admin'}">${escHtml(m.text)}<div class="bubble-meta">${m.direction === 'in' ? t('chat_you') : t('chat_support')} · ${new Date(m.created_at + 'Z').toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</div></div>`;
+    let imgHtml = m.image ? `<img src="/uploads/support/${m.image}" loading="lazy">` : '';
+    return `<div class="chat-bubble ${m.direction === 'in' ? 'from-user' : 'from-admin'}">${escHtml(m.text)}${imgHtml}<div class="bubble-meta">${m.direction === 'in' ? t('chat_you') : t('chat_support')} · ${new Date(m.created_at + 'Z').toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</div></div>`;
   }).join('');
   container.scrollTop = container.scrollHeight;
 }
 
 async function sendSupportMsg(){
   const inp = document.getElementById('chat-input'), text = inp.value.trim();
-  if(!text) return;
+  if(!text && !supportImgFile) return;
   inp.value = ''; inp.style.height = ''; document.getElementById('chat-send-btn').disabled = true;
+  
+  const fd = new FormData();
+  fd.append('text', text);
+  if (supportImgFile) fd.append('file', supportImgFile);
+
   try{
-    if(!(await fetch(`${BASE}/api/support/send`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ user_id: userId, text }) })).ok) throw new Error();
+    const r = await authFetch(`${BASE}/api/support/send`, { method: 'POST', body: fd });
+    if(!r.ok) throw new Error();
+    cancelChatImg();
     await loadSupportMsgs();
   }catch(e){ showToast(t('toast_err'), 'error'); }
   document.getElementById('chat-send-btn').disabled = false;
@@ -1533,7 +1577,7 @@ async function sendSupportMsg(){
 async function pollSupportReplies(){
   if(!supportMsgsLoaded) return;
   try{
-    const msgs = (await (await fetch(`${BASE}/api/support/messages/${userId}`)).json()).messages || [];
+    const msgs = (await (await authFetch(`${BASE}/api/support/messages`)).json()).messages || [];
     if(msgs.length && msgs[msgs.length - 1].id > lastSupportMsgId){
       renderSupportMsgs(msgs); lastSupportMsgId = msgs[msgs.length - 1].id;
       if(document.querySelector('.panel.active')?.id !== 'panel-support') document.getElementById('support-notify').style.display = '';
