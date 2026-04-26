@@ -1,3 +1,4 @@
+--- START OF FILE main.py ---
 import asyncio
 import logging
 import os
@@ -105,6 +106,7 @@ class AdminPanel(StatesGroup):
     wait_user_id_search = State()
     wait_edit_user_balance, wait_edit_user_slots = State(), State()
     wait_edit_user_refs, wait_edit_user_earned, wait_edit_user_vip = State(), State(), State()
+    wait_edit_user_sold = State() # <-- Добавили стейт для количества проданных фото
     wait_broadcast = State()
     wait_new_admin_id = State()
     wait_wheel_global = State()
@@ -167,12 +169,10 @@ def verify_webapp_data(init_data: str) -> int:
         hash_str = parsed_data.pop('hash', None)
         if not hash_str: raise Exception()
 
-        # 1. Защита от Replay-атак (токен годен 24 часа)
         auth_date = int(parsed_data.get('auth_date', 0))
         if time.time() - auth_date > 86400:
             raise HTTPException(401, "Session Expired")
 
-        # 2. Проверка криптографической подписи
         data_check_string = "\n".join(f"{k}={v}" for k, v in sorted(parsed_data.items()))
         secret_key = hmac.new(b"WebAppData", BOT_TOKEN.encode(), hashlib.sha256).digest()
         calc_hash = hmac.new(secret_key, data_check_string.encode(), hashlib.sha256).hexdigest()
@@ -605,6 +605,7 @@ async def show_user_control_panel(msg_or_cb, uid: int, state: FSMContext):
 
     text = f"👤 <b>Аккаунт: <code>{uid}</code></b> {'(🚫 ЗАБЛОКИРОВАН)' if p.get('is_banned') else ''}\n"
     text += f"Имя: @{p.get('username') or 'Нет'}\nБаланс: <b>${p['balance']:.2f}</b>\nЗаработано: <b>${p['total_earned']:.2f}</b>\n"
+    text += f"Продано фото: <b>{p['photos_sold']}</b>\n"
     text += f"Рефералы: <b>{p['referrals_count']}</b> (VIP {vip_level(p['referrals_count'])})\n"
     text += f"Слоты сегодня: <b>{used_today} / {total_slots}</b> <i>(База: {vip_base_slots}, Доп: {extra_slots})</i>\n"
     text += f"Колесо: <b>{can_spin}</b>\n"
@@ -612,10 +613,10 @@ async def show_user_control_panel(msg_or_cb, uid: int, state: FSMContext):
 
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="💰 Баланс", callback_data="c_usr_bal"), InlineKeyboardButton(text="📈 Заработано", callback_data="c_usr_earn")],
-        [InlineKeyboardButton(text="🤝 Рефералы", callback_data="c_usr_ref"), InlineKeyboardButton(text="🎰 Настроить слоты", callback_data="c_usr_slots")],
-        [InlineKeyboardButton(text="🌟 Уровень VIP", callback_data="c_usr_vip"), InlineKeyboardButton(text="🎯 Персональная рулетка", callback_data="c_usr_pwheel")],
-        [InlineKeyboardButton(text="🔄 Сбросить Колесо", callback_data="c_usr_wheel")],
-        [InlineKeyboardButton(text="🔓 Разблокировать" if p.get('is_banned') else "🚫 Заблокировать", callback_data="c_usr_ban")],
+        [InlineKeyboardButton(text="📸 Продано фото", callback_data="c_usr_sold"), InlineKeyboardButton(text="🤝 Рефералы", callback_data="c_usr_ref")],
+        [InlineKeyboardButton(text="🎰 Настроить слоты", callback_data="c_usr_slots"), InlineKeyboardButton(text="🌟 Уровень VIP", callback_data="c_usr_vip")],
+        [InlineKeyboardButton(text="🎯 Персональная рулетка", callback_data="c_usr_pwheel")],
+        [InlineKeyboardButton(text="🔄 Сбросить Колесо", callback_data="c_usr_wheel"), InlineKeyboardButton(text="🔓 Разблок." if p.get('is_banned') else "🚫 Блок.", callback_data="c_usr_ban")],
         [InlineKeyboardButton(text="🔙 Назад к поиску", callback_data="crm_users")]
     ])
     
@@ -649,6 +650,7 @@ async def cq_c_usr_actions(cb: CallbackQuery, state: FSMContext):
     prompts = {
         "bal": ("wait_edit_user_balance", "Введите БАЛАНС (например 15.50):"),
         "earn": ("wait_edit_user_earned", "Введите ЗАРАБОТАНО (например 100.00):"),
+        "sold": ("wait_edit_user_sold", "Введите количество ПРОДАННЫХ ФОТО (целое число):"),
         "ref": ("wait_edit_user_refs", "Введите РЕФЕРАЛОВ (целое число):"),
         "slots": ("wait_edit_user_slots", "Введите <b>ИТОГОВОЕ ЖЕЛАЕМОЕ КОЛИЧЕСТВО</b> слотов для этого юзера (число):"),
         "vip": ("wait_edit_user_vip", "Введите ЖЕЛАЕМЫЙ VIP УРОВЕНЬ (от 0 до 5):")
@@ -700,6 +702,16 @@ async def e_earn(m: Message, state: FSMContext):
             await db.commit()
         await show_user_control_panel(m, (await state.get_data())["edit_user_id"], state)
     except: await m.answer("❌ Ошибка ввода!")
+
+@dp.message(AdminPanel.wait_edit_user_sold)
+async def e_sold(m: Message, state: FSMContext):
+    if not m.text.isdigit(): return await m.answer("❌ Целое число больше или равное 0.")
+    val = int(m.text)
+    uid = (await state.get_data())["edit_user_id"]
+    async with get_db() as db:
+        await db.execute("UPDATE players SET photos_sold=? WHERE user_id=?", (val, uid))
+        await db.commit()
+    await show_user_control_panel(m, uid, state)
 
 @dp.message(AdminPanel.wait_edit_user_refs)
 async def e_refs(m: Message, state: FSMContext):
@@ -1075,7 +1087,6 @@ async def api_get_player(user_id: int, username: str = "", init_data: str = Head
     async with get_db() as db:
         db.row_factory = aiosqlite.Row
         
-        # Определяем шансы (Персональные или Глобальные)
         personal = player.get("personal_wheel")
         if personal:
             try:
@@ -1199,7 +1210,6 @@ async def api_upload(
 
     saved_files = []
     for f in files:
-        # Проверка размера файла (Анти DDOS/OOM)
         raw = await f.read(MAX_UPLOAD_SIZE + 1)
         if len(raw) > MAX_UPLOAD_SIZE:
             raise HTTPException(400, "File too large")
