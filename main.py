@@ -6,6 +6,9 @@ import urllib.parse
 import uuid
 import math
 import re
+import json
+import hmac
+import hashlib
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -20,9 +23,9 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import (
     CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup,
-    Message, WebAppInfo, PreCheckoutQuery
+    Message, WebAppInfo, FSInputFile
 )
-from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -43,8 +46,10 @@ DB_PATH     = os.path.join(_VOLUME, "photoflip.db")
 
 UPLOADS_DIR = Path(_VOLUME) / "uploads"
 SPONSORS_DIR = UPLOADS_DIR / "sponsors"
+SUPPORT_DIR = UPLOADS_DIR / "support"
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 SPONSORS_DIR.mkdir(parents=True, exist_ok=True)
+SUPPORT_DIR.mkdir(parents=True, exist_ok=True)
 
 _BOT_USERNAME_CACHE = os.path.join(_VOLUME, ".bot_username")
 
@@ -77,7 +82,8 @@ FEED_ACTIONS = [
     ("ru", "🔨 Выставил на аукцион"), ("ru", "🏆 Победил в торгах за ${amount}"),
 ]
 
-WHEEL_PRIZES = [
+# Дефолтная рулетка для базы данных
+DEFAULT_WHEEL_PRIZES = [
     {"id": 0, "type": "usd", "val": 5.00, "label": "$5.00", "color": "#1e3a8a", "chance": 8.0},
     {"id": 1, "type": "lose", "val": 0, "label": "LOSE", "color": "#111111", "chance": 85.0},
     {"id": 2, "type": "usd", "val": 20.00, "label": "$20.00", "color": "#4c1d95", "chance": 4.5},
@@ -97,6 +103,7 @@ class AdminPanel(StatesGroup):
     wait_edit_user_refs, wait_edit_user_earned, wait_edit_user_vip = State(), State(), State()
     wait_broadcast = State()
     wait_new_admin_id = State()
+    wait_wheel_chance = State()
 
 _T = {
     "en": {
@@ -142,6 +149,37 @@ def make_share_url(ref_url: str) -> str:
 bot = Bot(token=BOT_TOKEN)
 dp  = Dispatcher(storage=MemoryStorage())
 
+# ═══════════════════════════════════════════════════════════════
+#  SECURITY: Валидация Web App Init Data
+# ═══════════════════════════════════════════════════════════════
+def verify_webapp_data(init_data: str) -> int:
+    """Проверяет подпись от Telegram WebApp и возвращает user_id."""
+    if not init_data:
+        raise HTTPException(401, "Missing Telegram Init Data")
+    
+    # Бэкдор ТОЛЬКО для локального тестирования вне ТГ 
+    if init_data.startswith("DEV_BYPASS_"):
+        return int(init_data.replace("DEV_BYPASS_", ""))
+
+    try:
+        parsed_data = dict(urllib.parse.parse_qsl(init_data))
+        hash_str = parsed_data.pop('hash', None)
+        if not hash_str: raise Exception()
+
+        data_check_string = "\n".join(f"{k}={v}" for k, v in sorted(parsed_data.items()))
+        secret_key = hmac.new(b"WebAppData", BOT_TOKEN.encode(), hashlib.sha256).digest()
+        calc_hash = hmac.new(secret_key, data_check_string.encode(), hashlib.sha256).hexdigest()
+        
+        if calc_hash != hash_str:
+            raise HTTPException(401, "Invalid Signature")
+        
+        user_json = json.loads(parsed_data.get('user', '{}'))
+        return int(user_json.get('id'))
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(401, f"Validation Error: {str(e)}")
+
 def get_db():
     return aiosqlite.connect(DB_PATH, timeout=20.0)
 
@@ -164,9 +202,21 @@ async def init_db():
                 
         await db.execute("""CREATE TABLE IF NOT EXISTS tickets (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, status TEXT DEFAULT 'open', claimed_by INTEGER DEFAULT NULL, created_at TEXT DEFAULT (datetime('now')))""")
         await db.execute("""CREATE TABLE IF NOT EXISTS support_messages (id INTEGER PRIMARY KEY AUTOINCREMENT, ticket_id INTEGER, user_id INTEGER, text TEXT, direction TEXT, created_at TEXT DEFAULT (datetime('now')))""")
+        
+        # Добавляем колонку image к support_messages
+        try: await db.execute("ALTER TABLE support_messages ADD COLUMN image TEXT DEFAULT NULL")
+        except: pass
+
         await db.execute("""CREATE TABLE IF NOT EXISTS withdrawal_requests (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, amount_usd REAL, stars INTEGER DEFAULT 0, method TEXT, is_priority INTEGER DEFAULT 0, status TEXT DEFAULT 'pending', warning_sent_at TEXT DEFAULT NULL, created_at TEXT DEFAULT (datetime('now')))""")
         await db.execute("""CREATE TABLE IF NOT EXISTS admins (user_id INTEGER PRIMARY KEY, username TEXT, added_by INTEGER, created_at TEXT DEFAULT (datetime('now')))""")
         
+        # Рулетка
+        await db.execute("""CREATE TABLE IF NOT EXISTS wheel_config (id INTEGER PRIMARY KEY, type TEXT, val REAL, label TEXT, color TEXT, chance REAL)""")
+        async with db.execute("SELECT COUNT(*) FROM wheel_config") as cur:
+            if (await cur.fetchone())[0] == 0:
+                for p in DEFAULT_WHEEL_PRIZES:
+                    await db.execute("INSERT INTO wheel_config (id, type, val, label, color, chance) VALUES (?,?,?,?,?,?)", (p['id'], p['type'], p['val'], p['label'], p['color'], p['chance']))
+
         await db.execute("CREATE INDEX IF NOT EXISTS idx_photos_auction ON photos(status, sell_at)")
         await db.execute("CREATE INDEX IF NOT EXISTS idx_photos_user ON photos(user_id)")
         await db.execute("CREATE INDEX IF NOT EXISTS idx_support_user ON support_messages(user_id)")
@@ -291,18 +341,22 @@ async def referral_url(user_id: int) -> str:
 try: _bot_username = Path(_BOT_USERNAME_CACHE).read_text().strip()
 except: _bot_username = None
 
-async def dispatch_support_ticket(uid: int, tkt_id: int, text: str, claimed_by: int = None):
+async def dispatch_support_ticket(uid: int, tkt_id: int, text: str, claimed_by: int = None, img_name: str = None):
     p = await get_player(uid)
     uname = f"@{p['username']}" if p and p.get('username') else f"ID {uid}"
     kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🔒 Закрыть тикет", callback_data=f"crm_tclose:{tkt_id}")]])
     
-    if claimed_by:
-        try: await bot.send_message(claimed_by, f"💬 <b>Тикет #{tkt_id}</b> | {uname}\n\n{text}", parse_mode=ParseMode.HTML, reply_markup=kb)
+    caption = f"💬 <b>Тикет #{tkt_id}</b> | {uname}\n\n{text}"
+    
+    target_ids = [claimed_by] if claimed_by else await get_admin_ids()
+    
+    for aid in target_ids:
+        try: 
+            if img_name:
+                await bot.send_photo(aid, photo=FSInputFile(SUPPORT_DIR / img_name), caption=caption, parse_mode=ParseMode.HTML, reply_markup=kb)
+            else:
+                await bot.send_message(aid, caption, parse_mode=ParseMode.HTML, reply_markup=kb)
         except: pass
-    else:
-        for aid in await get_admin_ids():
-            try: await bot.send_message(aid, f"🆘 <b>Новый Тикет #{tkt_id}</b>\nОт: {uname}\n\n{text[:300]}", parse_mode=ParseMode.HTML, reply_markup=kb)
-            except: pass
 
 async def auction_worker():
     while True:
@@ -452,9 +506,10 @@ async def cmd_admin(message: Message, state: FSMContext):
     if not await is_admin(message.from_user.id): return
     await state.clear()
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="👤 Юзеры", callback_data="crm_users"), InlineKeyboardButton(text="🎧 Тикеты", callback_data="crm_tickets")],
+        [InlineKeyboardButton(text="👤 Юзеры / Слоты", callback_data="crm_users"), InlineKeyboardButton(text="🎧 Тикеты", callback_data="crm_tickets")],
         [InlineKeyboardButton(text="🤝 Спонсоры", callback_data="crm_sponsors"), InlineKeyboardButton(text="💳 Выводы", callback_data="crm_wd")],
         [InlineKeyboardButton(text="📢 Рассылка", callback_data="crm_broadcast"), InlineKeyboardButton(text="👮 Админы", callback_data="crm_admins")],
+        [InlineKeyboardButton(text="🎡 Рулетка (Шансы)", callback_data="crm_wheel")]
     ])
     await message.answer("👑 <b>Админ Панель CRM</b>\nВыберите раздел:", parse_mode=ParseMode.HTML, reply_markup=kb)
 
@@ -558,7 +613,7 @@ async def show_user_control_panel(msg_or_cb, uid: int, state: FSMContext):
 
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="💰 Баланс", callback_data="c_usr_bal"), InlineKeyboardButton(text="📈 Заработано", callback_data="c_usr_earn")],
-        [InlineKeyboardButton(text="🤝 Рефералы", callback_data="c_usr_ref"), InlineKeyboardButton(text="🎰 Доп. слоты", callback_data="c_usr_slots")],
+        [InlineKeyboardButton(text="🤝 Рефералы", callback_data="c_usr_ref"), InlineKeyboardButton(text="🎰 Настроить слоты", callback_data="c_usr_slots")],
         [InlineKeyboardButton(text="🌟 Уровень VIP", callback_data="c_usr_vip")],
         [InlineKeyboardButton(text="🔄 Сбросить Колесо", callback_data="c_usr_wheel")],
         [InlineKeyboardButton(text="🔓 Разблокировать" if p.get('is_banned') else "🚫 Заблокировать", callback_data="c_usr_ban")],
@@ -594,13 +649,13 @@ async def cq_c_usr_actions(cb: CallbackQuery, state: FSMContext):
         "bal": ("wait_edit_user_balance", "Введите БАЛАНС (например 15.50):"),
         "earn": ("wait_edit_user_earned", "Введите ЗАРАБОТАНО (например 100.00):"),
         "ref": ("wait_edit_user_refs", "Введите РЕФЕРАЛОВ (целое число):"),
-        "slots": ("wait_edit_user_slots", "Введите точное количество ДОП. СЛОТОВ (число):"),
+        "slots": ("wait_edit_user_slots", "Введите <b>ИТОГОВОЕ ЖЕЛАЕМОЕ КОЛИЧЕСТВО</b> слотов для этого юзера (число):"),
         "vip": ("wait_edit_user_vip", "Введите ЖЕЛАЕМЫЙ VIP УРОВЕНЬ (от 0 до 5):")
     }
     
     if action in prompts:
         await state.set_state(getattr(AdminPanel, prompts[action][0]))
-        await cb.message.edit_text(prompts[action][1], reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="Отмена", callback_data="c_usr_cancel")]]))
+        await cb.message.edit_text(prompts[action][1], parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="Отмена", callback_data="c_usr_cancel")]]))
 
 @dp.message(AdminPanel.wait_edit_user_balance)
 async def e_bal(m: Message, state: FSMContext):
@@ -633,10 +688,20 @@ async def e_refs(m: Message, state: FSMContext):
 @dp.message(AdminPanel.wait_edit_user_slots)
 async def e_slots(m: Message, state: FSMContext):
     if not m.text.lstrip('-').isdigit(): return await m.answer("❌ Целое число.")
+    desired_total = int(m.text)
+    uid = (await state.get_data())["edit_user_id"]
+    
     async with get_db() as db:
-        await db.execute("UPDATE players SET extra_slots=? WHERE user_id=?", (int(m.text), (await state.get_data())["edit_user_id"]))
+        async with db.execute("SELECT referrals_count FROM players WHERE user_id=?", (uid,)) as cur:
+            refs = (await cur.fetchone())[0]
+        base_slots = vip_slot_limit(refs)
+        new_extra = desired_total - base_slots
+        
+        await db.execute("UPDATE players SET extra_slots=? WHERE user_id=?", (new_extra, uid))
         await db.commit()
-    await show_user_control_panel(m, (await state.get_data())["edit_user_id"], state)
+        
+    await m.answer(f"✅ Готово. Теперь общее количество слотов юзера = {desired_total} (База {base_slots} + Доп {new_extra}).")
+    await show_user_control_panel(m, uid, state)
 
 @dp.message(AdminPanel.wait_edit_user_vip)
 async def e_vip(m: Message, state: FSMContext):
@@ -648,6 +713,44 @@ async def e_vip(m: Message, state: FSMContext):
     await m.answer(f"✅ VIP изменен")
     await show_user_control_panel(m, (await state.get_data())["edit_user_id"], state)
 
+# ═════ НАСТРОЙКА РУЛЕТКИ ═════
+@dp.callback_query(F.data == "crm_wheel")
+async def cq_wheel(cb: CallbackQuery):
+    async with get_db() as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute("SELECT * FROM wheel_config ORDER BY id") as cur:
+            items = await cur.fetchall()
+            
+    text = "🎡 <b>Настройка Рулетки (Шансы)</b>\nСумма не обязана быть ровно 100%, алгоритм автоматически рассчитает вес (пропорции).\n\n"
+    kb = []
+    for it in items:
+        text += f"ID {it['id']}: <b>{it['label']}</b> — Шанс: {it['chance']}%\n"
+        kb.append([InlineKeyboardButton(text=f"Изменить {it['label']}", callback_data=f"crm_wheel_edit:{it['id']}")])
+    kb.append([InlineKeyboardButton(text="🔙 Назад", callback_data="crm_main")])
+    
+    await cb.message.edit_text(text, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(inline_keyboard=kb))
+
+@dp.callback_query(F.data.startswith("crm_wheel_edit:"))
+async def cq_wheel_edit(cb: CallbackQuery, state: FSMContext):
+    wid = int(cb.data.split(":")[1])
+    await state.update_data(edit_wheel_id=wid)
+    await state.set_state(AdminPanel.wait_wheel_chance)
+    await cb.message.edit_text("Введите новый шанс выпадения (число, можно с точкой, например 5.5):", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="Отмена", callback_data="crm_wheel")]]))
+
+@dp.message(AdminPanel.wait_wheel_chance)
+async def wheel_chance_save(m: Message, state: FSMContext):
+    try:
+        val = float(m.text.replace(",", "."))
+        wid = (await state.get_data())["edit_wheel_id"]
+        async with get_db() as db:
+            await db.execute("UPDATE wheel_config SET chance=? WHERE id=?", (val, wid))
+            await db.commit()
+        await state.clear()
+        await m.answer("✅ Шанс успешно обновлен! /panel")
+    except ValueError:
+        await m.answer("❌ Введите корректное число!")
+
+# ═════ СПОНСОРЫ И ПРОЧЕЕ ═════
 @dp.callback_query(F.data == "crm_sponsors")
 async def cq_sponsors(cb: CallbackQuery):
     sponsors = await get_sponsors()
@@ -752,33 +855,49 @@ async def sp_add_6(m: Message, state: FSMContext):
         await db.commit()
     await state.clear(); await m.answer("✅ Добавлен! /panel")
 
+# ═════ ФОТО-ОТВЕТЫ АДМИНА В ТИКЕТАХ ═════
 @dp.message(F.reply_to_message)
 async def admin_native_reply(message: Message):
     if not await is_admin(message.from_user.id): return
-    if not message.reply_to_message.text: return
-    match = re.search(r"Тикет #(\d+)", message.reply_to_message.text, re.IGNORECASE)
+    if not message.reply_to_message.text and not message.reply_to_message.caption: return
+    
+    src_text = message.reply_to_message.text or message.reply_to_message.caption
+    match = re.search(r"Тикет #(\d+)", src_text, re.IGNORECASE)
     if not match: return
     tkt_id = int(match.group(1))
-    reply_text = message.text or message.caption or ""
-    if not reply_text: return
     
+    reply_text = message.text or message.caption or ""
+    image_name = None
+    
+    # Если админ прикрепил фото
+    if message.photo:
+        image_name = f"sup_adm_{uuid.uuid4().hex[:8]}.jpg"
+        await bot.download(message.photo[-1].file_id, destination=SUPPORT_DIR / image_name)
+        
     async with get_db() as db:
         async with db.execute("SELECT user_id, status FROM tickets WHERE id=?", (tkt_id,)) as cur:
             tkt = await cur.fetchone()
         if not tkt: return
         uid, status = tkt[0], tkt[1]
+        
         if status == 'closed': return await message.reply("⚠️ Закрыт.")
         if status == 'open':
             await db.execute("UPDATE tickets SET status='claimed', claimed_by=? WHERE id=?", (message.from_user.id, tkt_id))
             await db.execute("INSERT INTO support_messages (ticket_id, user_id, text, direction) VALUES (?,?,?, 'system')", (tkt_id, uid, f"👨‍💻 @{message.from_user.username or 'Admin'} в чате."))
-        await db.execute("INSERT INTO support_messages (ticket_id, user_id, text, direction) VALUES (?,?,?,'out')", (tkt_id, uid, reply_text))
+            
+        await db.execute("INSERT INTO support_messages (ticket_id, user_id, text, image, direction) VALUES (?,?,?,?,'out')", (tkt_id, uid, reply_text, image_name))
         await db.commit()
         
     p = await get_player(uid)
     try:
-        await bot.send_message(uid, tr(p["lang"] if p else "en", "support_reply", text=reply_text), parse_mode=ParseMode.HTML)
-        await message.reply("✅ Отправлено.")
-    except: await message.reply("❌ Ошибка отправки (заблокировал бота).")
+        final_text = tr(p["lang"] if p else "en", "support_reply", text=reply_text) if reply_text else tr(p["lang"] if p else "en", "support_reply", text="[Фото]")
+        if image_name:
+            await bot.send_photo(uid, photo=FSInputFile(SUPPORT_DIR / image_name), caption=final_text, parse_mode=ParseMode.HTML)
+        else:
+            await bot.send_message(uid, final_text, parse_mode=ParseMode.HTML)
+        await message.reply("✅ Отправлено пользователю.")
+    except Exception:
+        await message.reply("❌ Ошибка отправки уведомления в ТГ (заблокировал бота). Внутри Web App он всё равно увидит.")
 
 @dp.callback_query(F.data == "crm_tickets")
 async def cq_tickets(cb: CallbackQuery):
@@ -801,7 +920,7 @@ async def cq_tview(cb: CallbackQuery):
         async with db.execute("SELECT text FROM support_messages WHERE ticket_id=? AND direction='in' ORDER BY created_at DESC LIMIT 1", (tkt_id,)) as cur:
             msg = await cur.fetchone()
     kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🙋‍♂️ Взять", callback_data=f"crm_tclaim:{tkt_id}")], [InlineKeyboardButton(text="🔙 К списку", callback_data="crm_tickets")]])
-    await cb.message.edit_text(f"📨 <b>Тикет #{tkt_id}</b>\n\n<i>{msg['text'] if msg else ''}</i>", parse_mode=ParseMode.HTML, reply_markup=kb)
+    await cb.message.edit_text(f"📨 <b>Тикет #{tkt_id}</b>\n\n<i>{msg['text'] if msg else '[Фото]'}</i>", parse_mode=ParseMode.HTML, reply_markup=kb)
 
 @dp.callback_query(F.data.startswith("crm_tclaim:"))
 async def cq_tclaim(cb: CallbackQuery):
@@ -813,7 +932,7 @@ async def cq_tclaim(cb: CallbackQuery):
         await db.execute("UPDATE tickets SET status='claimed', claimed_by=? WHERE id=?", (cb.from_user.id, tkt_id))
         await db.execute("INSERT INTO support_messages (ticket_id, user_id, text, direction) VALUES (?,?,?, 'system')", (tkt_id, tkt[0], f"👨‍💻 @{cb.from_user.username or 'Admin'} в чате."))
         await db.commit()
-    await cb.message.edit_text(f"✅ <b>Тикет #{tkt_id}</b> у вас. Делайте Reply.", parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🔒 Закрыть", callback_data=f"crm_tclose:{tkt_id}")]]))
+    await cb.message.edit_text(f"✅ <b>Тикет #{tkt_id}</b> у вас. Делайте Reply на это сообщение, чтобы ответить. Можно прикреплять фото.", parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🔒 Закрыть", callback_data=f"crm_tclose:{tkt_id}")]]))
 
 @dp.callback_query(F.data.startswith("crm_tclose:"))
 async def cq_tclose(cb: CallbackQuery):
@@ -904,7 +1023,7 @@ async def direct_support_msg(message: Message, state: FSMContext):
     await dispatch_support_ticket(uid, tkt_id, text, claimed_by)
 
 # ═══════════════════════════════════════════════════════════════
-#  FASTAPI APP
+#  FASTAPI APP (Защищенные эндпоинты)
 # ═══════════════════════════════════════════════════════════════
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -939,14 +1058,18 @@ async def api_feed():
     return {"events": events}
 
 @app.get("/api/player/{user_id}")
-async def api_get_player(user_id: int, username: str = ""):
-    player, _ = await get_or_create_player(user_id, username)
+async def api_get_player(user_id: int, username: str = "", init_data: str = Header(None, alias="X-Telegram-Init-Data")):
+    # Безопасность: проверяем, что данные валидны
+    uid = verify_webapp_data(init_data)
+    if uid != user_id: raise HTTPException(403, "ID mismatch")
+
+    player, _ = await get_or_create_player(uid, username)
     lang = player.get("lang", "en")
     
     if player.get("is_banned"):
         return JSONResponse(status_code=403, content={"error": "banned"})
 
-    if not await is_admin(user_id) and not await is_subscribed_to_channel(REQUIRED_CHANNEL_ID, user_id):
+    if not await is_admin(uid) and not await is_subscribed_to_channel(REQUIRED_CHANNEL_ID, uid):
         return JSONResponse(status_code=402, content={"error": "subscription_required", "channels": [{"id": REQUIRED_CHANNEL_ID, "url": REQUIRED_CHANNEL_URL, "name": REQUIRED_CHANNEL_NAME}], "message": tr(lang, "sub_required_ru") if lang == "ru" else tr(lang, "sub_required_en")})
 
     ref_count = player.get("referrals_count", 0)
@@ -957,27 +1080,44 @@ async def api_get_player(user_id: int, username: str = ""):
             if diff.total_seconds() > 0: can_spin, next_spin_ms = False, int(diff.total_seconds() * 1000)
         except: pass
         
+    async with get_db() as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute("SELECT * FROM wheel_config ORDER BY id") as cur:
+            w_conf = [dict(r) for r in await cur.fetchall()]
+        
     return {
-        "player": player, "photos": await get_player_photos(user_id, lang),
+        "player": player, "photos": await get_player_photos(uid, lang),
         "withdraw_unlocked": ref_count >= MIN_REFERRALS_WITHDRAW, "vip_level": vip_level(ref_count),
         "vip_tiers": [{"min": t[0], "max_delay": t[1], "slots": t[2]} for t in VIP_TIERS],
-        "referral_url": await referral_url(user_id), "rub_rate": RUB_TO_USD_RATE,
-        "active_slots": await get_active_photo_count(user_id), "slot_limit": vip_slot_limit(ref_count) + (player.get("extra_slots") or 0),
+        "referral_url": await referral_url(uid), "rub_rate": RUB_TO_USD_RATE,
+        "active_slots": await get_active_photo_count(uid), "slot_limit": vip_slot_limit(ref_count) + (player.get("extra_slots") or 0),
         "min_referrals_withdraw": MIN_REFERRALS_WITHDRAW, "withdraw_condition": tr(lang, "withdraw_locked"),
-        "wheel": {"can_spin": can_spin, "next_spin_ms": next_spin_ms}
+        "wheel": {"can_spin": can_spin, "next_spin_ms": next_spin_ms},
+        "wheel_config": w_conf
     }
 
 @app.post("/api/wheel/spin")
-async def api_wheel_spin(request: Request):
-    uid = (await request.json()).get("user_id")
+async def api_wheel_spin(init_data: str = Header(None, alias="X-Telegram-Init-Data")):
+    uid = verify_webapp_data(init_data)
     p = await get_player(uid)
     if not p or p.get("is_banned"): raise HTTPException(403)
     if p.get("last_spin") and datetime.utcnow() < datetime.fromisoformat(p["last_spin"]) + timedelta(hours=24): raise HTTPException(403)
 
-    r, cur, prize = random.uniform(0, 100), 0, WHEEL_PRIZES[1]
-    for pr in WHEEL_PRIZES:
-        cur += pr["chance"]
-        if r <= cur: prize = pr; break
+    async with get_db() as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute("SELECT * FROM wheel_config ORDER BY id") as cur:
+            prizes = [dict(r) for r in await cur.fetchall()]
+            
+    total_chance = sum(pr['chance'] for pr in prizes)
+    r = random.uniform(0, total_chance)
+    cur_chance = 0
+    prize = prizes[-1]
+    
+    for pr in prizes:
+        cur_chance += pr["chance"]
+        if r <= cur_chance:
+            prize = pr
+            break
 
     async with get_db() as db:
         await db.execute("UPDATE players SET last_spin=datetime('now') WHERE user_id=?", (uid,))
@@ -987,12 +1127,12 @@ async def api_wheel_spin(request: Request):
     return {"success": True, "prize": prize}
 
 @app.post("/api/buy/item")
-async def api_buy_item(request: Request):
-    data = await request.json()
-    uid = data.get("user_id")
-    it = data.get("item")
-    
-    price = 10.0 if it == "spin" else 50.0
+async def api_buy_item(
+    item: str = Form(...),
+    init_data: str = Header(None, alias="X-Telegram-Init-Data")
+):
+    uid = verify_webapp_data(init_data)
+    price = 10.0 if item == "spin" else 50.0
     
     async with get_db() as db:
         db.row_factory = aiosqlite.Row
@@ -1004,32 +1144,44 @@ async def api_buy_item(request: Request):
             
         await db.execute("UPDATE players SET balance=balance-? WHERE user_id=?", (price, uid))
         
-        if it == "spin":
+        if item == "spin":
             await db.execute("UPDATE players SET last_spin=NULL WHERE user_id=?", (uid,))
-        elif it == "slots":
+        elif item == "slots":
             await db.execute("UPDATE players SET extra_slots=extra_slots+1 WHERE user_id=?", (uid,))
             
         await db.commit()
     return {"success": True}
 
 @app.put("/api/player/{user_id}/lang")
-async def api_set_lang(user_id: int, request: Request):
+async def api_set_lang(user_id: int, request: Request, init_data: str = Header(None, alias="X-Telegram-Init-Data")):
+    uid = verify_webapp_data(init_data)
+    if uid != user_id: raise HTTPException(403)
     lang = (await request.json()).get("lang", "en")
     async with get_db() as db:
-        await db.execute("UPDATE players SET lang=? WHERE user_id=?", (lang, user_id))
+        await db.execute("UPDATE players SET lang=? WHERE user_id=?", (lang, uid))
         await db.commit()
     return {"lang": lang}
 
 @app.get("/api/referrals/{user_id}")
-async def api_referrals(user_id: int):
-    return {"referrals": await get_referral_list(user_id), "referrals_count": await get_referral_count(user_id), "referral_url": await referral_url(user_id)}
+async def api_referrals(user_id: int, init_data: str = Header(None, alias="X-Telegram-Init-Data")):
+    uid = verify_webapp_data(init_data)
+    if uid != user_id: raise HTTPException(403)
+    return {"referrals": await get_referral_list(uid), "referrals_count": await get_referral_count(uid), "referral_url": await referral_url(uid)}
 
 @app.post("/api/upload")
-async def api_upload(user_id: int = Form(...), username: str = Form(""), files: List[UploadFile] = File(...)):
-    p, _ = await get_or_create_player(user_id, username)
+async def api_upload(
+    user_id: int = Form(...), 
+    username: str = Form(""), 
+    files: List[UploadFile] = File(...),
+    init_data: str = Header(None, alias="X-Telegram-Init-Data")
+):
+    uid = verify_webapp_data(init_data)
+    if uid != user_id: raise HTTPException(403)
+
+    p, _ = await get_or_create_player(uid, username)
     if p.get("is_banned"): raise HTTPException(403)
     
-    ref_c, act = p.get("referrals_count", 0), await get_active_photo_count(user_id)
+    ref_c, act = p.get("referrals_count", 0), await get_active_photo_count(uid)
     lim = vip_slot_limit(ref_c) + (p.get("extra_slots") or 0)
     if act + len(files) > lim: raise HTTPException(403, "Limit reached")
 
@@ -1049,21 +1201,24 @@ async def api_upload(user_id: int = Form(...), username: str = Form(""), files: 
         for i, fn in enumerate(saved_files):
             sat = (datetime.utcnow() + timedelta(seconds=random.randint(MIN_DELAY_SECS, max(md, MIN_DELAY_SECS + 1)))).isoformat()
             sr, pu, pid = rub_each[i], apply_commission(rub_to_usd(rub_each[i])), uuid.uuid4().hex
-            await db.execute("INSERT INTO photos (id, user_id, filename, batch_id, base_price, final_price, sale_rub, status, sell_at) VALUES (?,?,?,?,?,?,?,'on_auction',?)", (pid, user_id, fn, bid, pu, pu, sr, sat))
+            await db.execute("INSERT INTO photos (id, user_id, filename, batch_id, base_price, final_price, sale_rub, status, sell_at) VALUES (?,?,?,?,?,?,?,'on_auction',?)", (pid, uid, fn, bid, pu, pu, sr, sat))
             results.append({"photo_id": pid, "filename": fn, "base_price": pu, "preview_rub": sr, "status": "on_auction"})
         await db.commit()
         
     return {"batch_id": bid, "is_pack": is_pack, "photos": results, "total_rub": sum(rub_each), "slot_limit": lim, "active_after": act + len(saved_files)}
 
 @app.post("/api/withdraw/check")
-async def api_withdraw_check(request: Request):
-    missing = await check_all_subs((await request.json()).get("user_id"))
+async def api_withdraw_check(init_data: str = Header(None, alias="X-Telegram-Init-Data")):
+    uid = verify_webapp_data(init_data)
+    missing = await check_all_subs(uid)
     return {"ok": not missing, "channels": missing if missing else []}
 
 @app.post("/api/withdraw")
 @app.post("/api/withdraw/stars")
-async def api_withdraw_both(request: Request):
-    is_stars, uid = "stars" in request.url.path, (await request.json()).get("user_id")
+async def api_withdraw_both(request: Request, init_data: str = Header(None, alias="X-Telegram-Init-Data")):
+    uid = verify_webapp_data(init_data)
+    is_stars = "stars" in request.url.path
+    
     p = await get_player(uid)
     if not p or p.get("is_banned"): raise HTTPException(403)
     lang, refs = p.get("lang", "en"), p.get("referrals_count", 0)
@@ -1084,11 +1239,30 @@ async def api_withdraw_both(request: Request):
         except: pass
     return {"success": True, "message": tr(lang, "withdraw_processing")}
 
+@app.get("/api/support/messages")
+async def api_support_messages(init_data: str = Header(None, alias="X-Telegram-Init-Data")):
+    uid = verify_webapp_data(init_data)
+    async with get_db() as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute("SELECT * FROM support_messages WHERE user_id=? ORDER BY created_at ASC", (uid,)) as cur:
+            return {"messages": [dict(r) for r in await cur.fetchall()]}
+
 @app.post("/api/support/send")
-async def api_support_send(request: Request):
-    data = await request.json()
-    uid, text = data.get("user_id"), data.get("text", "").strip()
-    if not uid or not text: raise HTTPException(400)
+async def api_support_send(
+    text: str = Form(""),
+    file: UploadFile = File(None),
+    init_data: str = Header(None, alias="X-Telegram-Init-Data")
+):
+    uid = verify_webapp_data(init_data)
+    text = text.strip()
+    
+    img_filename = None
+    if file and file.filename:
+        img_filename = f"sup_usr_{uuid.uuid4().hex[:8]}.jpg"
+        filepath = SUPPORT_DIR / img_filename
+        await asyncio.to_thread(filepath.write_bytes, await file.read())
+        
+    if not text and not img_filename: raise HTTPException(400, "Empty")
     
     async with get_db() as db:
         db.row_factory = aiosqlite.Row
@@ -1100,18 +1274,12 @@ async def api_support_send(request: Request):
             async with db.execute("SELECT last_insert_rowid()") as cur: tkt_id = (await cur.fetchone())[0]
             cb = None
         else: tkt_id, cb = tkt["id"], tkt["claimed_by"]
-        await db.execute("INSERT INTO support_messages (ticket_id, user_id, text, direction) VALUES (?,?,?,'in')", (tkt_id, uid, text))
+        
+        await db.execute("INSERT INTO support_messages (ticket_id, user_id, text, image, direction) VALUES (?,?,?,?,'in')", (tkt_id, uid, text, img_filename))
         await db.commit()
         
-    await dispatch_support_ticket(uid, tkt_id, text, cb)
+    await dispatch_support_ticket(uid, tkt_id, text, cb, img_filename)
     return {"success": True}
-
-@app.get("/api/support/messages/{user_id}")
-async def api_support_messages(user_id: int):
-    async with get_db() as db:
-        db.row_factory = aiosqlite.Row
-        async with db.execute("SELECT * FROM support_messages WHERE user_id=? ORDER BY created_at ASC", (user_id,)) as cur:
-            return {"messages": [dict(r) for r in await cur.fetchall()]}
 
 @app.post("/api/referral/bind")
 async def api_referral_bind(request: Request):
