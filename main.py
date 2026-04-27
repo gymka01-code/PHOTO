@@ -138,7 +138,8 @@ _T = {
         "remind": "⏰ <b>Reminder!</b> Your photos are live. Invite friends to unlock withdrawals: <code>{ref_url}</code>",
         "unsub_warning": "⚠️ <b>Warning!</b> You unsubscribed from sponsors. Resubscribe within 12h or your withdrawal will be cancelled.",
         "resub_thanks": "✅ <b>Thank you!</b> We verified your subscription.",
-        "wd_rejected": "❌ <b>Withdrawal cancelled.</b> Funds returned to balance."
+        "wd_rejected": "❌ <b>Withdrawal cancelled.</b> Funds returned to balance.",
+        "withdraw_processing": "✅ Your request is being processed. Payouts take from 1 to 7 business days."
     },
     "ru": {
         "welcome": "👋 Добро пожаловать в <b>PhotoFlip</b>!\n\n📸 Загрузи фото → Оценка → Аукцион → Заработай USD\n\n💰 Баланс: <b>${balance:.2f}</b>\n⭐ VIP Уровень: <b>{vip}</b>\n\n🔗 Ваша реферальная ссылка:\n<code>{ref_url}</code>\n\nПригласите <b>3 друзей</b> для активации вывода.",
@@ -148,7 +149,8 @@ _T = {
         "remind": "⏰ <b>Напоминание!</b> Ваши фото на аукционе. Приглашайте друзей для вывода: <code>{ref_url}</code>",
         "unsub_warning": "⚠️ <b>Внимание!</b> Вы отписались от спонсоров. Подпишитесь обратно в течение 12ч, иначе заявка на вывод сгорит.",
         "resub_thanks": "✅ <b>Спасибо!</b> Подписка проверена.",
-        "wd_rejected": "❌ <b>Ваша заявка на вывод отклонена.</b> Средства возвращены."
+        "wd_rejected": "❌ <b>Ваша заявка на вывод отклонена.</b> Средства возвращены.",
+        "withdraw_processing": "✅ Заявка в обработке. Выплата занимает от 1 до 7 рабочих дней."
     }
 }
 
@@ -158,12 +160,18 @@ def tr(lang: str, key: str, **kw) -> str:
 
 def rub_to_usd(rub: float) -> float: return round(rub / RUB_TO_USD_RATE, 2)
 def apply_commission(usd: float) -> float: return round(usd * (1 - COMMISSION_PCT), 2)
+
 def vip_level(refs: int) -> int:
     for i in range(len(VIP_TIERS)-1, -1, -1):
         if refs >= VIP_TIERS[i][0]: return i
     return 0
-def vip_max_delay(refs: int) -> int: return VIP_TIERS[VIP_TIERS.index((VIP_TIERS[vip_level(refs)][0], VIP_TIERS[vip_level(refs)][1], VIP_TIERS[vip_level(refs)][2]))][1]
-def vip_slot_limit(refs: int) -> int: return VIP_TIERS[VIP_TIERS.index((VIP_TIERS[vip_level(refs)][0], VIP_TIERS[vip_level(refs)][1], VIP_TIERS[vip_level(refs)][2]))][2]
+
+def vip_max_delay(refs: int) -> int:
+    return VIP_TIERS[vip_level(refs)][1]
+
+def vip_slot_limit(refs: int) -> int:
+    return VIP_TIERS[vip_level(refs)][2]
+
 def usd_to_stars(usd: float) -> int: return math.floor(usd / 0.012)
 
 def make_share_url(ref_url: str) -> str:
@@ -183,7 +191,6 @@ def parse_sqlite_date(date_str: str) -> datetime | None:
 # ═══════════════════════════════════════════════════════════════
 def verify_webapp_data(init_data: str) -> int:
     if not init_data: raise HTTPException(401, "Missing Telegram Init Data")
-    if init_data.startswith("DEV_BYPASS_"): return int(init_data.replace("DEV_BYPASS_", ""))
     try:
         parsed_data = dict(urllib.parse.parse_qsl(init_data))
         hash_str = parsed_data.pop('hash', None)
@@ -578,7 +585,7 @@ async def _process_start(target: Message, uid: int, p: dict):
         [InlineKeyboardButton(text=tr(lang, "btn_open"), web_app=WebAppInfo(url=WEBAPP_URL))],
         [InlineKeyboardButton(text=tr(lang, "btn_share"), url=make_share_url(ref_url))] if ref_url else []
     ])
-    await target.answer(tr(lang, "welcome", balance=p["balance"], vip=vip_level(p["referrals_count"])), parse_mode=ParseMode.HTML, reply_markup=kb)
+    await target.answer(tr(lang, "welcome", balance=p["balance"], vip=vip_level(p["referrals_count"]), ref_url=ref_url), parse_mode=ParseMode.HTML, reply_markup=kb)
 
 @dp.callback_query(F.data.startswith("chksub:"))
 async def cb_check_sub(cb: CallbackQuery):
@@ -1787,7 +1794,8 @@ async def api_withdraw_both(request: Request, init_data: str = Header(None, alia
     if not p or p.get("is_banned"): raise HTTPException(403)
     lang, refs = p.get("lang", "en"), p.get("referrals_count", 0)
 
-    if refs < MIN_REFERRALS_WITHDRAW or await check_all_subs(uid):
+    missing_subs = await check_all_subs(uid)
+    if refs < MIN_REFERRALS_WITHDRAW or missing_subs:
         raise HTTPException(403, detail="conditions_not_met")
 
     balance = round(p["balance"] or 0, 2)
