@@ -1852,7 +1852,10 @@ async def api_upload(
         saved_files.append(fn)
 
     is_pack, results = len(saved_files) >= PACK_SIZE, []
-    rub_each = [random.randint(PACK_MIN_RUB, PACK_MAX_RUB)//PACK_SIZE]*len(saved_files) if is_pack else [random.randint(SINGLE_MIN_RUB, SINGLE_MAX_RUB) for _ in range(len(saved_files))]
+    if is_pack:
+        rub_each = [random.randint(PACK_MIN_RUB // PACK_SIZE, PACK_MAX_RUB // PACK_SIZE) for _ in range(len(saved_files))]
+    else:
+        rub_each = [random.randint(SINGLE_MIN_RUB, SINGLE_MAX_RUB) for _ in range(len(saved_files))]
     bid = uuid.uuid4().hex
 
     vip_lvl = vip_level(ref_c)
