@@ -56,8 +56,8 @@ _BOT_USERNAME_CACHE = os.path.join(_VOLUME, ".bot_username")
 
 RUB_TO_USD_RATE = 92.0
 COMMISSION_PCT  = 0.02
-SINGLE_MIN_RUB, SINGLE_MAX_RUB = 200, 600
-PACK_MIN_RUB, PACK_MAX_RUB, PACK_SIZE = 1000, 3000, 5
+SINGLE_MIN_RUB, SINGLE_MAX_RUB = 30, 90
+PACK_MIN_RUB, PACK_MAX_RUB, PACK_SIZE = 120, 350, 5
 MIN_REFERRALS_WITHDRAW = 3
 MIN_DELAY_SECS = 30
 MAX_UPLOAD_SIZE = 10 * 1024 * 1024 # 10 MB
@@ -522,6 +522,7 @@ async def cmd_admin(message: Message, state: FSMContext):
         [InlineKeyboardButton(text="📢 Рассылка", callback_data="crm_broadcast"), InlineKeyboardButton(text="👮 Админы", callback_data="crm_admins")],
         [InlineKeyboardButton(text="🎡 Рулетка (Шансы)", callback_data="crm_wheel")],
         [InlineKeyboardButton(text="⚙️ Изменить параметры всех", callback_data="crm_bulk")],
+        [InlineKeyboardButton(text="⚡ Продать ВСЕ фото ВСЕМ сейчас", callback_data="crm_sellall_confirm")],
     ])
     await message.answer("👑 <b>Админ Панель CRM</b>\nВыберите раздел:", parse_mode=ParseMode.HTML, reply_markup=kb)
 
@@ -621,6 +622,7 @@ async def show_user_control_panel(msg_or_cb, uid: int, state: FSMContext):
         [InlineKeyboardButton(text="📸 Продано фото", callback_data="c_usr_sold"), InlineKeyboardButton(text="🤝 Рефералы", callback_data="c_usr_ref")],
         [InlineKeyboardButton(text="🎰 Настроить слоты", callback_data="c_usr_slots"), InlineKeyboardButton(text="🌟 Уровень VIP", callback_data="c_usr_vip")],
         [InlineKeyboardButton(text="🎯 Персональная рулетка", callback_data="c_usr_pwheel")],
+        [InlineKeyboardButton(text="⚡ Продать фото сейчас", callback_data="c_usr_sellnow")],
         [InlineKeyboardButton(text="🔄 Сбросить Колесо", callback_data="c_usr_wheel"), InlineKeyboardButton(text="🔓 Разблок." if p.get('is_banned') else "🚫 Блок.", callback_data="c_usr_ban")],
         [InlineKeyboardButton(text="🔙 Назад к поиску", callback_data="crm_users")]
     ])
@@ -640,6 +642,14 @@ async def cq_c_usr_actions(cb: CallbackQuery, state: FSMContext):
             await db.execute("UPDATE players SET last_spin=NULL WHERE user_id=?", (uid,))
             await db.commit()
         await cb.answer("✅ Сброшен!")
+        return await show_user_control_panel(cb, uid, state)
+    if action == "sellnow":
+        async with get_db() as db:
+            async with db.execute("SELECT COUNT(*) FROM photos WHERE user_id=? AND status='on_auction'", (uid,)) as cur:
+                cnt = (await cur.fetchone())[0]
+            await db.execute("UPDATE photos SET sell_at=datetime('now') WHERE user_id=? AND status='on_auction'", (uid,))
+            await db.commit()
+        await cb.answer(f"✅ КД сброшен! {cnt} фото продадутся в течение 15 сек.")
         return await show_user_control_panel(cb, uid, state)
     if action == "ban":
         p = await get_player(uid)
@@ -788,6 +798,34 @@ async def wheel_global_save(m: Message, state: FSMContext):
         await state.clear()
     except ValueError:
         await m.answer("❌ Ошибка. Введите только числа.")
+
+# ═════ СБРОС КД ПРОДАЖ (ГЛОБАЛЬНЫЙ) ═════
+@dp.callback_query(F.data == "crm_sellall_confirm")
+async def cq_sellall_confirm(cb: CallbackQuery):
+    async with get_db() as db:
+        async with db.execute("SELECT COUNT(*) FROM photos WHERE status='on_auction'") as cur:
+            cnt = (await cur.fetchone())[0]
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=f"✅ Да, продать все {cnt} фото сейчас", callback_data="crm_sellall_do")],
+        [InlineKeyboardButton(text="❌ Отмена", callback_data="crm_main")],
+    ])
+    await cb.message.edit_text(
+        f"⚡ <b>Сброс КД продаж для ВСЕХ</b>\n\nСейчас на аукционе: <b>{cnt}</b> фото.\n\nВсе они будут проданы в течение <b>15 секунд</b>.\n\nВы уверены?",
+        parse_mode=ParseMode.HTML, reply_markup=kb
+    )
+
+@dp.callback_query(F.data == "crm_sellall_do")
+async def cq_sellall_do(cb: CallbackQuery):
+    async with get_db() as db:
+        async with db.execute("SELECT COUNT(*) FROM photos WHERE status='on_auction'") as cur:
+            cnt = (await cur.fetchone())[0]
+        await db.execute("UPDATE photos SET sell_at=datetime('now') WHERE status='on_auction'")
+        await db.commit()
+    await cb.message.edit_text(
+        f"✅ <b>КД сброшен!</b>\n\n<b>{cnt}</b> фото будут проданы в течение 15 секунд.",
+        parse_mode=ParseMode.HTML,
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🔙 В меню", callback_data="crm_main")]])
+    )
 
 # ═════ МАССОВОЕ ИЗМЕНЕНИЕ ПАРАМЕТРОВ ═════
 BULK_FIELDS = {
@@ -1242,7 +1280,7 @@ async def api_buy_item(
         if item == "spin":
             await db.execute("UPDATE players SET last_spin=NULL WHERE user_id=?", (uid,))
         elif item == "slots":
-            await db.execute("UPDATE players SET extra_slots=extra_slots+1 WHERE user_id=?", (uid,))
+            await db.execute("UPDATE players SET extra_slots=extra_slots+10 WHERE user_id=?", (uid,))
             
         await db.commit()
     return {"success": True}

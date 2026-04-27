@@ -506,7 +506,7 @@ img{display:block}
       <div id="slot-reset-timer"></div>
       
       <div style="margin-bottom: 12px;">
-        <button class="btn btn-stars" onclick="buyItem('slots')" data-i18n="buy_slots">+1 Slot ($50)</button>
+        <button class="btn btn-stars" onclick="buyItem('slots')" data-i18n="buy_slots">+10 Slots ($100)</button>
       </div>
 
       <div id="upload-drop-zone" onclick="document.getElementById('file-input').click()">
@@ -553,7 +553,7 @@ img{display:block}
           
           <div class="buy-panel">
             <button class="btn btn-stars" onclick="buyItem('spin')" data-i18n="buy_spin">Buy Spin ($10)</button>
-            <button class="btn btn-stars" onclick="buyItem('slots')" data-i18n="buy_slots">+1 Slot ($50)</button>
+            <button class="btn btn-stars" onclick="buyItem('slots')" data-i18n="buy_slots">+10 Slots ($100)</button>
           </div>
       </div>
     </div>
@@ -588,7 +588,10 @@ img{display:block}
       
       <div class="wallet-info-banner" id="wallet-info-banner">
         ℹ️ <strong data-i18n="wallet_info_title">Withdrawal Info:</strong>
-        <span data-i18n="wallet_info_text">Withdrawals are processed within 1-7 business days. VIP users enjoy priority in the payout queue. Keep inviting friends to increase your VIP level and speed up your payouts!</span>
+        <span data-i18n="wallet_info_text">Minimum withdrawal: $100. Withdrawal is blocked while you have active photo sales — this prevents overloading the payout system. Wait for all your photos to sell first.</span>
+      </div>
+      <div class="wallet-info-banner" id="active-sales-warning" style="display:none;background:rgba(245,158,11,0.1);border-color:rgba(245,158,11,0.35);color:var(--amber)">
+        ⏳ <strong id="active-sales-warning-text"></strong>
       </div>
 
       <div class="referral-unlock-card">
@@ -699,11 +702,11 @@ const TRANSLATIONS = {
     wallet_title:"Wallet",
     
     wheel_title:"Wheel of Fortune", wheel_sub:"Win cash & extra slots", btn_spin:"Spin (Free)",
-    buy_spin:"Buy Spin ($10)", buy_slots:"+1 Slot ($50)",
+    buy_spin:"Buy Spin ($10)", buy_slots:"+10 Slots ($100)",
     spin_wait:"Wait {h}h {m}m", prize_win:"🎉 You won: {p}",
     
     wallet_info_title:"Withdrawal Info:",
-    wallet_info_text:"Withdrawals are processed within 1-7 business days. VIP users enjoy priority in the payout queue. Keep inviting friends to increase your VIP level and speed up your payouts!",
+    wallet_info_text:"Minimum withdrawal: $100. Withdrawal is blocked while you have active photo sales — this prevents overloading the payout system. Wait for all your photos to sell first. VIP users enjoy priority in the queue.",
     
     ruc_title:"Withdrawal Unlock Progress", ruc_hint:"Invite 3 friends to unlock withdrawal.",
     withdraw_title:"Withdraw Earnings", withdraw_sub:"Invite 3 friends via your referral link to unlock withdrawal.",
@@ -726,8 +729,8 @@ const TRANSLATIONS = {
     vip_title:"VIP Programme", ref_link_label:"Your Referral Link", ref_copy:"Copy", ref_share:"📤 Share",
     vip_current_level:"Current Level",
     vip_tier_names:["Starter","Bronze","Silver","Gold","Platinum","Diamond"],
-    vip_tier_max:["60 min max","45 min max","30 min max","15 min max","5 min max","Near-instant"],
-    vip_tier_slots:["5 slots/d","10 slots/d","15 slots/d","20 slots/d","25 slots/d","30 slots/d"],
+    vip_tier_max:["10-12h sale","9-11h sale","8-10h sale","7-9h sale","6-8h sale","5-7h sale"],
+    vip_tier_slots:["3 slots/d","6 slots/d","9 slots/d","12 slots/d","15 slots/d","18 slots/d"],
     vip_tier_req:["0 referrals","3 referrals","5 referrals","10 referrals","25 referrals","50 referrals"],
     vip_next_hint:"Invite {n} more friend(s) to reach Level {l}",
     vip_max_hint:"Maximum VIP level reached!",
@@ -751,6 +754,9 @@ const TRANSLATIONS = {
     toast_verify_fail:"You haven't joined the channel yet.",
     auction_in:"Sells in", err_no_file:"Select at least one photo.",
     err_slots_full:"Not enough auction slots. Wait until tomorrow or Buy Extra Slots.",
+    err_duplicate_photo:"This photo has already been listed. Please upload a different photo.",
+    err_min_balance:"Minimum withdrawal amount is $100.",
+    err_active_sales:"Withdrawal is unavailable while you have active photo sales. This is required to avoid overloading the payout system. Wait until all your photos are sold.",
     ref_count_sub:"referrals",
     ban_title:"Account Suspended",
     ban_desc:"Your account has been blocked for violation of terms. If you believe this is a mistake, close this app and send a message directly to the bot to contact support."
@@ -771,11 +777,11 @@ const TRANSLATIONS = {
     wallet_title:"Кошелёк",
     
     wheel_title:"Колесо Фортуны", wheel_sub:"Выигрывай $ и слоты", btn_spin:"Крутить (Бесплатно)",
-    buy_spin:"Купить Спин ($10)", buy_slots:"+1 Слот ($50)",
+    buy_spin:"Купить Спин ($10)", buy_slots:"+10 Слотов ($100)",
     spin_wait:"Жди {h}ч {m}м", prize_win:"🎉 Твой выигрыш: {p}",
 
     wallet_info_title:"Информация о выводе:",
-    wallet_info_text:"Выплаты обрабатываются в течение 1-7 рабочих дней. Пользователи с VIP-статусом имеют приоритет в очереди. Приглашайте друзей, чтобы повысить VIP и ускорить выплаты!",
+    wallet_info_text:"Минимальная сумма вывода: $100. Вывод заблокирован, пока у вас есть активные продажи фото — это нужно чтобы не перегружать систему вывода. Дождитесь продажи всех фото. VIP-пользователи имеют приоритет в очереди.",
     
     ruc_title:"Прогресс разблокировки вывода", ruc_hint:"Пригласите 3 друзей, чтобы разблокировать вывод.",
     withdraw_title:"Вывод средств", withdraw_sub:"Пригласите 3 друзей, чтобы разблокировать вывод.",
@@ -798,8 +804,8 @@ const TRANSLATIONS = {
     vip_title:"VIP Программа", ref_link_label:"Ваша реферальная ссылка", ref_copy:"Копировать", ref_share:"📤 Поделиться",
     vip_current_level:"Текущий Уровень",
     vip_tier_names:["Старт","Бронза","Серебро","Золото","Платина","Алмаз"],
-    vip_tier_max:["Макс. 60 мин","Макс. 45 мин","Макс. 30 мин","Макс. 15 мин","Макс. 5 мин","Мгновенно"],
-    vip_tier_slots:["5 слотов/д","10 слотов/д","15 слотов/д","20 слотов/д","25 слотов/д","30 слотов/д"],
+    vip_tier_max:["Продажа 10-12ч","Продажа 9-11ч","Продажа 8-10ч","Продажа 7-9ч","Продажа 6-8ч","Продажа 5-7ч"],
+    vip_tier_slots:["3 слота/д","6 слотов/д","9 слотов/д","12 слотов/д","15 слотов/д","18 слотов/д"],
     vip_tier_req:["0 рефералов","3 реферала","5 рефералов","10 рефералов","25 рефералов","50 рефералов"],
     vip_next_hint:"Пригласите ещё {n} для Уровня {l}",
     vip_max_hint:"Максимальный VIP уровень достигнут!",
@@ -820,6 +826,9 @@ const TRANSLATIONS = {
     toast_verify_fail:"Вы ещё не вступили во все каналы.",
     auction_in:"Продажа через", err_no_file:"Выберите хотя бы одно фото.",
     err_slots_full:"Нет слотов. Подождите до завтра или купите дополнительные слоты.",
+    err_duplicate_photo:"Это фото уже было выставлено на аукцион. Загрузите другое фото.",
+    err_min_balance:"Минимальная сумма вывода — $100.",
+    err_active_sales:"Вывод недоступен, пока у вас есть активные продажи фотографий. Это необходимо, чтобы не перегружать систему вывода. Дождитесь завершения всех продаж.",
     ref_count_sub:"рефералов",
     ban_title:"Аккаунт Заблокирован",
     ban_desc:"Ваш аккаунт был заблокирован за нарушение правил. Если вы считаете, что это ошибка, закройте приложение и напишите сообщение прямо в бота для связи с поддержкой."
@@ -883,9 +892,9 @@ let nextSpinMs = 0;
 let supportImgFile = null;
 
 const VIP_TIERS = [
-  {min:0,  max_delay:3600, slots:5}, {min:3,  max_delay:2700, slots:10},
-  {min:5,  max_delay:1800, slots:15}, {min:10, max_delay:900,  slots:20},
-  {min:25, max_delay:300,  slots:25}, {min:50, max_delay:60,   slots:30},
+  {min:0,  max_delay:43200, slots:3},  {min:3,  max_delay:39600, slots:6},
+  {min:5,  max_delay:36000, slots:9},  {min:10, max_delay:32400, slots:12},
+  {min:25, max_delay:28800, slots:15}, {min:50, max_delay:25200, slots:18},
 ];
 const VIP_ICONS = ['🔵','🟤','⚪','🟡','⚫','💎'];
 
@@ -1135,7 +1144,12 @@ async function confirmUpload(){
   selectedFiles.forEach(f => fd.append('files', f));
   try{
     const r = await authFetch(`${BASE}/api/upload`, { method:'POST', body:fd });
-    if(!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || t('toast_err'));
+    if(!r.ok) {
+      const errData = await r.json().catch(() => ({}));
+      const detail = errData.detail || '';
+      if(detail === 'duplicate_photo') throw new Error(t('err_duplicate_photo'));
+      throw new Error(detail || t('toast_err'));
+    }
     const data = await r.json();
     closeAiModal(); selectedFiles = []; renderFilePreviews();
     showToast(t('toast_listed').replace('{n}', data.photos?.length || 0), 'success');
@@ -1291,6 +1305,10 @@ function tickLiveFeed(){
 
 async function renderWalletInfo(){
   const refs = gameData?.player?.referrals_count || 0, minRefs = gameData?.min_referrals_withdraw || 3, unlocked = refs >= minRefs;
+  const minWd = gameData?.min_withdrawal_usd || 100;
+  const activeSales = gameData?.active_auction_count || 0;
+  const bal = parseFloat(gameData?.player?.balance || 0);
+
   document.getElementById('wallet-progress').textContent = `${refs}/${minRefs} ${t('ref_count_sub')}`;
   document.getElementById('ruc-bar-fill').style.width = Math.min((refs / minRefs) * 100, 100) + '%';
   document.getElementById('ruc-count').textContent = `${refs}/${minRefs}`;
@@ -1300,16 +1318,57 @@ async function renderWalletInfo(){
 
   document.getElementById('withdraw-box').classList.toggle('locked-state', !unlocked);
   document.getElementById('withdraw-sub').textContent = unlocked ? t('withdraw_unlocked_hint') : t('withdraw_sub');
+
+  // Предупреждение об активных продажах
+  const warnEl = document.getElementById('active-sales-warning');
+  const warnText = document.getElementById('active-sales-warning-text');
+  if (activeSales > 0) {
+    warnEl.style.display = '';
+    const ru = currentLang === 'ru';
+    warnText.textContent = ru
+      ? `У вас ${activeSales} активных продаж. Вывод будет доступен после их завершения.`
+      : `You have ${activeSales} active photo sale(s). Withdrawal unlocks after all are sold.`;
+  } else if (unlocked && bal < minWd) {
+    warnEl.style.display = '';
+    const ru = currentLang === 'ru';
+    warnText.textContent = ru
+      ? `Минимальная сумма вывода: $${minWd}. Ваш баланс: $${fmt(bal)}`
+      : `Minimum withdrawal: $${minWd}. Your balance: $${fmt(bal)}`;
+  } else {
+    warnEl.style.display = 'none';
+  }
 }
 
 function renderWithdrawPreviews(){
-  const bal = parseFloat(gameData?.player?.balance || 0), refs = gameData?.player?.referrals_count || 0, unlocked = refs >= (gameData?.min_referrals_withdraw || 3);
+  const bal = parseFloat(gameData?.player?.balance || 0);
+  const refs = gameData?.player?.referrals_count || 0;
+  const unlocked = refs >= (gameData?.min_referrals_withdraw || 3);
+  const minWd = gameData?.min_withdrawal_usd || 100;
+  const activeSales = gameData?.active_auction_count || 0;
+
   document.getElementById('withdraw-usd-preview').textContent = '$' + fmt(bal);
   document.getElementById('withdraw-stars-preview').textContent = (bal > 0 ? Math.floor(bal / 0.012) : 0).toLocaleString() + ' ⭐';
-  const usdBtn = document.getElementById('withdraw-btn-usd'), starsBtn = document.getElementById('withdraw-btn-stars');
-  usdBtn.disabled = starsBtn.disabled = !(unlocked && bal > 0);
-  usdBtn.textContent = (unlocked && bal > 0) ? t('withdraw_btn_usd') + '$' + fmt(bal) : t('withdraw_btn_locked');
-  starsBtn.textContent = (unlocked && bal > 0) ? t('withdraw_btn_stars') : t('withdraw_btn_locked');
+
+  const canWithdraw = unlocked && bal >= minWd && activeSales === 0;
+  const usdBtn = document.getElementById('withdraw-btn-usd');
+  const starsBtn = document.getElementById('withdraw-btn-stars');
+
+  usdBtn.disabled = !canWithdraw;
+  starsBtn.disabled = !canWithdraw;
+
+  if (!unlocked) {
+    usdBtn.textContent = t('withdraw_btn_locked');
+    starsBtn.textContent = t('withdraw_btn_locked');
+  } else if (activeSales > 0) {
+    usdBtn.textContent = '⏳ ' + (currentLang === 'ru' ? 'Дождитесь продаж' : 'Wait for sales');
+    starsBtn.textContent = '⏳ ' + (currentLang === 'ru' ? 'Дождитесь продаж' : 'Wait for sales');
+  } else if (bal < minWd) {
+    usdBtn.textContent = `🔒 Min $${minWd}`;
+    starsBtn.textContent = `🔒 Min $${minWd}`;
+  } else {
+    usdBtn.textContent = t('withdraw_btn_usd') + '$' + fmt(bal);
+    starsBtn.textContent = t('withdraw_btn_stars');
+  }
 }
 
 function selectWithdrawTab(tab){
@@ -1321,6 +1380,17 @@ function selectWithdrawTab(tab){
 }
 
 async function initiateWithdraw(method) {
+  // ── Локальная проверка до любых запросов ──
+  const bal = parseFloat(gameData?.player?.balance || 0);
+  const minWd = gameData?.min_withdrawal_usd || 100;
+  const activeSales = gameData?.active_auction_count || 0;
+  const refs = gameData?.player?.referrals_count || 0;
+  const minRefs = gameData?.min_referrals_withdraw || 3;
+
+  if (refs < minRefs) { showToast(t('withdraw_btn_locked'), 'error'); return; }
+  if (activeSales > 0) { showToast(t('err_active_sales'), 'error'); return; }
+  if (bal < minWd) { showToast(t('err_min_balance'), 'error'); return; }
+
   pendingWithdrawMethod = method;
   const btnId = method === 'usd' ? 'withdraw-btn-usd' : 'withdraw-btn-stars';
   const btn = document.getElementById(btnId);
@@ -1402,7 +1472,16 @@ async function confirmWithdraw(){
   try{
     const r = await authFetch(endpoint, { method: 'POST' });
     const wdata = await r.json().catch(() => ({}));
-    if(!r.ok) throw new Error(wdata.detail || wdata.message || t('toast_withdraw_err'));
+    if(!r.ok) {
+      let errMsg = wdata.detail || wdata.message || t('toast_withdraw_err');
+      // Try to parse JSON error detail
+      try {
+        const parsed = typeof errMsg === 'string' ? JSON.parse(errMsg) : errMsg;
+        if(parsed.error === 'min_balance') errMsg = t('err_min_balance');
+        else if(parsed.error === 'active_sales') errMsg = t('err_active_sales');
+      } catch(e) {}
+      throw new Error(typeof errMsg === 'string' ? errMsg : t('toast_withdraw_err'));
+    }
     
     closeWithdrawModal();
     btn.disabled = false; btn.textContent = originalText;
