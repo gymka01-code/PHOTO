@@ -67,7 +67,7 @@ VIP_TIERS = [
     (10, 32400, 12), (25, 28800, 15), (50, 25200, 18),
 ]
 
-MIN_WITHDRAWAL_USD = 100.0  # Минимальная сумма для вывода
+MIN_WITHDRAWAL_USD = 100.0
 
 REQUIRED_CHANNEL_ID   = "@Photo_Flip_Market"
 REQUIRED_CHANNEL_URL  = "https://t.me/Photo_Flip_Market"
@@ -112,7 +112,8 @@ class AdminPanel(StatesGroup):
     wait_new_admin_id = State()
     wait_wheel_global = State()
     wait_wheel_personal = State()
-    wait_bulk_field_value = State()  # Массовое изменение параметров
+    wait_bulk_field_value = State()
+    wait_maintenance_time = State()  # Состояние для тех. работ
 
 _T = {
     "en": {
@@ -156,41 +157,27 @@ def make_share_url(ref_url: str) -> str:
     return f"https://t.me/share/url?url={urllib.parse.quote(ref_url, safe='')}&text={urllib.parse.quote(text, safe='')}"
 
 # ═══════════════════════════════════════════════════════════════
-#  SECURITY: Валидация Web App Init Data + Анти-Replay
+#  SECURITY & DB
 # ═══════════════════════════════════════════════════════════════
 def verify_webapp_data(init_data: str) -> int:
-    """Проверяет подпись от Telegram WebApp и срок годности токена."""
-    if not init_data:
-        raise HTTPException(401, "Missing Telegram Init Data")
-    
-    if init_data.startswith("DEV_BYPASS_"):
-        return int(init_data.replace("DEV_BYPASS_", ""))
-
+    if not init_data: raise HTTPException(401, "Missing Telegram Init Data")
+    if init_data.startswith("DEV_BYPASS_"): return int(init_data.replace("DEV_BYPASS_", ""))
     try:
         parsed_data = dict(urllib.parse.parse_qsl(init_data))
         hash_str = parsed_data.pop('hash', None)
         if not hash_str: raise Exception()
-
         auth_date = int(parsed_data.get('auth_date', 0))
-        if time.time() - auth_date > 86400:
-            raise HTTPException(401, "Session Expired")
-
+        if time.time() - auth_date > 86400: raise HTTPException(401, "Session Expired")
         data_check_string = "\n".join(f"{k}={v}" for k, v in sorted(parsed_data.items()))
         secret_key = hmac.new(b"WebAppData", BOT_TOKEN.encode(), hashlib.sha256).digest()
         calc_hash = hmac.new(secret_key, data_check_string.encode(), hashlib.sha256).hexdigest()
-        
-        if calc_hash != hash_str:
-            raise HTTPException(401, "Invalid Signature")
-        
+        if calc_hash != hash_str: raise HTTPException(401, "Invalid Signature")
         user_json = json.loads(parsed_data.get('user', '{}'))
         return int(user_json.get('id'))
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(401, f"Validation Error: {str(e)}")
+    except HTTPException: raise
+    except Exception as e: raise HTTPException(401, f"Validation Error: {str(e)}")
 
-def get_db():
-    return aiosqlite.connect(DB_PATH, timeout=20.0)
+def get_db(): return aiosqlite.connect(DB_PATH, timeout=20.0)
 
 async def init_db():
     async with get_db() as db:
@@ -225,11 +212,35 @@ async def init_db():
                 for p in DEFAULT_WHEEL_PRIZES:
                     await db.execute("INSERT INTO wheel_config (id, type, val, label, color, chance) VALUES (?,?,?,?,?,?)", (p['id'], p['type'], p['val'], p['label'], p['color'], p['chance']))
 
+        await db.execute("""CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)""")
+        await db.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('maintenance_mode', '0')")
+        await db.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('maintenance_end', '')")
+
         await db.execute("CREATE INDEX IF NOT EXISTS idx_photos_auction ON photos(status, sell_at)")
         await db.execute("CREATE INDEX IF NOT EXISTS idx_photos_user ON photos(user_id)")
         await db.execute("CREATE INDEX IF NOT EXISTS idx_support_user ON support_messages(user_id)")
         await db.commit()
 
+async def get_setting(key: str) -> str:
+    async with get_db() as db:
+        async with db.execute("SELECT value FROM settings WHERE key=?", (key,)) as cur:
+            row = await cur.fetchone()
+            return row[0] if row else ""
+
+async def set_setting(key: str, value: str):
+    async with get_db() as db:
+        await db.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", (key, value))
+        await db.commit()
+
+async def check_maintenance(uid: int):
+    """Блокирует API если включены тех. работы, а юзер не админ."""
+    if await get_setting("maintenance_mode") == "1":
+        if not await is_admin(uid):
+            raise HTTPException(403, detail=json.dumps({"error": "maintenance", "end_time": await get_setting("maintenance_end")}))
+
+# ═══════════════════════════════════════════════════════════════
+#  ОСТАЛЬНЫЕ ФУНКЦИИ
+# ═══════════════════════════════════════════════════════════════
 async def notify_referrer(referrer_id: int, new_user_name: str):
     try: await bot.send_message(referrer_id, f"🔔 <b>Новый реферал!</b>\nПользователь @{new_user_name} присоединился по вашей ссылке.", parse_mode=ParseMode.HTML)
     except: pass
@@ -470,6 +481,16 @@ async def sponsor_expiry_worker():
 @dp.message(CommandStart())
 async def cmd_start(message: Message, command: CommandObject):
     user, args_str = message.from_user, (command.args or "").strip()
+    
+    # ── ПРОВЕРКА ТЕХ РАБОТ ──
+    if not await is_admin(user.id):
+        if await get_setting("maintenance_mode") == "1":
+            end_time = await get_setting("maintenance_end")
+            text = "🛠 <b>Идут технические работы!</b>\nБот временно недоступен. Пожалуйста, подождите."
+            if end_time:
+                text += f"\nОриентировочное время окончания: {end_time.replace('T', ' ').replace('Z', '')} UTC"
+            return await message.answer(text, parse_mode=ParseMode.HTML)
+            
     referrer_id = None
     if args_str:
         try: referrer_id = int(args_str[4:] if args_str.startswith("ref_") else args_str)
@@ -480,7 +501,7 @@ async def cmd_start(message: Message, command: CommandObject):
     if p.get("is_banned"):
         return await message.answer("🚫 <b>Ваш аккаунт заблокирован.</b>\nЕсли вы считаете это ошибкой, просто напишите сообщение сюда, и оно будет доставлено в службу поддержки.", parse_mode=ParseMode.HTML)
 
-    if not await is_subscribed_to_channel(REQUIRED_CHANNEL_ID, user.id):
+    if not await is_admin(user.id) and not await is_subscribed_to_channel(REQUIRED_CHANNEL_ID, user.id):
         kb = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="📢 Subscribe to Channel", url=REQUIRED_CHANNEL_URL)],
             [InlineKeyboardButton(text="✅ I've Subscribed", callback_data=f"chksub:{args_str}")]
@@ -523,6 +544,7 @@ async def cmd_admin(message: Message, state: FSMContext):
         [InlineKeyboardButton(text="🎡 Рулетка (Шансы)", callback_data="crm_wheel")],
         [InlineKeyboardButton(text="⚙️ Изменить параметры всех", callback_data="crm_bulk")],
         [InlineKeyboardButton(text="⚡ Продать ВСЕ фото ВСЕМ сейчас", callback_data="crm_sellall_confirm")],
+        [InlineKeyboardButton(text="🛠 Тех. работы", callback_data="crm_maintenance")],
     ])
     await message.answer("👑 <b>Админ Панель CRM</b>\nВыберите раздел:", parse_mode=ParseMode.HTML, reply_markup=kb)
 
@@ -531,6 +553,45 @@ async def cq_crm_main(cb: CallbackQuery, state: FSMContext):
     await cmd_admin(cb.message, state)
     try: await cb.message.delete()
     except: pass
+
+# ═════ ТЕХ РАБОТЫ ═════
+@dp.callback_query(F.data == "crm_maintenance")
+async def cq_maintenance(cb: CallbackQuery):
+    mode = await get_setting("maintenance_mode")
+    end_time = await get_setting("maintenance_end")
+    status = "ВКЛЮЧЕНЫ 🔴" if mode == "1" else "ВЫКЛЮЧЕНЫ 🟢"
+    text = f"🛠 <b>Технические работы</b>\n\nСтатус: <b>{status}</b>\nОкончание: <b>{end_time.replace('T', ' ').replace('Z', '') if end_time else 'Не задано'}</b>\n\n<i>Админы имеют доступ к боту всегда.</i>"
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Включить 🔴" if mode == "0" else "Выключить 🟢", callback_data="crm_maint_toggle")],
+        [InlineKeyboardButton(text="⏳ Установить время окончания", callback_data="crm_maint_time")],
+        [InlineKeyboardButton(text="🔙 Назад", callback_data="crm_main")]
+    ])
+    await cb.message.edit_text(text, parse_mode=ParseMode.HTML, reply_markup=kb)
+
+@dp.callback_query(F.data == "crm_maint_toggle")
+async def cq_maint_toggle(cb: CallbackQuery):
+    mode = await get_setting("maintenance_mode")
+    await set_setting("maintenance_mode", "0" if mode == "1" else "1")
+    await cq_maintenance(cb)
+
+@dp.callback_query(F.data == "crm_maint_time")
+async def cq_maint_time(cb: CallbackQuery, state: FSMContext):
+    await state.set_state(AdminPanel.wait_maintenance_time)
+    await cb.message.edit_text("⏳ <b>Время окончания тех. работ</b>\n\nВведите дату и время по UTC (Лондон).\nФормат: <b>ГГГГ-ММ-ДД ЧЧ:ММ</b>\n<i>Пример: 2024-06-15 14:30</i>\n\nИли отправьте <code>/clear</code> чтобы убрать таймер.", parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="Отмена", callback_data="crm_maintenance")]]))
+
+@dp.message(AdminPanel.wait_maintenance_time)
+async def maint_time_save(m: Message, state: FSMContext):
+    txt = m.text.strip()
+    if txt == "/clear":
+        await set_setting("maintenance_end", "")
+    else:
+        try:
+            dt = datetime.strptime(txt, "%Y-%m-%d %H:%M")
+            await set_setting("maintenance_end", dt.strftime("%Y-%m-%dT%H:%M:00Z"))
+        except:
+            return await m.answer("❌ Неверный формат! Используйте ГГГГ-ММ-ДД ЧЧ:ММ")
+    await state.clear()
+    await m.answer("✅ Время сохранено. /panel")
 
 @dp.callback_query(F.data == "crm_stats")
 async def cq_stats(cb: CallbackQuery):
@@ -856,7 +917,6 @@ async def cq_bulk_field(cb: CallbackQuery, state: FSMContext):
     fname, ftype, _ = BULK_FIELDS[field]
     await state.update_data(bulk_field=field)
     if ftype == "NULL":
-        # Execute immediately for NULL resets
         async with get_db() as db:
             await db.execute(BULK_FIELDS[field][2])
             await db.commit()
@@ -1174,6 +1234,11 @@ async def api_get_player(user_id: int, username: str = "", init_data: str = Head
     uid = verify_webapp_data(init_data)
     if uid != user_id: raise HTTPException(403, "ID mismatch")
 
+    # ── ПРОВЕРКА ТЕХ РАБОТ ДЛЯ WEB APP ──
+    if await get_setting("maintenance_mode") == "1":
+        if not await is_admin(uid):
+            return JSONResponse(status_code=403, content={"error": "maintenance", "end_time": await get_setting("maintenance_end")})
+
     player, _ = await get_or_create_player(uid, username)
     lang = player.get("lang", "en")
     
@@ -1225,6 +1290,7 @@ async def api_get_player(user_id: int, username: str = "", init_data: str = Head
 @app.post("/api/wheel/spin")
 async def api_wheel_spin(init_data: str = Header(None, alias="X-Telegram-Init-Data")):
     uid = verify_webapp_data(init_data)
+    await check_maintenance(uid) # Проверка тех работ
     p = await get_player(uid)
     if not p or p.get("is_banned"): raise HTTPException(403)
     if p.get("last_spin") and datetime.utcnow() < datetime.fromisoformat(p["last_spin"]) + timedelta(hours=24): raise HTTPException(403)
@@ -1265,6 +1331,7 @@ async def api_buy_item(
     init_data: str = Header(None, alias="X-Telegram-Init-Data")
 ):
     uid = verify_webapp_data(init_data)
+    await check_maintenance(uid)
     price = 10.0 if item == "spin" else 100.0
     
     async with get_db() as db:
@@ -1288,6 +1355,7 @@ async def api_buy_item(
 @app.put("/api/player/{user_id}/lang")
 async def api_set_lang(user_id: int, request: Request, init_data: str = Header(None, alias="X-Telegram-Init-Data")):
     uid = verify_webapp_data(init_data)
+    await check_maintenance(uid)
     if uid != user_id: raise HTTPException(403)
     lang = (await request.json()).get("lang", "en")
     async with get_db() as db:
@@ -1298,6 +1366,7 @@ async def api_set_lang(user_id: int, request: Request, init_data: str = Header(N
 @app.get("/api/referrals/{user_id}")
 async def api_referrals(user_id: int, init_data: str = Header(None, alias="X-Telegram-Init-Data")):
     uid = verify_webapp_data(init_data)
+    await check_maintenance(uid)
     if uid != user_id: raise HTTPException(403)
     return {"referrals": await get_referral_list(uid), "referrals_count": await get_referral_count(uid), "referral_url": await referral_url(uid)}
 
@@ -1309,6 +1378,7 @@ async def api_upload(
     init_data: str = Header(None, alias="X-Telegram-Init-Data")
 ):
     uid = verify_webapp_data(init_data)
+    await check_maintenance(uid)
     if uid != user_id: raise HTTPException(403)
 
     p, _ = await get_or_create_player(uid, username)
@@ -1325,7 +1395,6 @@ async def api_upload(
         if len(raw) > MAX_UPLOAD_SIZE:
             raise HTTPException(400, "File too large")
 
-        # Проверка дублей по SHA-256 хэшу (глобально, независимо от пользователя)
         photo_hash = hashlib.sha256(raw).hexdigest()
         async with get_db() as db:
             async with db.execute("SELECT 1 FROM photos WHERE photo_hash=?", (photo_hash,)) as cur:
@@ -1342,7 +1411,6 @@ async def api_upload(
     rub_each = [random.randint(PACK_MIN_RUB, PACK_MAX_RUB)//PACK_SIZE]*len(saved_files) if is_pack else [random.randint(SINGLE_MIN_RUB, SINGLE_MAX_RUB) for _ in range(len(saved_files))]
     bid = uuid.uuid4().hex
 
-    # Время продажи: 10-12 часов, уменьшается на 1 час за каждый VIP уровень
     vip_lvl = vip_level(ref_c)
     sale_min_secs = max((10 - vip_lvl) * 3600, 3600)
     sale_max_secs = max((12 - vip_lvl) * 3600, sale_min_secs + 3600)
@@ -1360,6 +1428,7 @@ async def api_upload(
 @app.post("/api/withdraw/check")
 async def api_withdraw_check(init_data: str = Header(None, alias="X-Telegram-Init-Data")):
     uid = verify_webapp_data(init_data)
+    await check_maintenance(uid)
     missing = await check_all_subs(uid)
     return {"ok": not missing, "channels": missing if missing else []}
 
@@ -1367,6 +1436,7 @@ async def api_withdraw_check(init_data: str = Header(None, alias="X-Telegram-Ini
 @app.post("/api/withdraw/stars")
 async def api_withdraw_both(request: Request, init_data: str = Header(None, alias="X-Telegram-Init-Data")):
     uid = verify_webapp_data(init_data)
+    await check_maintenance(uid)
     is_stars = "stars" in request.url.path
     
     p = await get_player(uid)
@@ -1378,11 +1448,9 @@ async def api_withdraw_both(request: Request, init_data: str = Header(None, alia
 
     balance = round(p["balance"] or 0, 2)
 
-    # Минимальная сумма вывода — $100
     if balance < MIN_WITHDRAWAL_USD:
         raise HTTPException(400, detail=json.dumps({"error": "min_balance", "min": MIN_WITHDRAWAL_USD}))
 
-    # Нельзя выводить при активных продажах фотографий
     async with get_db() as db:
         async with db.execute("SELECT COUNT(*) FROM photos WHERE user_id=? AND status='on_auction'", (uid,)) as cur:
             active_count = (await cur.fetchone())[0]
@@ -1406,6 +1474,7 @@ async def api_withdraw_both(request: Request, init_data: str = Header(None, alia
 @app.get("/api/support/messages")
 async def api_support_messages(init_data: str = Header(None, alias="X-Telegram-Init-Data")):
     uid = verify_webapp_data(init_data)
+    await check_maintenance(uid)
     async with get_db() as db:
         db.row_factory = aiosqlite.Row
         async with db.execute("SELECT * FROM support_messages WHERE user_id=? ORDER BY created_at ASC", (uid,)) as cur:
@@ -1418,6 +1487,7 @@ async def api_support_send(
     init_data: str = Header(None, alias="X-Telegram-Init-Data")
 ):
     uid = verify_webapp_data(init_data)
+    await check_maintenance(uid)
     text = text.strip()
     
     img_filename = None
