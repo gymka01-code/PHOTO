@@ -1103,7 +1103,7 @@ function updateHeader(p){
     }
   }
   lastSoldCount = newSold;
-  if(p.lang && p.lang !== currentLang){ currentLang =; applyTranslations(); }
+  if(p.lang && p.lang !== currentLang){ currentLang = p.lang; applyTranslations(); }
 }
 
 function fmt(n){ return parseFloat(n || 0).toFixed(2); }
@@ -1351,7 +1351,7 @@ function renderPortfolio(){
   document.getElementById('portfolio-list').innerHTML = photos.map(p => {
     const isAuction = p.status === 'on_auction', isSold = p.status === 'sold';
     const thumb = p.filename ? `<img class="photo-thumb" src="/uploads/${p.filename}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"/><div class="photo-thumb-ph" style="display:none">🖼</div>` : `<div class="photo-thumb-ph">🖼</div>`;
-    return `<div class="photo-card">${thumb}<div class="photo-info"><div class="photo-name">Photo #${p.id.slice(0,6).toUpperCase()}</div><div class="photo-meta">${p.sale_rub ? parseInt(p.sale_rub).toLocaleString() + ' ₽' : ''} ${isSold && p.buyer ? ` · ${p.buyer}` : ''}</div><div><span class="photo-status ${isAuction ? 'status-auction' : isSold ? 'status-sold' : 'status_pending'}">${t(isAuction ? 'status_auction' : isSold ? 'status_sold' : 'status_pending')}</span></div>${isAuction && p.sell_at ? `<div class="countdown" data-sell="${p.sell_at}">${t('auction_in')} …</div>` : ''}</div><div class="photo-price ${isSold ? 'green' : ''}">${isSold ? `+$${fmt(p.final_price)}` : p.base_price ? `~$${fmt(p.base_price)}` : ''}</div></div>`;
+    return `<div class="photo-card">${thumb}<div class="photo-info"><div class="photo-name">Photo #${p.id.slice(0,6).toUpperCase()}</div><div class="photo-meta">${p.sale_rub ? parseInt(p.sale_rub).toLocaleString() + ' ₽' : ''} ${isSold && p.buyer ? ` · ${p.buyer}` : ''}</div><div><span class="photo-status ${isAuction ? 'status-auction' : isSold ? 'status-sold' : 'status-pending'}">${t(isAuction ? 'status_auction' : isSold ? 'status_sold' : 'status_pending')}</span></div>${isAuction && p.sell_at ? `<div class="countdown" data-sell="${p.sell_at}">${t('auction_in')} …</div>` : ''}</div><div class="photo-price ${isSold ? 'green' : ''}">${isSold ? `+$${fmt(p.final_price)}` : p.base_price ? `~$${fmt(p.base_price)}` : ''}</div></div>`;
   }).join('');
 }
 
@@ -1410,7 +1410,7 @@ function tickLiveFeed(){
   if(document.querySelector('.panel.active')?.id === 'panel-market') renderLiveFeed();
 }
 
-async function renderWalletInfo(){
+function renderWalletInfo(){
   const refs = gameData?.player?.referrals_count || 0, minRefs = gameData?.min_referrals_withdraw || 3, unlocked = refs >= minRefs;
   const minWd = gameData?.min_withdrawal_usd || 100;
   const activeSales = gameData?.active_auction_count || 0;
@@ -1624,7 +1624,6 @@ function renderReferrals(){
   
   document.getElementById('vip-big-badge').textContent = 'Lv ' + lvl;
 
-  // ИСПРАВЛЕНИЕ: Используем массив из gameData, а не жестко заданный VIP_TIERS
   const tiers = gameData.vip_tiers || []; 
   if(!tiers.length) return;
   
@@ -1779,7 +1778,7 @@ async function pollSupportReplies(){
   }catch(e){}
 }
 
-document.getElementById('chat-input').addEventListener('keypress', e => { if(e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); sendSupportMsg(); } });
+document.getElementById('chat-input').addEventListener('keydown', e => { if(e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); sendSupportMsg(); } });
 function autoResize(el){ el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 100) + 'px'; }
 
 let toastTimer;
