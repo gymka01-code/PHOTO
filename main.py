@@ -63,9 +63,14 @@ MIN_REFERRALS_WITHDRAW = 3
 MIN_DELAY_SECS = 30
 MAX_UPLOAD_SIZE = 10 * 1024 * 1024
 
+# НОВЫЕ ТРЕБОВАНИЯ К VIP: (refs_needed, delay_secs, slots)
 VIP_TIERS = [
-    (0,  43200,  3), (3,  39600,  6), (5,  36000,  9),
-    (10, 32400, 12), (25, 28800, 15), (50, 25200, 18),
+    (0,  43200,  3), # Lv 0: 0 рефералов
+    (3,  39600,  6), # Lv 1: 3 реферала
+    (10, 36000,  9), # Lv 2: 10 рефералов
+    (20, 32400, 12), # Lv 3: 20 рефералов
+    (30, 28800, 15), # Lv 4: 30 рефералов
+    (50, 25200, 18), # Lv 5: 50 рефералов
 ]
 
 MIN_WITHDRAWAL_USD = 100.0
@@ -289,11 +294,14 @@ async def check_maintenance(uid: int):
 # ═══════════════════════════════════════════════════════════════
 #  ОСТАЛЬНЫЕ ФУНКЦИИ
 # ═══════════════════════════════════════════════════════════════
-async def notify_referrer(referrer_id: int, new_user_name: str):
+async def notify_referrer_pending(referrer_id: int, new_user_name: str):
     try:
-        await bot.send_message(referrer_id, f"🔔 <b>Новый реферал!</b>\nПользователь @{new_user_name} присоединился по вашей ссылке.", parse_mode=ParseMode.HTML)
-    except:
-        pass
+        await bot.send_message(
+            referrer_id, 
+            f"👤 <b>Переход по ссылке!</b>\nПользователь @{new_user_name} зарегистрировался.\n\n⏳ <i>Он будет засчитан как ваш активный реферал, когда продаст свое первое фото на аукционе.</i>", 
+            parse_mode=ParseMode.HTML
+        )
+    except: pass
 
 async def _bind_referral(new_user_id: int, referrer_id: int) -> bool:
     if referrer_id == new_user_id: return False
@@ -305,14 +313,14 @@ async def _bind_referral(new_user_id: int, referrer_id: int) -> bool:
                 row = await cur.fetchone()
                 if row is None or row[0] is not None: return False
 
+            # Привязываем, но НЕ увеличиваем счетчик referrals_count
             await db.execute("UPDATE players SET referred_by=? WHERE user_id=?", (referrer_id, new_user_id))
             await db.execute("INSERT OR IGNORE INTO referrals (referrer_id, referred_id) VALUES (?,?)", (referrer_id, new_user_id))
-            await db.execute("UPDATE players SET referrals_count=referrals_count+1 WHERE user_id=?", (referrer_id,))
             await db.commit()
 
         p = await get_player(new_user_id)
-        display = f"@{p['username']}" if p and p.get("username") else str(new_user_id)
-        asyncio.create_task(notify_referrer(referrer_id, display))
+        display = f"{p['username']}" if p and p.get("username") else str(new_user_id)
+        asyncio.create_task(notify_referrer_pending(referrer_id, display))
         return True
     except Exception: return False
 
@@ -448,19 +456,37 @@ async def auction_worker():
     while True:
         try:
             notifications = []
+            active_ref_notifications = []
+            
             async with get_db() as db:
                 db.row_factory = aiosqlite.Row
                 async with db.execute("SELECT * FROM photos WHERE status='on_auction' AND sell_at<=?", (datetime.utcnow().isoformat(),)) as cur:
                     due = await cur.fetchall()
+
+                first_sale_users = set()
 
                 for ph in due:
                     buyer, sale_rub = random.choice(FAKE_USERS), ph["sale_rub"] or random.randint(SINGLE_MIN_RUB, SINGLE_MAX_RUB)
                     gross = rub_to_usd(float(sale_rub))
                     net = apply_commission(gross)
                     
+                    async with db.execute("SELECT photos_sold, referred_by FROM players WHERE user_id=?", (ph["user_id"],)) as cur:
+                        u_data = await cur.fetchone()
+                        
+                    is_first_sale = False
+                    # Проверяем, первая ли это проданная фотография (0 до этого момента)
+                    if u_data and u_data["photos_sold"] == 0 and ph["user_id"] not in first_sale_users:
+                        is_first_sale = True
+                        first_sale_users.add(ph["user_id"])
+                        
                     await db.execute("UPDATE photos SET status='sold', sold_at=datetime('now'), buyer=?, final_price=?, sale_rub=? WHERE id=?", (buyer, net, sale_rub, ph["id"]))
                     await db.execute("UPDATE players SET balance=balance+?, total_earned=total_earned+?, photos_sold=photos_sold+1 WHERE user_id=?", (net, net, ph["user_id"]))
                     
+                    # Если первая продажа и есть рефовод — начисляем активного реферала
+                    if is_first_sale and u_data["referred_by"]:
+                        await db.execute("UPDATE players SET referrals_count=referrals_count+1 WHERE user_id=?", (u_data["referred_by"],))
+                        active_ref_notifications.append({"referrer_id": u_data["referred_by"], "user_id": ph["user_id"]})
+                        
                     async with db.execute("SELECT balance, lang FROM players WHERE user_id=?", (ph["user_id"],)) as cur:
                         if p_row := await cur.fetchone():
                             notifications.append({"uid": ph["user_id"], "lang": p_row["lang"], "rub": sale_rub, "gross": gross, "net": net, "buyer": buyer, "bal": p_row["balance"]})
@@ -470,6 +496,15 @@ async def auction_worker():
                 try: await bot.send_message(n["uid"], tr(n["lang"], "sold", rub=int(n["rub"]), gross=n["gross"], commission=round(n["gross"]-n["net"],2), net=n["net"], buyer=n["buyer"], balance=round(n["bal"], 2)), parse_mode=ParseMode.HTML)
                 except: pass
                 await asyncio.sleep(0.05)
+                
+            for arn in active_ref_notifications:
+                try:
+                    p = await get_player(arn["user_id"])
+                    display = f"@{p['username']}" if p and p.get("username") else str(arn["user_id"])
+                    await bot.send_message(arn["referrer_id"], f"✅ <b>Реферал активирован!</b>\n\nПользователь {display} продал свое первое фото и теперь засчитан как ваш активный реферал. +1 🤝", parse_mode=ParseMode.HTML)
+                except: pass
+                await asyncio.sleep(0.05)
+                
         except Exception as e:
             logger.error(f"auction_worker error: {e}")
         await asyncio.sleep(15)
