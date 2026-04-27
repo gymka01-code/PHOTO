@@ -1213,7 +1213,14 @@ function showAiResult(){
   document.getElementById('score-badges').innerHTML = badges.map(b => `<span class="badge">${b}</span>`).join('');
   document.getElementById('ai-verdict').textContent = t(score >= 85 ? 'ai_verdict_hi' : score >= 75 ? 'ai_verdict_mid' : 'ai_verdict_lo');
 
-  const totalRub = selectedFiles.length >= 5 ? selectedFiles.length * (Math.floor(Math.random() * 2000) + 500) : selectedFiles.length * (Math.floor(Math.random() * 368) + 92);
+  let totalRub = 0;
+  const isPack = selectedFiles.length >= 5;
+  for (let i = 0; i < selectedFiles.length; i++) {
+    // Если пакет: 100-500 руб за каждую, если поштучно: 92-460 руб за каждую
+    totalRub += isPack 
+      ? Math.floor(Math.random() * (500 - 100 + 1)) + 100  
+      : Math.floor(Math.random() * (460 - 92 + 1)) + 92;   
+  }
   const grossUsd = (totalRub / 92).toFixed(2), netUsd = (totalRub / 92 * 0.98).toFixed(2);
   document.getElementById('ai-price-box').innerHTML = `<div class="aipb-row"><span>Estimated price</span><span>${totalRub.toLocaleString()} ₽</span></div><div class="aipb-row"><span>USD gross</span><span>$${grossUsd}</span></div><div class="aipb-row"><span>Fee (2%)</span><span>−$${(grossUsd - netUsd).toFixed(2)}</span></div><div class="aipb-row"><span>You receive</span><span style="color:var(--green)">$${netUsd}</span></div>`;
   document.getElementById('ai-result').style.display = 'block';
