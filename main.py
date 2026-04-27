@@ -1729,7 +1729,7 @@ async def api_buy_item(
     uid = verify_webapp_data(init_data)
     await check_maintenance(uid)
     
-    price = 10.0 if item == "spin" else 100.0
+    price = 10.0 if item == "spin" else 40.0
     
     async with get_db() as db:
         db.row_factory = aiosqlite.Row
