@@ -1475,7 +1475,7 @@ function renderWithdrawPreviews(){
     usdBtn.textContent = `🔒 Min $${minWd}`;
     starsBtn.textContent = `🔒 Min $${minWd}`;
   } else {
-    usdBtn.textContent = t('withdraw_btn_usd') + '$' + fmt(bal);
+    usdBtn.textContent = t('withdraw_btn_usd') + fmt(bal);
     starsBtn.textContent = t('withdraw_btn_stars');
   }
 }
