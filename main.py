@@ -1507,8 +1507,7 @@ async def api_wheel_spin(init_data: str = Header(None, alias="X-Telegram-Init-Da
     if p.get("last_spin"):
         try:
             try: ls_dt = datetime.fromisoformat(p["last_spin"])
-            except: ls_dt = datetime.strptime(
-except: ls_dt = datetime.strptime(p["last_spin"], "%Y-%m-%d %H:%M:%S")
+            except: ls_dt = datetime.strptime(p["last_spin"], "%Y-%m-%d %H:%M:%S")
             if datetime.utcnow() < ls_dt + timedelta(hours=24): raise HTTPException(403)
         except Exception: pass
 
