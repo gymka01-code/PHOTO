@@ -271,7 +271,7 @@ img{display:block}
 .wallet-info-banner{background:rgba(59,130,246,0.1);border:1px solid rgba(59,130,246,0.25);border-radius:var(--radius-sm);padding:14px;font-size:12px;color:var(--text-2);line-height:1.5;margin-bottom:14px;}
 .wallet-info-banner strong{color:var(--text);}
 
-/* VIP / REFERRALS */
+/* PROFILE / REFERRALS */
 .ref-link-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:12px}
 .ref-url-row{display:flex;align-items:center;gap:8px;margin-top:8px;background:var(--bg1);border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px 10px}
 .ref-url-text{flex:1;font-size:11px;color:var(--text-2);word-break:break-all;font-family:monospace;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
@@ -319,6 +319,12 @@ img{display:block}
 .ref-list-status { font-size:10px; padding:3px 8px; border-radius:6px; font-weight:600; }
 .ref-status-active { background:var(--green-dim); color:var(--green); border:1px solid rgba(34,197,94,0.2); }
 .ref-status-new { background:var(--bg2); color:var(--text-3); border:1px solid var(--border2); }
+
+/* PROMO CODE */
+.promo-card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:14px; margin-bottom:12px; }
+.promo-input-row { display:flex; gap:8px; align-items:center; }
+.promo-input-row input { flex:1; background:var(--bg1); border:1px solid var(--border); border-radius:var(--radius-sm); padding:10px 12px; font-size:12px; color:var(--text); transition:var(--transition); width:100%; }
+.promo-input-row input:focus { border-color:var(--blue); }
 
 /* SUPPORT CHAT & IMAGES */
 #support-chat{display:flex;flex-direction:column;height:calc(100vh - 220px);min-height:300px}
@@ -376,7 +382,7 @@ img{display:block}
 .maint-title { font-size:20px; font-weight:700; color:var(--amber); margin-bottom:10px; }
 .ban-desc, .maint-desc { font-size:14px; color:var(--text-2); line-height:1.6; margin-bottom:30px; max-width:280px; }
 .ban-btn { background:var(--surface2); border:1px solid var(--border2); color:var(--text); padding:12px 24px; border-radius:var(--radius); font-weight:600; font-size:14px; cursor:pointer; }
-.maint-timer { font-size:26px; font-weight:700; color:var(--text); background:var(--surface2); padding:10px 20px; border-radius:var(--radius); border:1px solid var(--border2); font-variant-numeric: tabular-nums; box-shadow: 0 4px 20px rgba(0,0,0,0.5); }
+.maint-timer { font-size:26px; font-weight:700; color:var(--text); background:var(--surface2); padding:10px 20px; border-radius:var(--radius); border:1px solid var(--border2); font-variant-numeric: tabular-nums; box-shadow: 0 4px 20px rgba(0,0,0,0.5); margin-top: 10px; }
 </style>
 </head>
 <body>
@@ -499,7 +505,7 @@ img{display:block}
     <button class="tab" data-tab="portfolio" onclick="switchTab('portfolio')" data-i18n="tab_portfolio">Portfolio</button>
     <button class="tab" data-tab="market" onclick="switchTab('market')" data-i18n="tab_market">Market</button>
     <button class="tab" data-tab="wallet" onclick="switchTab('wallet')" data-i18n="tab_wallet">Wallet</button>
-    <button class="tab" data-tab="vip" onclick="switchTab('vip')" data-i18n="tab_vip">VIP</button>
+    <button class="tab" data-tab="profile" onclick="switchTab('profile')" data-i18n="tab_profile">Profile</button>
     <button class="tab" data-tab="support" onclick="switchTab('support')" data-i18n="tab_support">Support</button>
   </div>
 
@@ -517,7 +523,7 @@ img{display:block}
       <div id="slot-reset-timer"></div>
       
       <div style="margin-bottom: 12px;">
-        <button class="btn btn-stars" onclick="buyItem('slots')" data-i18n="buy_slots">+10 Slots ($100)</button>
+        <button class="btn btn-stars" onclick="buyItem('slots')" data-i18n="buy_slots">+1 Slot 7d ($100)</button>
       </div>
 
       <div id="upload-drop-zone" onclick="document.getElementById('file-input').click()">
@@ -564,7 +570,7 @@ img{display:block}
           
           <div class="buy-panel">
             <button class="btn btn-stars" onclick="buyItem('spin')" data-i18n="buy_spin">Buy Spin ($10)</button>
-            <button class="btn btn-stars" onclick="buyItem('slots')" data-i18n="buy_slots">+10 Slots ($100)</button>
+            <button class="btn btn-stars" onclick="buyItem('slots')" data-i18n="buy_slots">+1 Slot 7d ($100)</button>
           </div>
       </div>
     </div>
@@ -635,12 +641,13 @@ img{display:block}
       </div>
     </div>
 
-    <!-- VIP -->
-    <div class="panel" id="panel-vip">
+    <!-- PROFILE (Бывший VIP) -->
+    <div class="panel" id="panel-profile">
       <div class="section-head">
-        <div class="section-title" data-i18n="vip_title">VIP Programme</div>
+        <div class="section-title" data-i18n="profile_title">My Profile</div>
         <div class="section-sub" id="ref-count-sub">0 referrals</div>
       </div>
+
       <div class="ref-link-card">
         <div class="card-label" data-i18n="ref_link_label">Your Referral Link</div>
         <div class="ref-url-row">
@@ -649,6 +656,15 @@ img{display:block}
           <button class="ref-share-btn" data-i18n="ref_share" onclick="shareRefLink()">📤 Share</button>
         </div>
       </div>
+
+      <div class="promo-card">
+        <div class="card-label" data-i18n="promo_title">Promo Code</div>
+        <div class="promo-input-row">
+            <input type="text" id="promo-input" data-i18n-placeholder="promo_ph" placeholder="Enter code..." />
+            <button class="btn btn-primary" onclick="activatePromo()" style="width:auto; padding: 10px 16px;" data-i18n="promo_btn">Activate</button>
+        </div>
+      </div>
+
       <div class="vip-progress-card">
         <div class="vip-header-row">
           <div style="font-size:13px;font-weight:600;color:var(--text-2)" data-i18n="vip_current_level">Current Level</div>
@@ -701,7 +717,7 @@ const TRANSLATIONS = {
     hdr_sub:"Photo Auction Platform",
     balance_label:"Balance", earned_label:"Earned", sold_label:"Sold",
     tab_upload:"Upload", tab_portfolio:"Portfolio", tab_market:"Market",
-    tab_wallet:"Wallet", tab_vip:"VIP", tab_support:"Support", tab_bonus:"Bonus",
+    tab_wallet:"Wallet", tab_profile:"Profile", tab_support:"Support", tab_bonus:"Bonus",
     live_label:"LIVE", live_sub:"Real-time transactions",
     upload_cta:"Select photos",
     upload_hint:"JPG, PNG, WEBP · up to 10 MB each\nUpload 5+ together for pack pricing",
@@ -713,7 +729,7 @@ const TRANSLATIONS = {
     wallet_title:"Wallet",
     
     wheel_title:"Wheel of Fortune", wheel_sub:"Win cash & extra slots", btn_spin:"Spin (Free)",
-    buy_spin:"Buy Spin ($10)", buy_slots:"+10 Slots ($100)",
+    buy_spin:"Buy Spin ($10)", buy_slots:"+1 Slot 7d ($100)",
     spin_wait:"Wait {h}h {m}m", prize_win:"🎉 You won: {p}",
     
     wallet_info_title:"Withdrawal Info:",
@@ -737,8 +753,9 @@ const TRANSLATIONS = {
     sub_modal_text:"To proceed with the withdrawal, you must be subscribed to our partner channels. We will strictly verify your subscription.",
     sub_btn_check:"Check Subscriptions", sub_btn_join:"Join",
 
-    vip_title:"VIP Programme", ref_link_label:"Your Referral Link", ref_copy:"Copy", ref_share:"📤 Share",
-    vip_current_level:"Current Level",
+    profile_title:"My Profile", ref_link_label:"Your Referral Link", ref_copy:"Copy", ref_share:"📤 Share",
+    promo_title:"Promo Code", promo_ph:"Enter code...", promo_btn:"Activate",
+    vip_current_level:"Current VIP Level",
     vip_tier_names:["Starter","Bronze","Silver","Gold","Platinum","Diamond"],
     vip_tier_max:["10-12h sale","9-11h sale","8-10h sale","7-9h sale","6-8h sale","5-7h sale"],
     vip_tier_slots:["3 slots/d","6 slots/d","9 slots/d","12 slots/d","15 slots/d","18 slots/d"],
@@ -777,7 +794,7 @@ const TRANSLATIONS = {
     hdr_sub:"Платформа аукциона фото",
     balance_label:"Баланс", earned_label:"Заработано", sold_label:"Продано",
     tab_upload:"Загрузка", tab_portfolio:"Портфолио", tab_market:"Лента",
-    tab_wallet:"Кошелёк", tab_vip:"VIP", tab_support:"Поддержка", tab_bonus:"Бонус",
+    tab_wallet:"Кошелёк", tab_profile:"Профиль", tab_support:"Поддержка", tab_bonus:"Бонус",
     live_label:"ЛАЙВ", live_sub:"Сделки в реальном времени",
     upload_cta:"Выберите фото",
     upload_hint:"JPG, PNG, WEBP · до 10 МБ каждое\nВыберите 5+ сразу для пакетной оценки",
@@ -789,7 +806,7 @@ const TRANSLATIONS = {
     wallet_title:"Кошелёк",
     
     wheel_title:"Колесо Фортуны", wheel_sub:"Выигрывай $ и слоты", btn_spin:"Крутить (Бесплатно)",
-    buy_spin:"Купить Спин ($10)", buy_slots:"+10 Слотов ($100)",
+    buy_spin:"Купить Спин ($10)", buy_slots:"+1 Слот на 7д ($100)",
     spin_wait:"Жди {h}ч {m}м", prize_win:"🎉 Твой выигрыш: {p}",
 
     wallet_info_title:"Информация о выводе:",
@@ -813,8 +830,9 @@ const TRANSLATIONS = {
     sub_modal_text:"Для оформления заявки на вывод необходимо быть подписанным на каналы спонсоров. Бот строго проверяет подписку.",
     sub_btn_check:"Проверить подписку", sub_btn_join:"Вступить",
 
-    vip_title:"VIP Программа", ref_link_label:"Ваша реферальная ссылка", ref_copy:"Копировать", ref_share:"📤 Поделиться",
-    vip_current_level:"Текущий Уровень",
+    profile_title:"Личный кабинет", ref_link_label:"Ваша реферальная ссылка", ref_copy:"Копировать", ref_share:"📤 Поделиться",
+    promo_title:"Промокод", promo_ph:"Введите код...", promo_btn:"Активировать",
+    vip_current_level:"Текущий VIP Уровень",
     vip_tier_names:["Старт","Бронза","Серебро","Золото","Платина","Алмаз"],
     vip_tier_max:["Продажа 10-12ч","Продажа 9-11ч","Продажа 8-10ч","Продажа 7-9ч","Продажа 6-8ч","Продажа 5-7ч"],
     vip_tier_slots:["3 слота/д","6 слотов/д","9 слотов/д","12 слотов/д","15 слотов/д","18 слотов/д"],
@@ -1072,7 +1090,7 @@ function renderVipBadge(lvl){ document.getElementById('vip-level-text').textCont
 function switchTab(name){
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
   document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.id === `panel-${name}`));
-  if(name === 'vip') { renderReferrals(); loadReferralsList(); }
+  if(name === 'profile') { renderReferrals(); loadReferralsList(); }
   if(name === 'market') renderLiveFeed();
   if(name === 'support') loadSupportMsgs();
 }
@@ -1274,6 +1292,33 @@ async function buyItem(item) {
   } catch (e) {
     showToast(t('toast_err'), 'error');
   }
+}
+
+// ── PROMO CODE LOGIC ──
+async function activatePromo() {
+    const inp = document.getElementById('promo-input');
+    const code = inp.value.trim();
+    if(!code) return;
+    
+    try {
+        const r = await authFetch(`${BASE}/api/promo/activate`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({code: code})
+        });
+        const data = await r.json();
+        
+        if(!r.ok) {
+            showToast(data.detail || t('toast_err'), 'error');
+            return;
+        }
+        
+        showToast(data.message || "Promo code activated!", "success");
+        inp.value = "";
+        await loadPlayer(false);
+    } catch(e) {
+        showToast(t('toast_err'), 'error');
+    }
 }
 
 function renderPortfolio(){
