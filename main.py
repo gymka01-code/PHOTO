@@ -63,9 +63,11 @@ MIN_DELAY_SECS = 30
 MAX_UPLOAD_SIZE = 10 * 1024 * 1024 # 10 MB
 
 VIP_TIERS = [
-    (0,  3600,  5), (3,  2700, 10), (5,  1800, 15),
-    (10,  900, 20), (25,  300, 25), (50,   60, 30),
+    (0,  43200,  3), (3,  39600,  6), (5,  36000,  9),
+    (10, 32400, 12), (25, 28800, 15), (50, 25200, 18),
 ]
+
+MIN_WITHDRAWAL_USD = 100.0  # Минимальная сумма для вывода
 
 REQUIRED_CHANNEL_ID   = "@Photo_Flip_Market"
 REQUIRED_CHANNEL_URL  = "https://t.me/Photo_Flip_Market"
@@ -105,11 +107,12 @@ class AdminPanel(StatesGroup):
     wait_user_id_search = State()
     wait_edit_user_balance, wait_edit_user_slots = State(), State()
     wait_edit_user_refs, wait_edit_user_earned, wait_edit_user_vip = State(), State(), State()
-    wait_edit_user_sold = State() # <-- Добавили стейт для количества проданных фото
+    wait_edit_user_sold = State()
     wait_broadcast = State()
     wait_new_admin_id = State()
     wait_wheel_global = State()
     wait_wheel_personal = State()
+    wait_bulk_field_value = State()  # Массовое изменение параметров
 
 _T = {
     "en": {
@@ -200,6 +203,8 @@ async def init_db():
             except Exception: pass
                 
         await db.execute("""CREATE TABLE IF NOT EXISTS photos (id TEXT PRIMARY KEY, user_id INTEGER, filename TEXT, batch_id TEXT, base_price REAL, final_price REAL, sale_rub REAL DEFAULT 0, status TEXT DEFAULT 'pending', sell_at TEXT, sold_at TEXT, buyer TEXT, created_at TEXT DEFAULT (datetime('now')), FOREIGN KEY(user_id) REFERENCES players(user_id))""")
+        try: await db.execute("ALTER TABLE photos ADD COLUMN photo_hash TEXT DEFAULT NULL")
+        except Exception: pass
         await db.execute("""CREATE TABLE IF NOT EXISTS referrals (referrer_id INTEGER, referred_id INTEGER PRIMARY KEY, created_at TEXT DEFAULT (datetime('now')))""")
         await db.execute("""CREATE TABLE IF NOT EXISTS sponsors (channel_id TEXT PRIMARY KEY, name TEXT, url TEXT, avatar_filename TEXT, created_at TEXT DEFAULT (datetime('now')))""")
         for col in ["description TEXT", "expires_at TEXT", "notified INTEGER DEFAULT 0"]:
@@ -515,7 +520,8 @@ async def cmd_admin(message: Message, state: FSMContext):
         [InlineKeyboardButton(text="👤 Юзеры / Слоты", callback_data="crm_users"), InlineKeyboardButton(text="🎧 Тикеты", callback_data="crm_tickets")],
         [InlineKeyboardButton(text="🤝 Спонсоры", callback_data="crm_sponsors"), InlineKeyboardButton(text="💳 Выводы", callback_data="crm_wd")],
         [InlineKeyboardButton(text="📢 Рассылка", callback_data="crm_broadcast"), InlineKeyboardButton(text="👮 Админы", callback_data="crm_admins")],
-        [InlineKeyboardButton(text="🎡 Рулетка (Шансы)", callback_data="crm_wheel")]
+        [InlineKeyboardButton(text="🎡 Рулетка (Шансы)", callback_data="crm_wheel")],
+        [InlineKeyboardButton(text="⚙️ Изменить параметры всех", callback_data="crm_bulk")],
     ])
     await message.answer("👑 <b>Админ Панель CRM</b>\nВыберите раздел:", parse_mode=ParseMode.HTML, reply_markup=kb)
 
@@ -782,6 +788,70 @@ async def wheel_global_save(m: Message, state: FSMContext):
         await state.clear()
     except ValueError:
         await m.answer("❌ Ошибка. Введите только числа.")
+
+# ═════ МАССОВОЕ ИЗМЕНЕНИЕ ПАРАМЕТРОВ ═════
+BULK_FIELDS = {
+    "balance": ("💰 Баланс", "REAL", "UPDATE players SET balance=? WHERE 1=1"),
+    "total_earned": ("📈 Заработано (total_earned)", "REAL", "UPDATE players SET total_earned=? WHERE 1=1"),
+    "referrals_count": ("🤝 Рефералы", "INT", "UPDATE players SET referrals_count=? WHERE 1=1"),
+    "extra_slots": ("🎰 Доп. слоты", "INT", "UPDATE players SET extra_slots=? WHERE 1=1"),
+    "photos_sold": ("📸 Продано фото", "INT", "UPDATE players SET photos_sold=? WHERE 1=1"),
+    "is_banned": ("🚫 Бан (0=нет, 1=да)", "INT", "UPDATE players SET is_banned=? WHERE 1=1"),
+    "last_spin": ("🎡 Сбросить Колесо (введите NULL)", "NULL", "UPDATE players SET last_spin=NULL WHERE 1=1"),
+}
+
+@dp.callback_query(F.data == "crm_bulk")
+async def cq_bulk(cb: CallbackQuery, state: FSMContext):
+    lines = "\n".join(f"• <code>{k}</code> — {v[0]}" for k, v in BULK_FIELDS.items())
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=v[0], callback_data=f"crm_bulk_f:{k}")] for k, v in BULK_FIELDS.items()
+    ] + [[InlineKeyboardButton(text="🔙 Назад", callback_data="crm_main")]])
+    await cb.message.edit_text(
+        f"⚙️ <b>Массовое изменение параметров</b>\n\nВыберите параметр для изменения у ВСЕХ аккаунтов:\n\n{lines}\n\n⚠️ <b>Действие применяется ко ВСЕМ пользователям!</b>",
+        parse_mode=ParseMode.HTML, reply_markup=kb
+    )
+
+@dp.callback_query(F.data.startswith("crm_bulk_f:"))
+async def cq_bulk_field(cb: CallbackQuery, state: FSMContext):
+    field = cb.data.split(":")[1]
+    if field not in BULK_FIELDS: return await cb.answer("Ошибка")
+    fname, ftype, _ = BULK_FIELDS[field]
+    await state.update_data(bulk_field=field)
+    if ftype == "NULL":
+        # Execute immediately for NULL resets
+        async with get_db() as db:
+            await db.execute(BULK_FIELDS[field][2])
+            await db.commit()
+        await cb.message.edit_text(f"✅ <b>{fname}</b> — сброшен для всех пользователей!", parse_mode=ParseMode.HTML,
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🔙 Назад", callback_data="crm_bulk")]]))
+        return
+    hint = "число (дробное, напр. 15.50)" if ftype == "REAL" else "целое число"
+    await state.set_state(AdminPanel.wait_bulk_field_value)
+    await cb.message.edit_text(
+        f"⚙️ <b>Изменение: {fname}</b>\n\nВведите новое значение ({hint}) для ВСЕХ аккаунтов.\n\nИли нажмите Отмена.",
+        parse_mode=ParseMode.HTML,
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="Отмена", callback_data="crm_bulk")]])
+    )
+
+@dp.message(AdminPanel.wait_bulk_field_value)
+async def bulk_field_save(m: Message, state: FSMContext):
+    field = (await state.get_data()).get("bulk_field")
+    if not field or field not in BULK_FIELDS: return await m.answer("❌ Ошибка сессии.")
+    fname, ftype, sql = BULK_FIELDS[field]
+    try:
+        if ftype == "REAL":
+            val = float(m.text.replace(",", "."))
+        else:
+            val = int(m.text.strip())
+        async with get_db() as db:
+            await db.execute(sql, (val,))
+            async with db.execute("SELECT COUNT(*) FROM players") as cur:
+                total = (await cur.fetchone())[0]
+            await db.commit()
+        await state.clear()
+        await m.answer(f"✅ Параметр <b>{fname}</b> установлен в <code>{val}</code> для всех <b>{total}</b> аккаунтов! /panel", parse_mode=ParseMode.HTML)
+    except ValueError:
+        await m.answer("❌ Неверный формат. Введите число.")
 
 # ═════ СПОНСОРЫ ═════
 @dp.callback_query(F.data == "crm_sponsors")
@@ -1100,13 +1170,16 @@ async def api_get_player(user_id: int, username: str = "", init_data: str = Head
             async with db.execute("SELECT * FROM wheel_config ORDER BY id") as cur:
                 w_conf = [dict(r) for r in await cur.fetchall()]
         
+    photos_list = await get_player_photos(uid, lang)
     return {
-        "player": player, "photos": await get_player_photos(uid, lang),
+        "player": player, "photos": photos_list,
         "withdraw_unlocked": ref_count >= MIN_REFERRALS_WITHDRAW, "vip_level": vip_level(ref_count),
         "vip_tiers": [{"min": t[0], "max_delay": t[1], "slots": t[2]} for t in VIP_TIERS],
         "referral_url": await referral_url(uid), "rub_rate": RUB_TO_USD_RATE,
         "active_slots": await get_active_photo_count(uid), "slot_limit": vip_slot_limit(ref_count) + (player.get("extra_slots") or 0),
         "min_referrals_withdraw": MIN_REFERRALS_WITHDRAW, "withdraw_condition": tr(lang, "withdraw_locked"),
+        "min_withdrawal_usd": MIN_WITHDRAWAL_USD,
+        "active_auction_count": sum(1 for ph in photos_list if ph.get("status") == "on_auction"),
         "wheel": {"can_spin": can_spin, "next_spin_ms": next_spin_ms},
         "wheel_config": w_conf
     }
@@ -1154,7 +1227,7 @@ async def api_buy_item(
     init_data: str = Header(None, alias="X-Telegram-Init-Data")
 ):
     uid = verify_webapp_data(init_data)
-    price = 10.0 if item == "spin" else 50.0
+    price = 10.0 if item == "spin" else 100.0
     
     async with get_db() as db:
         db.row_factory = aiosqlite.Row
@@ -1208,11 +1281,20 @@ async def api_upload(
     if act + len(files) > lim: raise HTTPException(403, "Limit reached")
 
     saved_files = []
+    file_hashes = []
     for f in files:
         raw = await f.read(MAX_UPLOAD_SIZE + 1)
         if len(raw) > MAX_UPLOAD_SIZE:
             raise HTTPException(400, "File too large")
-            
+
+        # Проверка дублей по SHA-256 хэшу (глобально, независимо от пользователя)
+        photo_hash = hashlib.sha256(raw).hexdigest()
+        async with get_db() as db:
+            async with db.execute("SELECT 1 FROM photos WHERE photo_hash=?", (photo_hash,)) as cur:
+                if await cur.fetchone():
+                    raise HTTPException(400, detail="duplicate_photo")
+        file_hashes.append(photo_hash)
+
         fn = f"{uuid.uuid4().hex}.jpg"
         filepath = UPLOADS_DIR / fn
         await asyncio.to_thread(filepath.write_bytes, raw)
@@ -1220,13 +1302,18 @@ async def api_upload(
 
     is_pack, results = len(saved_files) >= PACK_SIZE, []
     rub_each = [random.randint(PACK_MIN_RUB, PACK_MAX_RUB)//PACK_SIZE]*len(saved_files) if is_pack else [random.randint(SINGLE_MIN_RUB, SINGLE_MAX_RUB) for _ in range(len(saved_files))]
-    bid, md = uuid.uuid4().hex, vip_max_delay(ref_c)
+    bid = uuid.uuid4().hex
+
+    # Время продажи: 10-12 часов, уменьшается на 1 час за каждый VIP уровень
+    vip_lvl = vip_level(ref_c)
+    sale_min_secs = max((10 - vip_lvl) * 3600, 3600)
+    sale_max_secs = max((12 - vip_lvl) * 3600, sale_min_secs + 3600)
 
     async with get_db() as db:
         for i, fn in enumerate(saved_files):
-            sat = (datetime.utcnow() + timedelta(seconds=random.randint(MIN_DELAY_SECS, max(md, MIN_DELAY_SECS + 1)))).isoformat()
+            sat = (datetime.utcnow() + timedelta(seconds=random.randint(sale_min_secs, sale_max_secs))).isoformat()
             sr, pu, pid = rub_each[i], apply_commission(rub_to_usd(rub_each[i])), uuid.uuid4().hex
-            await db.execute("INSERT INTO photos (id, user_id, filename, batch_id, base_price, final_price, sale_rub, status, sell_at) VALUES (?,?,?,?,?,?,?,'on_auction',?)", (pid, uid, fn, bid, pu, pu, sr, sat))
+            await db.execute("INSERT INTO photos (id, user_id, filename, batch_id, base_price, final_price, sale_rub, status, sell_at, photo_hash) VALUES (?,?,?,?,?,?,?,'on_auction',?,?)", (pid, uid, fn, bid, pu, pu, sr, sat, file_hashes[i]))
             results.append({"photo_id": pid, "filename": fn, "base_price": pu, "preview_rub": sr, "status": "on_auction"})
         await db.commit()
         
@@ -1248,9 +1335,23 @@ async def api_withdraw_both(request: Request, init_data: str = Header(None, alia
     if not p or p.get("is_banned"): raise HTTPException(403)
     lang, refs = p.get("lang", "en"), p.get("referrals_count", 0)
 
-    if refs < MIN_REFERRALS_WITHDRAW or await check_all_subs(uid) or (p["balance"] or 0) <= 0: raise HTTPException(403)
+    if refs < MIN_REFERRALS_WITHDRAW or await check_all_subs(uid):
+        raise HTTPException(403, detail="conditions_not_met")
 
-    usd = round(p["balance"], 2)
+    balance = round(p["balance"] or 0, 2)
+
+    # Минимальная сумма вывода — $100
+    if balance < MIN_WITHDRAWAL_USD:
+        raise HTTPException(400, detail=json.dumps({"error": "min_balance", "min": MIN_WITHDRAWAL_USD}))
+
+    # Нельзя выводить при активных продажах фотографий
+    async with get_db() as db:
+        async with db.execute("SELECT COUNT(*) FROM photos WHERE user_id=? AND status='on_auction'", (uid,)) as cur:
+            active_count = (await cur.fetchone())[0]
+    if active_count > 0:
+        raise HTTPException(400, detail=json.dumps({"error": "active_sales", "count": active_count}))
+
+    usd = balance
     stars = usd_to_stars(usd) if is_stars else 0
     prio = 1 if vip_level(refs) >= 1 else 0
 
