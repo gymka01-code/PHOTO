@@ -325,7 +325,7 @@ img{display:block}
 .ref-list-date { font-size:10px; color:var(--text-3); }
 .ref-list-status { font-size:10px; padding:3px 8px; border-radius:6px; font-weight:600; }
 .ref-status-active { background:var(--green-dim); color:var(--green); border:1px solid rgba(34,197,94,0.2); }
-.ref-status-new { background:var(--bg2); color:var(--text-3); border:1px solid var(--border2); }
+.ref-status-new { background:var(--amber-dim); color:var(--amber); border:1px solid rgba(245,158,11,0.2); }
 
 /* PROMO CODE */
 .promo-card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:14px; margin-bottom:12px; }
@@ -637,12 +637,12 @@ img{display:block}
           <div class="ruc-bar-bg"><div class="ruc-bar-fill" id="ruc-bar-fill" style="width:0%"></div></div>
           <div class="ruc-count" id="ruc-count">0/3</div>
         </div>
-        <div class="ruc-hint" id="ruc-hint" data-i18n="ruc_hint">Invite 3 friends to unlock withdrawal.</div>
+        <div class="ruc-hint" id="ruc-hint" data-i18n="ruc_hint">Invite 3 friends (active after photo sale) to unlock withdrawal.</div>
       </div>
 
       <div class="withdraw-box locked-state" id="withdraw-box">
         <div class="withdraw-title" data-i18n="withdraw_title">Withdraw Earnings</div>
-        <div class="withdraw-sub" id="withdraw-sub" data-i18n="withdraw_sub">Invite 3 friends via your referral link to unlock withdrawal.</div>
+        <div class="withdraw-sub" id="withdraw-sub" data-i18n="withdraw_sub">Invite 3 friends via your referral link (counted after their first sale) to unlock withdrawal.</div>
         <div class="withdraw-tabs" id="withdraw-tabs">
           <button class="wtab active" onclick="selectWithdrawTab('usd')" id="wtab-usd" data-i18n="wtab_usd">💵 USD</button>
           <button class="wtab" onclick="selectWithdrawTab('stars')" id="wtab-stars" data-i18n="wtab_stars">⭐ Stars</button>
@@ -675,6 +675,7 @@ img{display:block}
           <button class="ref-copy-btn" onclick="copyRefLink()" data-i18n="ref_copy">Copy</button>
           <button class="ref-share-btn" data-i18n="ref_share" onclick="shareRefLink()">📤 Share</button>
         </div>
+        <div style="font-size:10px; color:var(--amber); margin-top:8px; line-height:1.4; text-align:center;" data-i18n="ref_hint">⚠️ Referral is counted as active only after their first photo sale.</div>
       </div>
 
       <div class="promo-card">
@@ -754,8 +755,8 @@ const TRANSLATIONS = {
     wallet_info_title:"Withdrawal Info:",
     wallet_info_text:"Minimum withdrawal: $100. Withdrawal is blocked while you have active photo sales — this prevents overloading the payout system. Wait for all your photos to sell first. VIP users enjoy priority in the queue.",
     
-    ruc_title:"Withdrawal Unlock Progress", ruc_hint:"Invite 3 friends to unlock withdrawal.",
-    withdraw_title:"Withdraw Earnings", withdraw_sub:"Invite 3 friends via your referral link to unlock withdrawal.",
+    ruc_title:"Withdrawal Unlock Progress", ruc_hint:"Invite 3 friends (active after photo sale) to unlock withdrawal.",
+    withdraw_title:"Withdraw Earnings", withdraw_sub:"Invite 3 friends via your referral link (counted after their first sale) to unlock withdrawal.",
     withdraw_unlocked_hint:"✅ Withdrawal unlocked! Select your payout method.",
     wtab_usd:"💵 USD", wtab_stars:"⭐ Stars",
     withdraw_btn_locked:"🔒 Locked", withdraw_btn_usd:"Withdraw $", withdraw_btn_stars:"Withdraw Stars",
@@ -778,13 +779,14 @@ const TRANSLATIONS = {
     vip_tier_names:["Starter","Bronze","Silver","Gold","Platinum","Diamond"],
     vip_tier_max:["10-12h sale","9-11h sale","8-10h sale","7-9h sale","6-8h sale","5-7h sale"],
     vip_tier_slots:["3 slots/d","6 slots/d","9 slots/d","12 slots/d","15 slots/d","18 slots/d"],
-    vip_tier_req:["0 referrals","3 referrals","5 referrals","10 referrals","25 referrals","50 referrals"],
+    vip_tier_req:["0 referrals","3 referrals","10 referrals","20 referrals","30 referrals","50 referrals"],
     vip_next_hint:"Invite {n} more friend(s) to reach Level {l}",
     vip_max_hint:"Maximum VIP level reached!",
     
     label_req:"Requirement:", label_slots:"Daily Limit:", label_delay:"Sale Delay:",
     
-    ref_list_title:"My Referrals", ref_list_empty:"No referrals yet. Invite friends!", ref_active:"Active", ref_new:"New",
+    ref_list_title:"My Referrals", ref_list_empty:"No referrals yet. Invite friends!", ref_active:"Active", ref_new:"Pending sale",
+    ref_hint: "⚠️ Referral is counted as active only after their first photo sale.",
     support_title:"Support Chat", support_sub:"Replies within 24h",
     chat_empty:"No messages yet. Send us a message!", chat_placeholder:"Type a message…",
     chat_you:"You", chat_support:"Support",
@@ -831,8 +833,8 @@ const TRANSLATIONS = {
     wallet_info_title:"Информация о выводе:",
     wallet_info_text:"Минимальная сумма вывода: $100. Вывод заблокирован, пока у вас есть активные продажи фото — это нужно чтобы не перегружать систему вывода. Дождитесь продажи всех фото. VIP-пользователи имеют приоритет в очереди.",
     
-    ruc_title:"Прогресс разблокировки вывода", ruc_hint:"Пригласите 3 друзей, чтобы разблокировать вывод.",
-    withdraw_title:"Вывод средств", withdraw_sub:"Пригласите 3 друзей, чтобы разблокировать вывод.",
+    ruc_title:"Прогресс разблокировки вывода", ruc_hint:"Пригласите 3 друзей (засчитываются после продажи фото), чтобы разблокировать вывод.",
+    withdraw_title:"Вывод средств", withdraw_sub:"Пригласите 3 друзей по ссылке (засчитываются после их первой продажи), чтобы разблокировать вывод.",
     withdraw_unlocked_hint:"✅ Вывод разблокирован! Выберите способ получения.",
     wtab_usd:"💵 USD", wtab_stars:"⭐ Звёзды",
     withdraw_btn_locked:"🔒 Заблокировано", withdraw_btn_usd:"Вывести $", withdraw_btn_stars:"Вывести ⭐",
@@ -855,13 +857,14 @@ const TRANSLATIONS = {
     vip_tier_names:["Старт","Бронза","Серебро","Золото","Платина","Алмаз"],
     vip_tier_max:["Продажа 10-12ч","Продажа 9-11ч","Продажа 8-10ч","Продажа 7-9ч","Продажа 6-8ч","Продажа 5-7ч"],
     vip_tier_slots:["3 слота/д","6 слотов/д","9 слотов/д","12 слотов/д","15 слотов/д","18 слотов/д"],
-    vip_tier_req:["0 рефералов","3 реферала","5 рефералов","10 рефералов","25 рефералов","50 рефералов"],
+    vip_tier_req:["0 рефералов","3 реферала","10 рефералов","20 рефералов","30 рефералов","50 рефералов"],
     vip_next_hint:"Пригласите ещё {n} для Уровня {l}",
     vip_max_hint:"Максимальный VIP уровень достигнут!",
     
     label_req:"Требование:", label_slots:"Дневной Лимит:", label_delay:"Время продажи:",
 
-    ref_list_title:"Мои рефералы", ref_list_empty:"Пока нет рефералов. Пригласите друзей!", ref_active:"Активен", ref_new:"Новый",
+    ref_list_title:"Мои рефералы", ref_list_empty:"Пока нет рефералов. Пригласите друзей!", ref_active:"Активен", ref_new:"Ожидает продажи",
+    ref_hint: "⚠️ Реферал засчитывается как активный только после его первой продажи фото.",
     support_title:"Чат поддержки", support_sub:"Ответ в течение 24 часов",
     chat_empty:"Сообщений нет. Напишите нам!", chat_placeholder:"Напишите сообщение…",
     chat_you:"Вы", chat_support:"Поддержка",
