@@ -127,6 +127,7 @@ class AdminPanel(StatesGroup):
     wait_promo_limit = State()
     wait_promo_duration = State()
     wait_promo_code = State()
+    wait_cleanup_date = State()
 
 _T = {
     "en": {
@@ -168,6 +169,14 @@ def usd_to_stars(usd: float) -> int: return math.floor(usd / 0.012)
 def make_share_url(ref_url: str) -> str:
     text = "Твоя камера теперь печатает деньги. 🖼💰\nЗалетай по моей ссылке: 🔗"
     return f"https://t.me/share/url?url={urllib.parse.quote(ref_url, safe='')}&text={urllib.parse.quote(text, safe='')}"
+
+def parse_sqlite_date(date_str: str) -> datetime | None:
+    if not date_str: return None
+    clean_str = date_str.split('.')[0].replace('Z', '').replace('T', ' ')
+    try:
+        return datetime.strptime(clean_str, "%Y-%m-%d %H:%M:%S")
+    except:
+        return None
 
 # ═══════════════════════════════════════════════════════════════
 #  SECURITY & DB
@@ -597,7 +606,8 @@ async def cmd_admin(message: Message, state: FSMContext):
         [InlineKeyboardButton(text="🎁 Промокоды", callback_data="crm_promo")],
         [InlineKeyboardButton(text="🎡 Глоб. Рулетка (Шансы)", callback_data="crm_wheel")],
         [InlineKeyboardButton(text="⚙️ Изменить параметры всех", callback_data="crm_bulk")],
-        [InlineKeyboardButton(text="⚡ Продать ВСЕ фото ВСЕМ сейчас", callback_data="crm_sellall_confirm")],
+        [InlineKeyboardButton(text="🧹 Очистка памяти (Фото)", callback_data="crm_cleanup_menu")],
+        [InlineKeyboardButton(text="⚡ Продать ВСЕ фото ВСЕМ", callback_data="crm_sellall_confirm")],
         [InlineKeyboardButton(text="🛠 Тех. работы", callback_data="crm_maintenance")],
     ])
     await message.answer("👑 <b>Админ Панель CRM</b>\nВыберите раздел:", parse_mode=ParseMode.HTML, reply_markup=kb)
@@ -607,6 +617,83 @@ async def cq_crm_main(cb: CallbackQuery, state: FSMContext):
     await cmd_admin(cb.message, state)
     try: await cb.message.delete()
     except: pass
+
+# ═════ ОЧИСТКА ПАМЯТИ ═════
+@dp.callback_query(F.data == "crm_cleanup_menu")
+async def cq_cleanup_menu(cb: CallbackQuery):
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🗑 Старше 30 дней", callback_data="crm_cleanup:30d")],
+        [InlineKeyboardButton(text="🗑 Старше 7 дней", callback_data="crm_cleanup:7d")],
+        [InlineKeyboardButton(text="🗑 Указать точную дату", callback_data="crm_cleanup:date")],
+        [InlineKeyboardButton(text="🧨 Удалить ВСЕ файлы фото", callback_data="crm_cleanup_confirm_all")],
+        [InlineKeyboardButton(text="🔙 Назад", callback_data="crm_main")]
+    ])
+    async with get_db() as db:
+        async with db.execute("SELECT COUNT(*) FROM photos WHERE filename IS NOT NULL") as cur:
+            c = (await cur.fetchone())[0]
+    await cb.message.edit_text(f"🧹 <b>Очистка памяти сервера</b>\n\nСейчас фотографий на сервере (с файлами): <b>{c}</b>\n\nУдаление файлов не ломает аккаунты, вместо фото пользователи будут видеть заглушку (🖼).\n\nВыберите фильтр удаления:", parse_mode=ParseMode.HTML, reply_markup=kb)
+
+async def perform_cleanup(condition_sql: str, params: tuple):
+    async with get_db() as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(f"SELECT id, filename FROM photos WHERE filename IS NOT NULL AND {condition_sql}", params) as cur:
+            rows = await cur.fetchall()
+
+    deleted_count = 0
+    freed_bytes = 0
+    for row in rows:
+        try:
+            filepath = UPLOADS_DIR / row['filename']
+            if filepath.exists():
+                freed_bytes += filepath.stat().st_size
+                filepath.unlink()
+            deleted_count += 1
+        except Exception: pass
+
+    if deleted_count > 0:
+        async with get_db() as db:
+            await db.execute(f"UPDATE photos SET filename = NULL WHERE filename IS NOT NULL AND {condition_sql}", params)
+            await db.commit()
+
+    return deleted_count, freed_bytes / (1024 * 1024)
+
+@dp.callback_query(F.data.startswith("crm_cleanup:"))
+async def cq_cleanup_action(cb: CallbackQuery, state: FSMContext):
+    action = cb.data.split(":")[1]
+    if action == "30d":
+        c, mb = await perform_cleanup("created_at <= datetime('now', '-30 days')", ())
+        await cb.answer(f"Удалено {c} файлов. Освобождено {mb:.2f} MB", show_alert=True)
+        await cq_cleanup_menu(cb)
+    elif action == "7d":
+        c, mb = await perform_cleanup("created_at <= datetime('now', '-7 days')", ())
+        await cb.answer(f"Удалено {c} файлов. Освобождено {mb:.2f} MB", show_alert=True)
+        await cq_cleanup_menu(cb)
+    elif action == "date":
+        await state.set_state(AdminPanel.wait_cleanup_date)
+        await cb.message.edit_text("Введите дату в формате <b>ГГГГ-ММ-ДД</b>.\nБудут удалены все фото, загруженные до этой даты (включительно).", parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="Отмена", callback_data="crm_cleanup_menu")]]))
+
+@dp.message(AdminPanel.wait_cleanup_date)
+async def cleanup_date_save(m: Message, state: FSMContext):
+    try:
+        dt = datetime.strptime(m.text.strip(), "%Y-%m-%d").date()
+        c, mb = await perform_cleanup("date(created_at) <= date(?)", (dt.isoformat(),))
+        await m.answer(f"✅ Удалено <b>{c}</b> файлов.\nОсвобождено <b>{mb:.2f} MB</b> памяти.", parse_mode=ParseMode.HTML)
+        await state.clear()
+    except Exception:
+        await m.answer("❌ Ошибка формата. Используйте ГГГГ-ММ-ДД")
+
+@dp.callback_query(F.data == "crm_cleanup_confirm_all")
+async def cq_cleanup_all(cb: CallbackQuery):
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🚨 Да, удалить вообще ВСЕ фото", callback_data="crm_cleanup_do_all")],
+        [InlineKeyboardButton(text="Отмена", callback_data="crm_cleanup_menu")]
+    ])
+    await cb.message.edit_text("🧨 <b>ВНИМАНИЕ!</b>\n\nВы собираетесь удалить файлы <b>ВСЕХ</b> загруженных фотографий за всё время.\nВы уверены?", parse_mode=ParseMode.HTML, reply_markup=kb)
+
+@dp.callback_query(F.data == "crm_cleanup_do_all")
+async def cq_cleanup_do_all(cb: CallbackQuery):
+    c, mb = await perform_cleanup("1=1", ())
+    await cb.message.edit_text(f"✅ <b>Очистка завершена!</b>\n\nУдалено файлов: <b>{c}</b>\nОсвобождено: <b>{mb:.2f} MB</b>", parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🔙 В меню", callback_data="crm_main")]]))
 
 # ═════ ТЕХ РАБОТЫ ═════
 @dp.callback_query(F.data == "crm_maintenance")
@@ -828,13 +915,9 @@ async def show_user_control_panel(msg_or_cb, uid: int, state: FSMContext):
     total_slots = await get_user_total_slot_limit(uid, p['referrals_count'])
 
     can_spin = "Да"
-    if p.get('last_spin'):
-        try:
-            try: ls_dt = datetime.fromisoformat(p["last_spin"])
-            except: ls_dt = datetime.strptime(p["last_spin"], "%Y-%m-%d %H:%M:%S")
-            if (ls_dt + timedelta(hours=24)) > datetime.utcnow():
-                can_spin = "Нет (Кулдаун)"
-        except: pass
+    ls_dt = parse_sqlite_date(p.get("last_spin"))
+    if ls_dt and (ls_dt + timedelta(hours=24)) > datetime.utcnow():
+        can_spin = "Нет (Кулдаун)"
 
     text = f"👤 <b>Аккаунт: <code>{uid}</code></b> {'(🚫 ЗАБЛОКИРОВАН)' if p.get('is_banned') else ''}\n"
     text += f"Имя: @{p.get('username') or 'Нет'}\nБаланс: <b>${p['balance']:.2f}</b>\nЗаработано: <b>${p['total_earned']:.2f}</b>\n"
@@ -1208,7 +1291,6 @@ async def sp_add_forward(m: Message, state: FSMContext):
     else:
         text = m.text.strip()
         if "t.me/" in text:
-            # извлечь username
             chat_id_or_name = "@" + text.split("t.me/")[1].split("/")[0].split("?")[0]
         elif text.startswith("@"):
             chat_id_or_name = text
@@ -1232,7 +1314,6 @@ async def sp_add_forward(m: Message, state: FSMContext):
     if not url:
         return await m.answer("❌ У бота нет прав для получения ссылки на канал. Добавьте его в админы.")
 
-    # Пытаемся скачать аватарку
     fn = ""
     if chat.photo:
         try:
@@ -1461,10 +1542,10 @@ async def api_get_player(user_id: int, username: str = "", init_data: str = Head
     can_spin, next_spin_ms = True, 0
     if player.get("last_spin"):
         try:
-            try: ls_dt = datetime.fromisoformat(player["last_spin"])
-            except: ls_dt = datetime.strptime(player["last_spin"], "%Y-%m-%d %H:%M:%S")
-            diff = (ls_dt + timedelta(hours=24)) - datetime.utcnow()
-            if diff.total_seconds() > 0: can_spin, next_spin_ms = False, int(diff.total_seconds() * 1000)
+            ls_dt = parse_sqlite_date(player["last_spin"])
+            if ls_dt:
+                diff = (ls_dt + timedelta(hours=24)) - datetime.utcnow()
+                if diff.total_seconds() > 0: can_spin, next_spin_ms = False, int(diff.total_seconds() * 1000)
         except: pass
         
     async with get_db() as db:
@@ -1506,9 +1587,8 @@ async def api_wheel_spin(init_data: str = Header(None, alias="X-Telegram-Init-Da
     if not p or p.get("is_banned"): raise HTTPException(403)
     if p.get("last_spin"):
         try:
-            try: ls_dt = datetime.fromisoformat(p["last_spin"])
-            except: ls_dt = datetime.strptime(p["last_spin"], "%Y-%m-%d %H:%M:%S")
-            if datetime.utcnow() < ls_dt + timedelta(hours=24): raise HTTPException(403)
+            ls_dt = parse_sqlite_date(p["last_spin"])
+            if ls_dt and datetime.utcnow() < ls_dt + timedelta(hours=24): raise HTTPException(403)
         except Exception: pass
 
     async with get_db() as db:
