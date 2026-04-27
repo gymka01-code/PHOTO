@@ -624,7 +624,7 @@ async def cq_cleanup_menu(cb: CallbackQuery):
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🗑 Старше 30 дней", callback_data="crm_cleanup:30d")],
         [InlineKeyboardButton(text="🗑 Старше 7 дней", callback_data="crm_cleanup:7d")],
-        [InlineKeyboardButton(text="🗑 Указать точную дату", callback_data="crm_cleanup:date")],
+        [InlineKeyboardButton(text="📅 До определенной даты", callback_data="crm_cleanup:date")],
         [InlineKeyboardButton(text="🧨 Удалить ВСЕ файлы фото", callback_data="crm_cleanup_confirm_all")],
         [InlineKeyboardButton(text="🔙 Назад", callback_data="crm_main")]
     ])
@@ -670,17 +670,17 @@ async def cq_cleanup_action(cb: CallbackQuery, state: FSMContext):
         await cq_cleanup_menu(cb)
     elif action == "date":
         await state.set_state(AdminPanel.wait_cleanup_date)
-        await cb.message.edit_text("Введите дату в формате <b>ГГГГ-ММ-ДД</b>.\nБудут удалены все фото, загруженные до этой даты (включительно).", parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="Отмена", callback_data="crm_cleanup_menu")]]))
+        await cb.message.edit_text("📅 <b>Удаление до конкретной даты</b>\n\nВведите дату в формате <b>ГГГГ-ММ-ДД</b> (например: 2024-05-15).\n\nБудут удалены все файлы фото, загруженные до этой даты включительно.", parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="Отмена", callback_data="crm_cleanup_menu")]]))
 
 @dp.message(AdminPanel.wait_cleanup_date)
 async def cleanup_date_save(m: Message, state: FSMContext):
     try:
         dt = datetime.strptime(m.text.strip(), "%Y-%m-%d").date()
         c, mb = await perform_cleanup("date(created_at) <= date(?)", (dt.isoformat(),))
-        await m.answer(f"✅ Удалено <b>{c}</b> файлов.\nОсвобождено <b>{mb:.2f} MB</b> памяти.", parse_mode=ParseMode.HTML)
+        await m.answer(f"✅ Успешно!\nУдалено <b>{c}</b> файлов.\nОсвобождено <b>{mb:.2f} MB</b> памяти.\n\n/panel", parse_mode=ParseMode.HTML)
         await state.clear()
     except Exception:
-        await m.answer("❌ Ошибка формата. Используйте ГГГГ-ММ-ДД")
+        await m.answer("❌ Ошибка формата. Пожалуйста, используйте формат ГГГГ-ММ-ДД (например 2024-05-15).")
 
 @dp.callback_query(F.data == "crm_cleanup_confirm_all")
 async def cq_cleanup_all(cb: CallbackQuery):
@@ -693,7 +693,7 @@ async def cq_cleanup_all(cb: CallbackQuery):
 @dp.callback_query(F.data == "crm_cleanup_do_all")
 async def cq_cleanup_do_all(cb: CallbackQuery):
     c, mb = await perform_cleanup("1=1", ())
-    await cb.message.edit_text(f"✅ <b>Очистка завершена!</b>\n\nУдалено файлов: <b>{c}</b>\nОсвобождено: <b>{mb:.2f} MB</b>", parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🔙 В меню", callback_data="crm_main")]]))
+    await cb.message.edit_text(f"✅ <b>Полная очистка завершена!</b>\n\nУдалено файлов: <b>{c}</b>\nОсвобождено: <b>{mb:.2f} MB</b>", parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🔙 В меню", callback_data="crm_main")]]))
 
 # ═════ ТЕХ РАБОТЫ ═════
 @dp.callback_query(F.data == "crm_maintenance")
