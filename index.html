@@ -366,13 +366,17 @@ img{display:block}
 @keyframes spin{to{transform:rotate(360deg)}}
 .notice{background:var(--blue-dim);border:1px solid rgba(59,130,246,0.2);border-radius:var(--radius-sm);padding:10px 12px;font-size:11px;color:var(--slate-light);line-height:1.6;margin-bottom:12px}
 
-/* BAN SCREEN */
-#ban-overlay { display:none; position:fixed; inset:0; background:var(--bg); z-index:9999; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:32px; }
-#ban-overlay.active { display:flex; }
-.ban-icon { font-size:60px; margin-bottom:20px; }
+/* BAN & MAINTENANCE OVERLAYS */
+#ban-overlay, #maintenance-overlay { display:none; position:fixed; inset:0; background:var(--bg); z-index:99999; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:32px; }
+#ban-overlay.active, #maintenance-overlay.active { display:flex; }
+.ban-icon, .maint-icon { font-size:60px; margin-bottom:20px; }
+.maint-icon { animation: bounce 2s infinite; }
+@keyframes bounce { 0%, 20%, 50%, 80%, 100% {transform: translateY(0);} 40% {transform: translateY(-20px);} 60% {transform: translateY(-10px);} }
 .ban-title { font-size:20px; font-weight:700; color:var(--red); margin-bottom:10px; }
-.ban-desc { font-size:14px; color:var(--text-2); line-height:1.6; margin-bottom:30px; max-width:280px; }
+.maint-title { font-size:20px; font-weight:700; color:var(--amber); margin-bottom:10px; }
+.ban-desc, .maint-desc { font-size:14px; color:var(--text-2); line-height:1.6; margin-bottom:30px; max-width:280px; }
 .ban-btn { background:var(--surface2); border:1px solid var(--border2); color:var(--text); padding:12px 24px; border-radius:var(--radius); font-weight:600; font-size:14px; cursor:pointer; }
+.maint-timer { font-size:26px; font-weight:700; color:var(--text); background:var(--surface2); padding:10px 20px; border-radius:var(--radius); border:1px solid var(--border2); font-variant-numeric: tabular-nums; box-shadow: 0 4px 20px rgba(0,0,0,0.5); }
 </style>
 </head>
 <body>
@@ -382,6 +386,13 @@ img{display:block}
   <div class="ban-title" data-i18n="ban_title">Account Suspended</div>
   <div class="ban-desc" data-i18n="ban_desc">Your account has been blocked for violation of terms. If you believe this is a mistake, close this app and send a message directly to the bot to contact support.</div>
   <button class="ban-btn" onclick="tg.close()">Close App</button>
+</div>
+
+<div id="maintenance-overlay">
+  <div class="maint-icon">🛠</div>
+  <div class="maint-title" data-i18n="maint_title">Maintenance Break</div>
+  <div class="maint-desc" data-i18n="maint_desc">We are currently updating the platform. Please check back later!</div>
+  <div class="maint-timer" id="maint-timer-display" style="display:none;">00:00:00</div>
 </div>
 
 <!-- WD CONFIRM MODAL -->
@@ -759,7 +770,8 @@ const TRANSLATIONS = {
     err_active_sales:"Withdrawal is unavailable while you have active photo sales. This is required to avoid overloading the payout system. Wait until all your photos are sold.",
     ref_count_sub:"referrals",
     ban_title:"Account Suspended",
-    ban_desc:"Your account has been blocked for violation of terms. If you believe this is a mistake, close this app and send a message directly to the bot to contact support."
+    ban_desc:"Your account has been blocked for violation of terms. If you believe this is a mistake, close this app and send a message directly to the bot to contact support.",
+    maint_title:"Maintenance Break", maint_desc:"We are currently updating the platform. Please check back later!"
   },
   ru:{
     hdr_sub:"Платформа аукциона фото",
@@ -831,7 +843,8 @@ const TRANSLATIONS = {
     err_active_sales:"Вывод недоступен, пока у вас есть активные продажи фотографий. Это необходимо, чтобы не перегружать систему вывода. Дождитесь завершения всех продаж.",
     ref_count_sub:"рефералов",
     ban_title:"Аккаунт Заблокирован",
-    ban_desc:"Ваш аккаунт был заблокирован за нарушение правил. Если вы считаете, что это ошибка, закройте приложение и напишите сообщение прямо в бота для связи с поддержкой."
+    ban_desc:"Ваш аккаунт был заблокирован за нарушение правил. Если вы считаете, что это ошибка, закройте приложение и напишите сообщение прямо в бота для связи с поддержкой.",
+    maint_title:"Технические работы", maint_desc:"Платформа обновляется. Мы скоро вернемся!"
   }
 };
 
@@ -890,13 +903,7 @@ let lastSoldCount = 0;
 let wheelTimer = null;
 let nextSpinMs = 0;
 let supportImgFile = null;
-
-const VIP_TIERS = [
-  {min:0,  max_delay:43200, slots:3},  {min:3,  max_delay:39600, slots:6},
-  {min:5,  max_delay:36000, slots:9},  {min:10, max_delay:32400, slots:12},
-  {min:25, max_delay:28800, slots:15}, {min:50, max_delay:25200, slots:18},
-];
-const VIP_ICONS = ['🔵','🟤','⚪','🟡','⚫','💎'];
+let maintInterval = null;
 
 async function init(){
   applyTranslations();
@@ -908,14 +915,46 @@ async function init(){
   setInterval(tickLiveFeed, 7000);
 }
 
+function startMaintenanceTimer(endTimeIso) {
+    clearInterval(maintInterval);
+    const end = new Date(endTimeIso + (endTimeIso.includes('Z') ? '' : 'Z'));
+    function update() {
+        const diff = end - new Date();
+        if (diff <= 0) {
+            document.getElementById('maint-timer-display').textContent = currentLang === 'ru' ? "Завершаем..." : "Wrapping up...";
+            clearInterval(maintInterval); return;
+        }
+        const h = Math.floor(diff / 3600000).toString().padStart(2, '0');
+        const m = Math.floor((diff % 3600000) / 60000).toString().padStart(2, '0');
+        const s = Math.floor((diff % 60000) / 1000).toString().padStart(2, '0');
+        document.getElementById('maint-timer-display').textContent = `${h}:${m}:${s}`;
+    }
+    update();
+    maintInterval = setInterval(update, 1000);
+}
+
 async function loadPlayer(silent = false){
   try{
     const r = await authFetch(`${BASE}/api/player/${userId}?username=${encodeURIComponent(username)}`);
     const data = await r.json();
     
-    if(r.status === 403 && data.error === 'banned') {
-        document.getElementById('ban-overlay').classList.add('active');
-        return;
+    if(r.status === 403) {
+        if(data.error === 'banned') {
+            document.getElementById('ban-overlay').classList.add('active');
+            return;
+        }
+        if(data.error === 'maintenance') {
+            document.getElementById('maintenance-overlay').classList.add('active');
+            if (data.end_time) {
+                document.getElementById('maint-timer-display').style.display = 'block';
+                startMaintenanceTimer(data.end_time);
+            } else {
+                document.getElementById('maint-timer-display').style.display = 'none';
+            }
+            return;
+        }
+    } else {
+        document.getElementById('maintenance-overlay').classList.remove('active');
     }
     
     if(!r.ok){
