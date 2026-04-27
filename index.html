@@ -1103,7 +1103,7 @@ function updateHeader(p){
     }
   }
   lastSoldCount = newSold;
-  if(p.lang && p.lang !== currentLang){ currentLang = p.lang; applyTranslations(); }
+  if(p.lang && p.lang !== currentLang){ currentLang =; applyTranslations(); }
 }
 
 function fmt(n){ return parseFloat(n || 0).toFixed(2); }
@@ -1426,7 +1426,6 @@ async function renderWalletInfo(){
   document.getElementById('withdraw-box').classList.toggle('locked-state', !unlocked);
   document.getElementById('withdraw-sub').textContent = unlocked ? t('withdraw_unlocked_hint') : t('withdraw_sub');
 
-  // Предупреждение об активных продажах
   const warnEl = document.getElementById('active-sales-warning');
   const warnText = document.getElementById('active-sales-warning-text');
   if (activeSales > 0) {
@@ -1487,7 +1486,6 @@ function selectWithdrawTab(tab){
 }
 
 async function initiateWithdraw(method) {
-  // ── Локальная проверка до любых запросов ──
   const bal = parseFloat(gameData?.player?.balance || 0);
   const minWd = gameData?.min_withdrawal_usd || 100;
   const activeSales = gameData?.active_auction_count || 0;
@@ -1626,18 +1624,22 @@ function renderReferrals(){
   
   document.getElementById('vip-big-badge').textContent = 'Lv ' + lvl;
 
-  const tiers = VIP_TIERS;
+  // ИСПРАВЛЕНИЕ: Используем массив из gameData, а не жестко заданный VIP_TIERS
+  const tiers = gameData.vip_tiers || []; 
+  if(!tiers.length) return;
   
   const maxRefs = tiers[tiers.length - 1].min; 
   let pct = Math.min((refs / maxRefs) * 100, 100);
   document.getElementById('vip-track-fill').style.width = pct + '%';
 
   document.getElementById('vip-milestones').innerHTML = tiers.map((tier, i) => `<div class="vip-dot-wrap" style="position:absolute; left:${(tier.min/maxRefs)*100}%; transform:translateX(-50%)"><div class="vip-dot ${refs >= tier.min ? 'reached' : ''} ${i === lvl ? 'current' : ''}"></div><div class="vip-dot-lbl ${i === lvl ? 'active' : ''}">${i}</div></div>`).join('');
+  
   const hint = document.getElementById('vip-next-hint');
   if(lvl >= tiers.length - 1) hint.textContent = t('vip_max_hint');
   else hint.textContent = t('vip_next_hint').replace('{n}', tiers[lvl + 1].min - refs).replace('{l}', lvl + 1);
 
   const tNames = t('vip_tier_names'), tMax = t('vip_tier_max'), tSlots = t('vip_tier_slots'), tReq = t('vip_tier_req');
+  const VIP_ICONS = ['🟢','🥉','🥈','🥇','💎','👑'];
   
   document.getElementById('vip-modal-tier-cards').innerHTML = tiers.map((tier, i) => {
     const unlocked = refs >= tier.min, curr = i === lvl;
