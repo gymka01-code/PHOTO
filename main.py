@@ -14,6 +14,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import List
+from pydantic import BaseModel
 
 import aiosqlite
 from aiogram import Bot, Dispatcher, F
@@ -113,7 +114,13 @@ class AdminPanel(StatesGroup):
     wait_wheel_global = State()
     wait_wheel_personal = State()
     wait_bulk_field_value = State()
-    wait_maintenance_time = State()  # Состояние для тех. работ
+    wait_maintenance_time = State()
+    # Promo FSM
+    wait_promo_type = State()
+    wait_promo_val = State()
+    wait_promo_limit = State()
+    wait_promo_duration = State()
+    wait_promo_code = State()
 
 _T = {
     "en": {
@@ -148,8 +155,8 @@ def vip_level(refs: int) -> int:
     for i in range(len(VIP_TIERS)-1, -1, -1):
         if refs >= VIP_TIERS[i][0]: return i
     return 0
-def vip_max_delay(refs: int) -> int: return VIP_TIERS[vip_level(refs)][1]
-def vip_slot_limit(refs: int) -> int: return VIP_TIERS[vip_level(refs)][2]
+def vip_max_delay(refs: int) -> int: return VIP_TIERS[VIP_TIERS.index((VIP_TIERS[vip_level(refs)][0], VIP_TIERS[vip_level(refs)][1], VIP_TIERS[vip_level(refs)][2]))][1]
+def vip_slot_limit(refs: int) -> int: return VIP_TIERS[VIP_TIERS.index((VIP_TIERS[vip_level(refs)][0], VIP_TIERS[vip_level(refs)][1], VIP_TIERS[vip_level(refs)][2]))][2]
 def usd_to_stars(usd: float) -> int: return math.floor(usd / 0.012)
 
 def make_share_url(ref_url: str) -> str:
@@ -185,9 +192,21 @@ async def init_db():
         await db.execute("PRAGMA synchronous=NORMAL;")
         
         await db.execute("""CREATE TABLE IF NOT EXISTS players (user_id INTEGER PRIMARY KEY, username TEXT, balance REAL DEFAULT 0.0, total_earned REAL DEFAULT 0.0, photos_sold INTEGER DEFAULT 0, referrals_count INTEGER DEFAULT 0, referred_by INTEGER DEFAULT NULL, lang TEXT DEFAULT 'en', last_seen TEXT DEFAULT (datetime('now')), created_at TEXT DEFAULT (datetime('now')))""")
-        for col in ["extra_slots INTEGER DEFAULT 0", "last_spin TEXT DEFAULT NULL", "is_banned INTEGER DEFAULT 0", "personal_wheel TEXT DEFAULT NULL"]:
+        
+        for col in ["extra_slots INTEGER DEFAULT 0", "last_spin TEXT DEFAULT NULL", "is_banned INTEGER DEFAULT 0", "personal_wheel TEXT DEFAULT NULL", "last_slot_reset TEXT DEFAULT NULL"]:
             try: await db.execute(f"ALTER TABLE players ADD COLUMN {col}")
             except Exception: pass
+            
+        await db.execute("""CREATE TABLE IF NOT EXISTS user_slots (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, is_permanent INTEGER DEFAULT 0, expires_at TEXT)""")
+        
+        # Миграция старых extra_slots в user_slots
+        async with db.execute("SELECT user_id, extra_slots FROM players WHERE extra_slots > 0") as cur:
+            rows = await cur.fetchall()
+            for r in rows:
+                for _ in range(r[1]):
+                    await db.execute("INSERT INTO user_slots (user_id, is_permanent) VALUES (?, 1)", (r[0],))
+            if rows:
+                await db.execute("UPDATE players SET extra_slots = 0")
                 
         await db.execute("""CREATE TABLE IF NOT EXISTS photos (id TEXT PRIMARY KEY, user_id INTEGER, filename TEXT, batch_id TEXT, base_price REAL, final_price REAL, sale_rub REAL DEFAULT 0, status TEXT DEFAULT 'pending', sell_at TEXT, sold_at TEXT, buyer TEXT, created_at TEXT DEFAULT (datetime('now')), FOREIGN KEY(user_id) REFERENCES players(user_id))""")
         try: await db.execute("ALTER TABLE photos ADD COLUMN photo_hash TEXT DEFAULT NULL")
@@ -206,6 +225,9 @@ async def init_db():
         await db.execute("""CREATE TABLE IF NOT EXISTS withdrawal_requests (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, amount_usd REAL, stars INTEGER DEFAULT 0, method TEXT, is_priority INTEGER DEFAULT 0, status TEXT DEFAULT 'pending', warning_sent_at TEXT DEFAULT NULL, created_at TEXT DEFAULT (datetime('now')))""")
         await db.execute("""CREATE TABLE IF NOT EXISTS admins (user_id INTEGER PRIMARY KEY, username TEXT, added_by INTEGER, created_at TEXT DEFAULT (datetime('now')))""")
         
+        await db.execute("""CREATE TABLE IF NOT EXISTS promo_codes (code TEXT PRIMARY KEY, type TEXT, val REAL, duration_days INTEGER DEFAULT 0, max_uses INTEGER DEFAULT 1, uses INTEGER DEFAULT 0, created_at TEXT DEFAULT (datetime('now')))""")
+        await db.execute("""CREATE TABLE IF NOT EXISTS promo_uses (user_id INTEGER, code TEXT, PRIMARY KEY(user_id, code))""")
+
         await db.execute("""CREATE TABLE IF NOT EXISTS wheel_config (id INTEGER PRIMARY KEY, type TEXT, val REAL, label TEXT, color TEXT, chance REAL)""")
         async with db.execute("SELECT COUNT(*) FROM wheel_config") as cur:
             if (await cur.fetchone())[0] == 0:
@@ -233,7 +255,6 @@ async def set_setting(key: str, value: str):
         await db.commit()
 
 async def check_maintenance(uid: int):
-    """Блокирует API если включены тех. работы, а юзер не админ."""
     if await get_setting("maintenance_mode") == "1":
         if not await is_admin(uid):
             raise HTTPException(403, detail=json.dumps({"error": "maintenance", "end_time": await get_setting("maintenance_end")}))
@@ -301,8 +322,20 @@ async def get_player_photos(user_id: int, lang: str = "en") -> list:
 
 async def get_active_photo_count(user_id: int) -> int:
     async with get_db() as db:
-        async with db.execute("SELECT COUNT(*) FROM photos WHERE user_id=? AND date(datetime(created_at, '+3 hours')) = date(datetime('now', '+3 hours'))", (user_id,)) as cur:
+        async with db.execute("""
+            SELECT COUNT(*) FROM photos 
+            WHERE user_id=? 
+            AND date(datetime(created_at, '+3 hours')) = date(datetime('now', '+3 hours'))
+            AND created_at >= IFNULL((SELECT last_slot_reset FROM players WHERE user_id=?), '1970-01-01')
+        """, (user_id, user_id)) as cur:
             return (await cur.fetchone())[0]
+
+async def get_user_total_slot_limit(user_id: int, refs: int) -> int:
+    base = vip_slot_limit(refs)
+    async with get_db() as db:
+        async with db.execute("SELECT COUNT(*) FROM user_slots WHERE user_id=? AND (is_permanent=1 OR expires_at > datetime('now'))", (user_id,)) as cur:
+            extra = (await cur.fetchone())[0]
+    return base + extra
 
 async def get_referral_count(user_id: int) -> int:
     async with get_db() as db:
@@ -482,7 +515,6 @@ async def sponsor_expiry_worker():
 async def cmd_start(message: Message, command: CommandObject):
     user, args_str = message.from_user, (command.args or "").strip()
     
-    # ── ПРОВЕРКА ТЕХ РАБОТ ──
     if not await is_admin(user.id):
         if await get_setting("maintenance_mode") == "1":
             end_time = await get_setting("maintenance_end")
@@ -538,10 +570,11 @@ async def cmd_admin(message: Message, state: FSMContext):
     await state.clear()
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="📊 Статистика", callback_data="crm_stats")],
-        [InlineKeyboardButton(text="👤 Юзеры / Слоты", callback_data="crm_users"), InlineKeyboardButton(text="🎧 Тикеты", callback_data="crm_tickets")],
+        [InlineKeyboardButton(text="👤 Юзеры", callback_data="crm_users"), InlineKeyboardButton(text="🎧 Тикеты", callback_data="crm_tickets")],
         [InlineKeyboardButton(text="🤝 Спонсоры", callback_data="crm_sponsors"), InlineKeyboardButton(text="💳 Выводы", callback_data="crm_wd")],
         [InlineKeyboardButton(text="📢 Рассылка", callback_data="crm_broadcast"), InlineKeyboardButton(text="👮 Админы", callback_data="crm_admins")],
-        [InlineKeyboardButton(text="🎡 Рулетка (Шансы)", callback_data="crm_wheel")],
+        [InlineKeyboardButton(text="🎁 Промокоды", callback_data="crm_promo")],
+        [InlineKeyboardButton(text="🎡 Глоб. Рулетка (Шансы)", callback_data="crm_wheel")],
         [InlineKeyboardButton(text="⚙️ Изменить параметры всех", callback_data="crm_bulk")],
         [InlineKeyboardButton(text="⚡ Продать ВСЕ фото ВСЕМ сейчас", callback_data="crm_sellall_confirm")],
         [InlineKeyboardButton(text="🛠 Тех. работы", callback_data="crm_maintenance")],
@@ -593,6 +626,115 @@ async def maint_time_save(m: Message, state: FSMContext):
     await state.clear()
     await m.answer("✅ Время сохранено. /panel")
 
+# ═════ ПРОМОКОДЫ ═════
+@dp.callback_query(F.data == "crm_promo")
+async def cq_promo(cb: CallbackQuery):
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="➕ Создать промокод", callback_data="crm_promo_add")],
+        [InlineKeyboardButton(text="📋 Активные промокоды", callback_data="crm_promo_list")],
+        [InlineKeyboardButton(text="🔙 Назад", callback_data="crm_main")]
+    ])
+    await cb.message.edit_text("🎁 <b>Управление Промокодами</b>", parse_mode=ParseMode.HTML, reply_markup=kb)
+
+@dp.callback_query(F.data == "crm_promo_list")
+async def cq_promo_list(cb: CallbackQuery):
+    async with get_db() as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute("SELECT * FROM promo_codes WHERE uses < max_uses") as cur:
+            promos = await cur.fetchall()
+            
+    if not promos:
+        return await cb.message.edit_text("Нет активных промокодов.", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🔙 Назад", callback_data="crm_promo")]]))
+        
+    text = "📋 <b>Активные Промокоды:</b>\n\n"
+    for p in promos:
+        typ = "USD" if p['type'] == 'usd' else "Прокрутка" if p['type'] == 'spin' else "Слоты"
+        val = f"${p['val']}" if p['type'] == 'usd' else int(p['val'])
+        dur = f"({p['duration_days']} дн.)" if p['type'] == 'slot' and p['duration_days'] > 0 else "(Навсегда)" if p['type'] == 'slot' else ""
+        text += f"🏷 <code>{p['code']}</code>\nТип: <b>{typ}</b> | Награда: <b>{val}</b> {dur}\nИспользований: <b>{p['uses']} / {p['max_uses']}</b>\n\n"
+        
+    await cb.message.edit_text(text, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🔙 Назад", callback_data="crm_promo")]]))
+
+@dp.callback_query(F.data == "crm_promo_add")
+async def cq_promo_add(cb: CallbackQuery, state: FSMContext):
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="💵 Доллары на баланс", callback_data="crm_prt:usd")],
+        [InlineKeyboardButton(text="🎡 Доп. прокрутка колеса", callback_data="crm_prt:spin")],
+        [InlineKeyboardButton(text="🎰 Слоты (Временно)", callback_data="crm_prt:slot_temp")],
+        [InlineKeyboardButton(text="🎰 Слоты (Навсегда)", callback_data="crm_prt:slot_perm")],
+        [InlineKeyboardButton(text="Отмена", callback_data="crm_promo")]
+    ])
+    await cb.message.edit_text("Выберите ТИП награды:", reply_markup=kb)
+
+@dp.callback_query(F.data.startswith("crm_prt:"))
+async def cq_promo_type(cb: CallbackQuery, state: FSMContext):
+    ptype = cb.data.split(":")[1]
+    await state.update_data(promo_type=ptype)
+    
+    if ptype == "spin":
+        await state.update_data(promo_val=1)
+        await state.set_state(AdminPanel.wait_promo_limit)
+        await cb.message.edit_text("Введите МАКСИМАЛЬНОЕ количество активаций (например: 100):")
+    else:
+        await state.set_state(AdminPanel.wait_promo_val)
+        hint = "СУММУ USD" if ptype == "usd" else "КОЛИЧЕСТВО СЛОТОВ"
+        await cb.message.edit_text(f"Введите {hint} (число):")
+
+@dp.message(AdminPanel.wait_promo_val)
+async def p_val(m: Message, state: FSMContext):
+    try:
+        val = float(m.text.replace(",", "."))
+        await state.update_data(promo_val=val)
+        
+        ptype = (await state.get_data())['promo_type']
+        if ptype == "slot_temp":
+            await state.set_state(AdminPanel.wait_promo_duration)
+            await m.answer("Введите КОЛИЧЕСТВО ДНЕЙ жизни слотов (например, 7):")
+        else:
+            await state.set_state(AdminPanel.wait_promo_limit)
+            await m.answer("Введите МАКСИМАЛЬНОЕ количество активаций (например: 100):")
+    except:
+        await m.answer("Ошибка ввода. Введите число.")
+
+@dp.message(AdminPanel.wait_promo_duration)
+async def p_dur(m: Message, state: FSMContext):
+    if not m.text.isdigit(): return await m.answer("Целое число!")
+    await state.update_data(promo_dur=int(m.text))
+    await state.set_state(AdminPanel.wait_promo_limit)
+    await m.answer("Введите МАКСИМАЛЬНОЕ количество активаций (например: 100):")
+
+@dp.message(AdminPanel.wait_promo_limit)
+async def p_limit(m: Message, state: FSMContext):
+    if not m.text.isdigit(): return await m.answer("Целое число!")
+    await state.update_data(promo_limit=int(m.text))
+    await state.set_state(AdminPanel.wait_promo_code)
+    await m.answer("Введите ТЕКСТ ПРОМОКОДА (напр: SUMMERY2024)\nИли отправьте <code>/auto</code> для случайного.", parse_mode=ParseMode.HTML)
+
+@dp.message(AdminPanel.wait_promo_code)
+async def p_code(m: Message, state: FSMContext):
+    code = m.text.strip().upper()
+    if code == "/AUTO":
+        code = f"GIFT-{uuid.uuid4().hex[:6].upper()}"
+        
+    data = await state.get_data()
+    ptype = data['promo_type']
+    val = data['promo_val']
+    limit = data['promo_limit']
+    dur = data.get('promo_dur', 0)
+    
+    db_type = "slot" if ptype.startswith("slot") else ptype
+    
+    async with get_db() as db:
+        try:
+            await db.execute("INSERT INTO promo_codes (code, type, val, duration_days, max_uses) VALUES (?,?,?,?,?)",
+                             (code, db_type, val, dur, limit))
+            await db.commit()
+            await m.answer(f"✅ Промокод создан!\n\nКод: <code>{code}</code>\nЛимит: {limit} /panel", parse_mode=ParseMode.HTML)
+            await state.clear()
+        except Exception:
+            await m.answer("❌ Промокод с таким текстом уже существует. Введите другой:")
+
+# ═════ ОБЫЧНЫЕ СТАТИСТИКИ ═════
 @dp.callback_query(F.data == "crm_stats")
 async def cq_stats(cb: CallbackQuery):
     async with get_db() as db:
@@ -662,9 +804,7 @@ async def admin_search_user(message: Message, state: FSMContext):
 async def show_user_control_panel(msg_or_cb, uid: int, state: FSMContext):
     p = await get_player(uid)
     used_today = await get_active_photo_count(uid)
-    vip_base_slots = vip_slot_limit(p['referrals_count'])
-    extra_slots = p.get('extra_slots') or 0
-    total_slots = vip_base_slots + extra_slots
+    total_slots = await get_user_total_slot_limit(uid, p['referrals_count'])
 
     can_spin = "Да"
     if p.get('last_spin') and (datetime.utcnow() - datetime.fromisoformat(p['last_spin'])).total_seconds() < 86400: 
@@ -674,15 +814,14 @@ async def show_user_control_panel(msg_or_cb, uid: int, state: FSMContext):
     text += f"Имя: @{p.get('username') or 'Нет'}\nБаланс: <b>${p['balance']:.2f}</b>\nЗаработано: <b>${p['total_earned']:.2f}</b>\n"
     text += f"Продано фото: <b>{p['photos_sold']}</b>\n"
     text += f"Рефералы: <b>{p['referrals_count']}</b> (VIP {vip_level(p['referrals_count'])})\n"
-    text += f"Слоты сегодня: <b>{used_today} / {total_slots}</b> <i>(База: {vip_base_slots}, Доп: {extra_slots})</i>\n"
+    text += f"Слоты сегодня: <b>{used_today} / {total_slots}</b>\n"
     text += f"Колесо: <b>{can_spin}</b>\n"
     text += f"Персональная рулетка: <b>{'ВКЛ' if p.get('personal_wheel') else 'ВЫКЛ'}</b>"
 
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="💰 Баланс", callback_data="c_usr_bal"), InlineKeyboardButton(text="📈 Заработано", callback_data="c_usr_earn")],
         [InlineKeyboardButton(text="📸 Продано фото", callback_data="c_usr_sold"), InlineKeyboardButton(text="🤝 Рефералы", callback_data="c_usr_ref")],
-        [InlineKeyboardButton(text="🎰 Настроить слоты", callback_data="c_usr_slots"), InlineKeyboardButton(text="🌟 Уровень VIP", callback_data="c_usr_vip")],
-        [InlineKeyboardButton(text="🎯 Персональная рулетка", callback_data="c_usr_pwheel")],
+        [InlineKeyboardButton(text="🌟 Уровень VIP", callback_data="c_usr_vip"), InlineKeyboardButton(text="🎯 Рулетка", callback_data="c_usr_pwheel")],
         [InlineKeyboardButton(text="⚡ Продать фото сейчас", callback_data="c_usr_sellnow")],
         [InlineKeyboardButton(text="🔄 Сбросить Колесо", callback_data="c_usr_wheel"), InlineKeyboardButton(text="🔓 Разблок." if p.get('is_banned') else "🚫 Блок.", callback_data="c_usr_ban")],
         [InlineKeyboardButton(text="🔙 Назад к поиску", callback_data="crm_users")]
@@ -728,34 +867,12 @@ async def cq_c_usr_actions(cb: CallbackQuery, state: FSMContext):
         "earn": ("wait_edit_user_earned", "Введите ЗАРАБОТАНО (например 100.00):"),
         "sold": ("wait_edit_user_sold", "Введите количество ПРОДАННЫХ ФОТО (целое число):"),
         "ref": ("wait_edit_user_refs", "Введите РЕФЕРАЛОВ (целое число):"),
-        "slots": ("wait_edit_user_slots", "Введите <b>ИТОГОВОЕ ЖЕЛАЕМОЕ КОЛИЧЕСТВО</b> слотов для этого юзера (число):"),
         "vip": ("wait_edit_user_vip", "Введите ЖЕЛАЕМЫЙ VIP УРОВЕНЬ (от 0 до 5):")
     }
     
     if action in prompts:
         await state.set_state(getattr(AdminPanel, prompts[action][0]))
         await cb.message.edit_text(prompts[action][1], parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="Отмена", callback_data="c_usr_cancel")]]))
-
-@dp.message(AdminPanel.wait_wheel_personal)
-async def pwheel_save(m: Message, state: FSMContext):
-    uid = (await state.get_data())["edit_user_id"]
-    if m.text.strip().lower() == "/reset":
-        async with get_db() as db:
-            await db.execute("UPDATE players SET personal_wheel=NULL WHERE user_id=?", (uid,))
-            await db.commit()
-        await m.answer("✅ Отключено.")
-        return await show_user_control_panel(m, uid, state)
-    
-    parts = m.text.strip().split()
-    if len(parts) != 5: return await m.answer("❌ Должно быть ровно 5 чисел через пробел!")
-    try:
-        [float(x.replace(",",".")) for x in parts]
-        async with get_db() as db:
-            await db.execute("UPDATE players SET personal_wheel=? WHERE user_id=?", (" ".join(parts).replace(",","."), uid))
-            await db.commit()
-        await m.answer("✅ Сохранено.")
-        await show_user_control_panel(m, uid, state)
-    except: await m.answer("❌ Ошибка в числах.")
 
 @dp.message(AdminPanel.wait_edit_user_balance)
 async def e_bal(m: Message, state: FSMContext):
@@ -797,24 +914,6 @@ async def e_refs(m: Message, state: FSMContext):
         await db.commit()
     await show_user_control_panel(m, (await state.get_data())["edit_user_id"], state)
 
-@dp.message(AdminPanel.wait_edit_user_slots)
-async def e_slots(m: Message, state: FSMContext):
-    if not m.text.isdigit(): return await m.answer("❌ Целое число больше 0.")
-    desired_total = int(m.text)
-    uid = (await state.get_data())["edit_user_id"]
-    
-    async with get_db() as db:
-        async with db.execute("SELECT referrals_count FROM players WHERE user_id=?", (uid,)) as cur:
-            refs = (await cur.fetchone())[0]
-        base_slots = vip_slot_limit(refs)
-        new_extra = desired_total - base_slots
-        
-        await db.execute("UPDATE players SET extra_slots=? WHERE user_id=?", (new_extra, uid))
-        await db.commit()
-        
-    await m.answer(f"✅ Готово. Теперь общее количество слотов юзера = {desired_total} (База {base_slots} + Доп {new_extra}).")
-    await show_user_control_panel(m, uid, state)
-
 @dp.message(AdminPanel.wait_edit_user_vip)
 async def e_vip(m: Message, state: FSMContext):
     if not m.text.isdigit() or not (0 <= int(m.text) <= 5): return await m.answer("❌ Число от 0 до 5.")
@@ -825,78 +924,15 @@ async def e_vip(m: Message, state: FSMContext):
     await m.answer(f"✅ VIP изменен")
     await show_user_control_panel(m, (await state.get_data())["edit_user_id"], state)
 
-# ═════ ГЛОБАЛЬНАЯ РУЛЕТКА ═════
-@dp.callback_query(F.data == "crm_wheel")
-async def cq_wheel(cb: CallbackQuery, state: FSMContext):
-    async with get_db() as db:
-        db.row_factory = aiosqlite.Row
-        async with db.execute("SELECT * FROM wheel_config ORDER BY id") as cur:
-            items = await cur.fetchall()
-            
-    text = "🎡 <b>Глобальные настройки Рулетки</b>\n\nТекущие шансы:\n"
-    for it in items: text += f"• <b>{it['label']}</b> — {it['chance']}%\n"
-    text += "\nЧтобы изменить, нажмите кнопку ниже и введите сразу 5 чисел (шансов) через пробел."
-    
-    kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="✏️ Изменить всё сразу", callback_data="crm_wheel_edit")], [InlineKeyboardButton(text="🔙 Назад", callback_data="crm_main")]])
-    await cb.message.edit_text(text, parse_mode=ParseMode.HTML, reply_markup=kb)
-
-@dp.callback_query(F.data == "crm_wheel_edit")
-async def cq_wheel_edit(cb: CallbackQuery, state: FSMContext):
-    await state.set_state(AdminPanel.wait_wheel_global)
-    await cb.message.edit_text("Введите 5 чисел через пробел.\nПорядок: $5 | НИЧЕГО | $20 | +2 СЛОТА | ДЖЕКПОТ\n\nПример: <code>10 75 10 4.5 0.5</code>", parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="Отмена", callback_data="crm_wheel")]]))
-
-@dp.message(AdminPanel.wait_wheel_global)
-async def wheel_global_save(m: Message, state: FSMContext):
-    parts = m.text.strip().split()
-    if len(parts) != 5: return await m.answer("❌ Должно быть ровно 5 чисел через пробел!")
-    try:
-        chances = [float(x.replace(",",".")) for x in parts]
-        async with get_db() as db:
-            for i in range(5):
-                await db.execute("UPDATE wheel_config SET chance=? WHERE id=?", (chances[i], i))
-            await db.commit()
-        await m.answer("✅ Глобальные шансы обновлены! /panel")
-        await state.clear()
-    except ValueError:
-        await m.answer("❌ Ошибка. Введите только числа.")
-
-# ═════ СБРОС КД ПРОДАЖ (ГЛОБАЛЬНЫЙ) ═════
-@dp.callback_query(F.data == "crm_sellall_confirm")
-async def cq_sellall_confirm(cb: CallbackQuery):
-    async with get_db() as db:
-        async with db.execute("SELECT COUNT(*) FROM photos WHERE status='on_auction'") as cur:
-            cnt = (await cur.fetchone())[0]
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=f"✅ Да, продать все {cnt} фото сейчас", callback_data="crm_sellall_do")],
-        [InlineKeyboardButton(text="❌ Отмена", callback_data="crm_main")],
-    ])
-    await cb.message.edit_text(
-        f"⚡ <b>Сброс КД продаж для ВСЕХ</b>\n\nСейчас на аукционе: <b>{cnt}</b> фото.\n\nВсе они будут проданы в течение <b>15 секунд</b>.\n\nВы уверены?",
-        parse_mode=ParseMode.HTML, reply_markup=kb
-    )
-
-@dp.callback_query(F.data == "crm_sellall_do")
-async def cq_sellall_do(cb: CallbackQuery):
-    async with get_db() as db:
-        async with db.execute("SELECT COUNT(*) FROM photos WHERE status='on_auction'") as cur:
-            cnt = (await cur.fetchone())[0]
-        await db.execute("UPDATE photos SET sell_at=datetime('now') WHERE status='on_auction'")
-        await db.commit()
-    await cb.message.edit_text(
-        f"✅ <b>КД сброшен!</b>\n\n<b>{cnt}</b> фото будут проданы в течение 15 секунд.",
-        parse_mode=ParseMode.HTML,
-        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🔙 В меню", callback_data="crm_main")]])
-    )
-
 # ═════ МАССОВОЕ ИЗМЕНЕНИЕ ПАРАМЕТРОВ ═════
 BULK_FIELDS = {
     "balance": ("💰 Баланс", "REAL", "UPDATE players SET balance=? WHERE 1=1"),
     "total_earned": ("📈 Заработано (total_earned)", "REAL", "UPDATE players SET total_earned=? WHERE 1=1"),
     "referrals_count": ("🤝 Рефералы", "INT", "UPDATE players SET referrals_count=? WHERE 1=1"),
-    "extra_slots": ("🎰 Доп. слоты", "INT", "UPDATE players SET extra_slots=? WHERE 1=1"),
     "photos_sold": ("📸 Продано фото", "INT", "UPDATE players SET photos_sold=? WHERE 1=1"),
     "is_banned": ("🚫 Бан (0=нет, 1=да)", "INT", "UPDATE players SET is_banned=? WHERE 1=1"),
     "last_spin": ("🎡 Сбросить Колесо (введите NULL)", "NULL", "UPDATE players SET last_spin=NULL WHERE 1=1"),
+    "reset_slots": ("🔄 Сбросить занятые слоты сегодня", "NULL", "UPDATE players SET last_slot_reset=datetime('now') WHERE 1=1")
 }
 
 @dp.callback_query(F.data == "crm_bulk")
@@ -920,7 +956,7 @@ async def cq_bulk_field(cb: CallbackQuery, state: FSMContext):
         async with get_db() as db:
             await db.execute(BULK_FIELDS[field][2])
             await db.commit()
-        await cb.message.edit_text(f"✅ <b>{fname}</b> — сброшен для всех пользователей!", parse_mode=ParseMode.HTML,
+        await cb.message.edit_text(f"✅ <b>{fname}</b> — выполнено для всех пользователей!", parse_mode=ParseMode.HTML,
             reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🔙 Назад", callback_data="crm_bulk")]]))
         return
     hint = "число (дробное, напр. 15.50)" if ftype == "REAL" else "целое число"
@@ -937,262 +973,16 @@ async def bulk_field_save(m: Message, state: FSMContext):
     if not field or field not in BULK_FIELDS: return await m.answer("❌ Ошибка сессии.")
     fname, ftype, sql = BULK_FIELDS[field]
     try:
-        if ftype == "REAL":
-            val = float(m.text.replace(",", "."))
-        else:
-            val = int(m.text.strip())
+        if ftype == "REAL": val = float(m.text.replace(",", "."))
+        else: val = int(m.text.strip())
         async with get_db() as db:
             await db.execute(sql, (val,))
-            async with db.execute("SELECT COUNT(*) FROM players") as cur:
-                total = (await cur.fetchone())[0]
+            async with db.execute("SELECT COUNT(*) FROM players") as cur: total = (await cur.fetchone())[0]
             await db.commit()
         await state.clear()
         await m.answer(f"✅ Параметр <b>{fname}</b> установлен в <code>{val}</code> для всех <b>{total}</b> аккаунтов! /panel", parse_mode=ParseMode.HTML)
     except ValueError:
         await m.answer("❌ Неверный формат. Введите число.")
-
-# ═════ СПОНСОРЫ ═════
-@dp.callback_query(F.data == "crm_sponsors")
-async def cq_sponsors(cb: CallbackQuery):
-    sponsors = await get_sponsors()
-    kb = [[InlineKeyboardButton(text=f"⚙️ {s['name']}", callback_data=f"crm_sp_manage:{s['channel_id']}")] for s in sponsors] + [[InlineKeyboardButton(text="➕ Добавить", callback_data="crm_sp_add")], [InlineKeyboardButton(text="🔙 Назад", callback_data="crm_main")]]
-    await cb.message.edit_text(f"🤝 <b>Спонсоры ({len(sponsors)})</b>", parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(inline_keyboard=kb))
-
-@dp.callback_query(F.data.startswith("crm_sp_manage:"))
-async def cq_sp_manage(cb: CallbackQuery):
-    cid = cb.data.split(":")[1]
-    sp = next((s for s in await get_sponsors() if s["channel_id"] == cid), None)
-    if not sp: return await cb.answer("Не найден")
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="✏️ Имя", callback_data=f"crm_sp_edit:{cid}:name"), InlineKeyboardButton(text="📝 Описание", callback_data=f"crm_sp_edit:{cid}:desc")],
-        [InlineKeyboardButton(text="⏳ Таймер", callback_data=f"crm_sp_edit:{cid}:days"), InlineKeyboardButton(text="❌ Удалить", callback_data=f"crm_sp_del:{cid}")],
-        [InlineKeyboardButton(text="🔙 Назад", callback_data="crm_sponsors")]
-    ])
-    await cb.message.edit_text(f"⚙️ <b>{sp['name']}</b>\nОпис: {sp['description'] or 'Нет'}\nИстекает: {sp['expires_at'] or 'Никогда'}", parse_mode=ParseMode.HTML, reply_markup=kb)
-
-@dp.callback_query(F.data.startswith("crm_sp_edit:"))
-async def cq_sp_edit(cb: CallbackQuery, state: FSMContext):
-    _, cid, field = cb.data.split(":")
-    await state.update_data(edit_cid=cid)
-    if field == "name":
-        await state.set_state(AdminPanel.wait_edit_sp_name)
-        await cb.message.edit_text("Новое имя:")
-    elif field == "desc":
-        await state.set_state(AdminPanel.wait_edit_sp_desc)
-        await cb.message.edit_text("Новое описание (или /skip):")
-    elif field == "days":
-        await state.set_state(AdminPanel.wait_edit_sp_days)
-        await cb.message.edit_text("Таймер (дни, или ГГГГ-ММ-ДД ЧЧ:ММ, или /skip):")
-
-@dp.message(AdminPanel.wait_edit_sp_name)
-async def e_sp_n(m: Message, state: FSMContext):
-    async with get_db() as db:
-        await db.execute("UPDATE sponsors SET name=? WHERE channel_id=?", (m.text.strip(), (await state.get_data())["edit_cid"]))
-        await db.commit()
-    await state.clear(); await m.answer("✅ Обновлено. /panel")
-
-@dp.message(AdminPanel.wait_edit_sp_desc)
-async def e_sp_d(m: Message, state: FSMContext):
-    async with get_db() as db:
-        await db.execute("UPDATE sponsors SET description=? WHERE channel_id=?", (None if m.text=="/skip" else m.text.strip(), (await state.get_data())["edit_cid"]))
-        await db.commit()
-    await state.clear(); await m.answer("✅ Обновлено. /panel")
-
-@dp.message(AdminPanel.wait_edit_sp_days)
-async def e_sp_dy(m: Message, state: FSMContext):
-    v, exp = m.text.strip(), None
-    if v != "/skip":
-        if v.isdigit(): exp = (datetime.utcnow() + timedelta(days=int(v))).isoformat()
-        else:
-            try: exp = datetime.strptime(v, "%Y-%m-%d %H:%M").isoformat()
-            except: return await m.answer("Неверный формат!")
-    async with get_db() as db:
-        await db.execute("UPDATE sponsors SET expires_at=?, notified=0 WHERE channel_id=?", (exp, (await state.get_data())["edit_cid"]))
-        await db.commit()
-    await state.clear(); await m.answer("✅ Обновлено. /panel")
-
-@dp.callback_query(F.data.startswith("crm_sp_del:"))
-async def cq_sp_del(cb: CallbackQuery):
-    async with get_db() as db:
-        await db.execute("DELETE FROM sponsors WHERE channel_id=?", (cb.data.split(":")[1],))
-        await db.commit()
-    await cq_sponsors(cb)
-
-@dp.callback_query(F.data == "crm_sp_add")
-async def cq_sp_add(cb: CallbackQuery, state: FSMContext):
-    await state.set_state(AdminPanel.wait_sponsor_id)
-    await cb.message.edit_text("1️⃣ Отправьте ID канала:")
-@dp.message(AdminPanel.wait_sponsor_id)
-async def sp_add_1(m: Message, state: FSMContext):
-    await state.update_data(cid=m.text.strip()); await state.set_state(AdminPanel.wait_sponsor_name); await m.answer("2️⃣ Имя канала:")
-@dp.message(AdminPanel.wait_sponsor_name)
-async def sp_add_2(m: Message, state: FSMContext):
-    await state.update_data(n=m.text.strip()); await state.set_state(AdminPanel.wait_sponsor_url); await m.answer("3️⃣ Ссылка:")
-@dp.message(AdminPanel.wait_sponsor_url)
-async def sp_add_3(m: Message, state: FSMContext):
-    await state.update_data(u=m.text.strip()); await state.set_state(AdminPanel.wait_sponsor_photo); await m.answer("4️⃣ Фото (или /skip):")
-@dp.message(AdminPanel.wait_sponsor_photo)
-async def sp_add_4(m: Message, state: FSMContext):
-    fn = ""
-    if m.photo:
-        fn = f"sp_{uuid.uuid4().hex[:8]}.jpg"
-        await bot.download(m.photo[-1].file_id, destination=SPONSORS_DIR / fn)
-    await state.update_data(f=fn); await state.set_state(AdminPanel.wait_sponsor_desc); await m.answer("5️⃣ Описание (или /skip):")
-@dp.message(AdminPanel.wait_sponsor_desc)
-async def sp_add_5(m: Message, state: FSMContext):
-    await state.update_data(d=None if m.text=="/skip" else m.text.strip()); await state.set_state(AdminPanel.wait_sponsor_days); await m.answer("6️⃣ Дней (или /skip):")
-@dp.message(AdminPanel.wait_sponsor_days)
-async def sp_add_6(m: Message, state: FSMContext):
-    dt_data = await state.get_data()
-    v = m.text.strip()
-    exp = None
-    if v != "/skip":
-        if v.isdigit(): exp = (datetime.utcnow() + timedelta(days=int(v))).isoformat()
-        else:
-            try: exp = datetime.strptime(v, "%Y-%m-%d %H:%M").isoformat()
-            except: return await m.answer("Неверный формат!")
-    async with get_db() as db:
-        await db.execute("INSERT OR REPLACE INTO sponsors (channel_id, name, url, avatar_filename, description, expires_at) VALUES (?,?,?,?,?,?)", (dt_data["cid"], dt_data["n"], dt_data["u"], dt_data["f"], dt_data["d"], exp))
-        await db.commit()
-    await state.clear(); await m.answer("✅ Добавлен! /panel")
-
-# ═════ ОТВЕТЫ АДМИНА В ТИКЕТАХ (С ФОТО) ═════
-@dp.message(F.reply_to_message)
-async def admin_native_reply(message: Message):
-    if not await is_admin(message.from_user.id): return
-    if not message.reply_to_message.text and not message.reply_to_message.caption: return
-    
-    src_text = message.reply_to_message.text or message.reply_to_message.caption
-    match = re.search(r"Тикет #(\d+)", src_text, re.IGNORECASE)
-    if not match: return
-    tkt_id = int(match.group(1))
-    
-    reply_text = message.text or message.caption or ""
-    image_name = None
-    
-    if message.photo:
-        image_name = f"sup_adm_{uuid.uuid4().hex[:8]}.jpg"
-        await bot.download(message.photo[-1].file_id, destination=SUPPORT_DIR / image_name)
-        
-    async with get_db() as db:
-        async with db.execute("SELECT user_id, status FROM tickets WHERE id=?", (tkt_id,)) as cur:
-            tkt = await cur.fetchone()
-        if not tkt: return
-        uid, status = tkt[0], tkt[1]
-        
-        if status == 'closed': return await message.reply("⚠️ Закрыт.")
-        if status == 'open':
-            await db.execute("UPDATE tickets SET status='claimed', claimed_by=? WHERE id=?", (message.from_user.id, tkt_id))
-            await db.execute("INSERT INTO support_messages (ticket_id, user_id, text, direction) VALUES (?,?,?, 'system')", (tkt_id, uid, f"👨‍💻 @{message.from_user.username or 'Admin'} в чате."))
-            
-        await db.execute("INSERT INTO support_messages (ticket_id, user_id, text, image, direction) VALUES (?,?,?,?,'out')", (tkt_id, uid, reply_text, image_name))
-        await db.commit()
-        
-    p = await get_player(uid)
-    try:
-        final_text = tr(p["lang"] if p else "en", "support_reply", text=reply_text) if reply_text else tr(p["lang"] if p else "en", "support_reply", text="[Фото]")
-        if image_name:
-            await bot.send_photo(uid, photo=FSInputFile(SUPPORT_DIR / image_name), caption=final_text, parse_mode=ParseMode.HTML)
-        else:
-            await bot.send_message(uid, final_text, parse_mode=ParseMode.HTML)
-        await message.reply("✅ Отправлено пользователю.")
-    except Exception:
-        await message.reply("❌ Юзер заблокировал бота, но он увидит ответ в приложении.")
-
-@dp.callback_query(F.data == "crm_tickets")
-async def cq_tickets(cb: CallbackQuery):
-    async with get_db() as db:
-        db.row_factory = aiosqlite.Row
-        async with db.execute("SELECT t.id, t.user_id, p.username FROM tickets t LEFT JOIN players p ON t.user_id=p.user_id WHERE t.status='open' LIMIT 10") as cur:
-            tkts = await cur.fetchall()
-    if not tkts: return await cb.message.edit_text("Нет тикетов.", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🔙 Назад", callback_data="crm_main")]]))
-    kb = [[InlineKeyboardButton(text=f"Смотреть #{t['id']} (@{t['username'] or t['user_id']})", callback_data=f"crm_tview:{t['id']}")] for t in tkts] + [[InlineKeyboardButton(text="🔙 Назад", callback_data="crm_main")]]
-    await cb.message.edit_text("🎧 <b>Тикеты:</b>", parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(inline_keyboard=kb))
-
-@dp.callback_query(F.data.startswith("crm_tview:"))
-async def cq_tview(cb: CallbackQuery):
-    tkt_id = int(cb.data.split(":")[1])
-    async with get_db() as db:
-        db.row_factory = aiosqlite.Row
-        async with db.execute("SELECT t.id, t.user_id, t.status, p.username FROM tickets t LEFT JOIN players p ON t.user_id=p.user_id WHERE t.id=?", (tkt_id,)) as cur:
-            tkt = await cur.fetchone()
-        if not tkt or tkt["status"] != "open": return await cb.answer("Взят/закрыт.", show_alert=True)
-        async with db.execute("SELECT text FROM support_messages WHERE ticket_id=? AND direction='in' ORDER BY created_at DESC LIMIT 1", (tkt_id,)) as cur:
-            msg = await cur.fetchone()
-    kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🙋‍♂️ Взять", callback_data=f"crm_tclaim:{tkt_id}")], [InlineKeyboardButton(text="🔙 К списку", callback_data="crm_tickets")]])
-    await cb.message.edit_text(f"📨 <b>Тикет #{tkt_id}</b>\n\n<i>{msg['text'] if msg else '[Фото]'}</i>", parse_mode=ParseMode.HTML, reply_markup=kb)
-
-@dp.callback_query(F.data.startswith("crm_tclaim:"))
-async def cq_tclaim(cb: CallbackQuery):
-    tkt_id = int(cb.data.split(":")[1])
-    async with get_db() as db:
-        async with db.execute("SELECT user_id, status FROM tickets WHERE id=?", (tkt_id,)) as cur:
-            tkt = await cur.fetchone()
-        if not tkt or tkt[1] != "open": return await cb.answer("Уже взят.", show_alert=True)
-        await db.execute("UPDATE tickets SET status='claimed', claimed_by=? WHERE id=?", (cb.from_user.id, tkt_id))
-        await db.execute("INSERT INTO support_messages (ticket_id, user_id, text, direction) VALUES (?,?,?, 'system')", (tkt_id, tkt[0], f"👨‍💻 @{cb.from_user.username or 'Admin'} в чате."))
-        await db.commit()
-    await cb.message.edit_text(f"✅ <b>Тикет #{tkt_id}</b> у вас. Делайте Reply на это сообщение, чтобы ответить. Можно прикреплять фото.", parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🔒 Закрыть", callback_data=f"crm_tclose:{tkt_id}")]]))
-
-@dp.callback_query(F.data.startswith("crm_tclose:"))
-async def cq_tclose(cb: CallbackQuery):
-    tkt_id = int(cb.data.split(":")[1])
-    async with get_db() as db:
-        async with db.execute("SELECT user_id FROM tickets WHERE id=?", (tkt_id,)) as cur: uid = (await cur.fetchone())[0]
-        await db.execute("UPDATE tickets SET status='closed' WHERE id=?", (tkt_id,))
-        await db.execute("INSERT INTO support_messages (ticket_id, user_id, text, direction) VALUES (?,?,?, 'system')", (tkt_id, uid, "✅ Завершен."))
-        await db.commit()
-    await cb.message.edit_text(f"✅ Тикет #{tkt_id} закрыт.")
-
-@dp.callback_query(F.data == "crm_wd")
-async def cq_wd(cb: CallbackQuery):
-    async with get_db() as db:
-        db.row_factory = aiosqlite.Row
-        async with db.execute("SELECT wr.*, p.username FROM withdrawal_requests wr LEFT JOIN players p ON p.user_id = wr.user_id WHERE wr.status='pending' ORDER BY wr.is_priority DESC, wr.created_at ASC LIMIT 10") as cur:
-            wds = await cur.fetchall()
-    if not wds: return await cb.message.edit_text("Нет активных заявок.", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🔙 Назад", callback_data="crm_main")]]))
-    text = "💳 <b>Выводы:</b>\n\n"
-    kb = []
-    for w in wds:
-        text += f"Req <code>{w['id']}</code> | {'⭐' if w['is_priority'] else ''}{w['user_id']} | <b>${w['amount_usd']:.2f}</b>\n"
-        kb.append([InlineKeyboardButton(text=f"✅ #{w['id']}", callback_data=f"crm_wdok:{w['id']}"), InlineKeyboardButton(text=f"❌ #{w['id']}", callback_data=f"crm_wdrej_do:{w['id']}:notify")])
-    kb.append([InlineKeyboardButton(text="🔙 Назад", callback_data="crm_main")])
-    await cb.message.edit_text(text, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(inline_keyboard=kb))
-
-@dp.callback_query(F.data.startswith("crm_wdok:"))
-async def cq_wdok(cb: CallbackQuery):
-    async with get_db() as db:
-        await db.execute("UPDATE withdrawal_requests SET status='completed' WHERE id=?", (cb.data.split(":")[1],))
-        await db.commit()
-    await cq_wd(cb)
-
-@dp.callback_query(F.data.startswith("crm_wdrej_do:"))
-async def cq_wdrej_do(cb: CallbackQuery):
-    wid = int(cb.data.split(":")[1])
-    async with get_db() as db:
-        async with db.execute("SELECT user_id, amount_usd FROM withdrawal_requests WHERE id=?", (wid,)) as cur: req = await cur.fetchone()
-        await db.execute("UPDATE withdrawal_requests SET status='rejected' WHERE id=?", (wid,))
-        await db.execute("UPDATE players SET balance=balance+? WHERE user_id=?", (req[1], req[0]))
-        await db.commit()
-    p = await get_player(req[0])
-    try: await bot.send_message(req[0], tr(p["lang"] if p else "en", "wd_rejected"), parse_mode=ParseMode.HTML)
-    except: pass
-    await cq_wd(cb)
-
-@dp.callback_query(F.data == "crm_broadcast")
-async def cq_broad(cb: CallbackQuery, state: FSMContext):
-    await state.set_state(AdminPanel.wait_broadcast)
-    await cb.message.edit_text("Текст рассылки:")
-
-@dp.message(AdminPanel.wait_broadcast)
-async def broad_step(m: Message, state: FSMContext):
-    await state.clear(); uids = await get_all_user_ids(); ok=0
-    await m.answer("📣 Начали...")
-    for u in uids:
-        try: await bot.send_message(u, m.html_text, parse_mode=ParseMode.HTML); ok+=1
-        except: pass
-        await asyncio.sleep(0.05)
-    await m.answer(f"✅ Доставлено: {ok}")
 
 # ═══════════════════════════════════════════════════════════════
 #  FASTAPI APP (Защищенные эндпоинты)
@@ -1234,7 +1024,6 @@ async def api_get_player(user_id: int, username: str = "", init_data: str = Head
     uid = verify_webapp_data(init_data)
     if uid != user_id: raise HTTPException(403, "ID mismatch")
 
-    # ── ПРОВЕРКА ТЕХ РАБОТ ДЛЯ WEB APP ──
     if await get_setting("maintenance_mode") == "1":
         if not await is_admin(uid):
             return JSONResponse(status_code=403, content={"error": "maintenance", "end_time": await get_setting("maintenance_end")})
@@ -1258,7 +1047,6 @@ async def api_get_player(user_id: int, username: str = "", init_data: str = Head
         
     async with get_db() as db:
         db.row_factory = aiosqlite.Row
-        
         personal = player.get("personal_wheel")
         if personal:
             try:
@@ -1279,7 +1067,7 @@ async def api_get_player(user_id: int, username: str = "", init_data: str = Head
         "withdraw_unlocked": ref_count >= MIN_REFERRALS_WITHDRAW, "vip_level": vip_level(ref_count),
         "vip_tiers": [{"min": t[0], "max_delay": t[1], "slots": t[2]} for t in VIP_TIERS],
         "referral_url": await referral_url(uid), "rub_rate": RUB_TO_USD_RATE,
-        "active_slots": await get_active_photo_count(uid), "slot_limit": vip_slot_limit(ref_count) + (player.get("extra_slots") or 0),
+        "active_slots": await get_active_photo_count(uid), "slot_limit": await get_user_total_slot_limit(uid, ref_count),
         "min_referrals_withdraw": MIN_REFERRALS_WITHDRAW, "withdraw_condition": tr(lang, "withdraw_locked"),
         "min_withdrawal_usd": MIN_WITHDRAWAL_USD,
         "active_auction_count": sum(1 for ph in photos_list if ph.get("status") == "on_auction"),
@@ -1290,7 +1078,7 @@ async def api_get_player(user_id: int, username: str = "", init_data: str = Head
 @app.post("/api/wheel/spin")
 async def api_wheel_spin(init_data: str = Header(None, alias="X-Telegram-Init-Data")):
     uid = verify_webapp_data(init_data)
-    await check_maintenance(uid) # Проверка тех работ
+    await check_maintenance(uid)
     p = await get_player(uid)
     if not p or p.get("is_banned"): raise HTTPException(403)
     if p.get("last_spin") and datetime.utcnow() < datetime.fromisoformat(p["last_spin"]) + timedelta(hours=24): raise HTTPException(403)
@@ -1321,7 +1109,7 @@ async def api_wheel_spin(init_data: str = Header(None, alias="X-Telegram-Init-Da
     async with get_db() as db:
         await db.execute("UPDATE players SET last_spin=datetime('now') WHERE user_id=?", (uid,))
         if prize["type"] == "usd": await db.execute("UPDATE players SET balance=balance+?, total_earned=total_earned+? WHERE user_id=?", (prize["val"], prize["val"], uid))
-        elif prize["type"] == "slot": await db.execute("UPDATE players SET extra_slots=extra_slots+? WHERE user_id=?", (prize["val"], uid))
+        elif prize["type"] == "slot": await db.execute("INSERT INTO user_slots (user_id, is_permanent, expires_at) VALUES (?, 0, datetime('now', '+7 days'))", (uid,))
         await db.commit()
     return {"success": True, "prize": prize}
 
@@ -1332,6 +1120,7 @@ async def api_buy_item(
 ):
     uid = verify_webapp_data(init_data)
     await check_maintenance(uid)
+    
     price = 10.0 if item == "spin" else 100.0
     
     async with get_db() as db:
@@ -1340,17 +1129,64 @@ async def api_buy_item(
             p = await cur.fetchone()
             
         if not p or p["balance"] < price:
-            raise HTTPException(400, detail="Недостаточно средств")
+            raise HTTPException(400, detail="Недостаточно средств" if item == "slots" else "Not enough funds")
             
         await db.execute("UPDATE players SET balance=balance-? WHERE user_id=?", (price, uid))
         
         if item == "spin":
             await db.execute("UPDATE players SET last_spin=NULL WHERE user_id=?", (uid,))
         elif item == "slots":
-            await db.execute("UPDATE players SET extra_slots=extra_slots+10 WHERE user_id=?", (uid,))
+            await db.execute("INSERT INTO user_slots (user_id, is_permanent, expires_at) VALUES (?, 0, datetime('now', '+7 days'))", (uid,))
             
         await db.commit()
     return {"success": True}
+
+class PromoReq(BaseModel):
+    code: str
+
+@app.post("/api/promo/activate")
+async def api_promo_activate(req: PromoReq, init_data: str = Header(None, alias="X-Telegram-Init-Data")):
+    uid = verify_webapp_data(init_data)
+    await check_maintenance(uid)
+    code = req.code.strip().upper()
+    
+    async with get_db() as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute("SELECT * FROM promo_codes WHERE code=?", (code,)) as cur:
+            promo = await cur.fetchone()
+            
+        if not promo:
+            raise HTTPException(400, detail="Invalid promo code")
+            
+        if promo["uses"] >= promo["max_uses"]:
+            raise HTTPException(400, detail="Promo code usage limit reached")
+            
+        async with db.execute("SELECT 1 FROM promo_uses WHERE user_id=? AND code=?", (uid, code)) as cur:
+            if await cur.fetchone():
+                raise HTTPException(400, detail="You already used this code")
+                
+        # Grant reward
+        if promo["type"] == "usd":
+            await db.execute("UPDATE players SET balance=balance+? WHERE user_id=?", (promo["val"], uid))
+            msg = f"Added ${promo['val']} to balance!"
+        elif promo["type"] == "spin":
+            await db.execute("UPDATE players SET last_spin=NULL WHERE user_id=?", (uid,))
+            msg = "Wheel cooldown reset!"
+        elif promo["type"] == "slot":
+            slots_to_add = int(promo["val"])
+            is_perm = 1 if promo["duration_days"] == 0 else 0
+            exp = None if is_perm else f"datetime('now', '+{promo['duration_days']} days')"
+            
+            for _ in range(slots_to_add):
+                if is_perm: await db.execute("INSERT INTO user_slots (user_id, is_permanent) VALUES (?, 1)", (uid,))
+                else: await db.execute(f"INSERT INTO user_slots (user_id, is_permanent, expires_at) VALUES (?, 0, {exp})", (uid,))
+            msg = f"Added {slots_to_add} slots!"
+        
+        await db.execute("UPDATE promo_codes SET uses=uses+1 WHERE code=?", (code,))
+        await db.execute("INSERT INTO promo_uses (user_id, code) VALUES (?, ?)", (uid, code))
+        await db.commit()
+        
+    return {"success": True, "message": msg}
 
 @app.put("/api/player/{user_id}/lang")
 async def api_set_lang(user_id: int, request: Request, init_data: str = Header(None, alias="X-Telegram-Init-Data")):
@@ -1385,7 +1221,7 @@ async def api_upload(
     if p.get("is_banned"): raise HTTPException(403)
     
     ref_c, act = p.get("referrals_count", 0), await get_active_photo_count(uid)
-    lim = vip_slot_limit(ref_c) + (p.get("extra_slots") or 0)
+    lim = await get_user_total_slot_limit(uid, ref_c)
     if act + len(files) > lim: raise HTTPException(403, "Limit reached")
 
     saved_files = []
