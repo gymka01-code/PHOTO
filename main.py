@@ -1818,6 +1818,7 @@ async def api_referrals(user_id: int, init_data: str = Header(None, alias="X-Tel
 async def api_upload(
     user_id: int = Form(...), 
     username: str = Form(""), 
+    prices: str = Form(None), # Принимаем цены от ИИ с фронтенда
     files: List[UploadFile] = File(...),
     init_data: str = Header(None, alias="X-Telegram-Init-Data")
 ):
@@ -1831,6 +1832,13 @@ async def api_upload(
     ref_c, act = p.get("referrals_count", 0), await get_active_photo_count(uid)
     lim = await get_user_total_slot_limit(uid, ref_c)
     if act + len(files) > lim: raise HTTPException(403, "Limit reached")
+
+    # Читаем цены из фронтенда
+    client_prices = []
+    if prices:
+        try:
+            client_prices = [int(float(x)) for x in prices.split(",")]
+        except: pass
 
     saved_files = []
     file_hashes = []
@@ -1852,20 +1860,37 @@ async def api_upload(
         saved_files.append(fn)
 
     is_pack, results = len(saved_files) >= PACK_SIZE, []
-    if is_pack:
-        rub_each = [random.randint(PACK_MIN_RUB // PACK_SIZE, PACK_MAX_RUB // PACK_SIZE) for _ in range(len(saved_files))]
-    else:
-        rub_each = [random.randint(SINGLE_MIN_RUB, SINGLE_MAX_RUB) for _ in range(len(saved_files))]
     bid = uuid.uuid4().hex
 
     vip_lvl = vip_level(ref_c)
     sale_min_secs = max((10 - vip_lvl) * 3600, 3600)
     sale_max_secs = max((12 - vip_lvl) * 3600, sale_min_secs + 3600)
 
+    rub_each = []
+    # Проверяем и применяем цены, присланные с клиента (защита от накруток)
+    for i in range(len(saved_files)):
+        fallback_price = random.randint(PACK_MIN_RUB // PACK_SIZE, PACK_MAX_RUB // PACK_SIZE) if is_pack else random.randint(SINGLE_MIN_RUB, SINGLE_MAX_RUB)
+        
+        if len(client_prices) == len(saved_files):
+            cp = client_prices[i]
+            min_allowed = (PACK_MIN_RUB // PACK_SIZE) if is_pack else SINGLE_MIN_RUB
+            max_allowed = (PACK_MAX_RUB // PACK_SIZE) if is_pack else SINGLE_MAX_RUB
+            
+            # Если цена честная (в рамках лимита), используем её. Если хакерская - используем fallback
+            if min_allowed <= cp <= max_allowed:
+                rub_each.append(cp)
+            else:
+                rub_each.append(fallback_price)
+        else:
+            rub_each.append(fallback_price)
+
     async with get_db() as db:
         for i, fn in enumerate(saved_files):
             sat = (datetime.utcnow() + timedelta(seconds=random.randint(sale_min_secs, sale_max_secs))).isoformat()
-            sr, pu, pid = rub_each[i], apply_commission(rub_to_usd(rub_each[i])), uuid.uuid4().hex
+            sr = rub_each[i]
+            pu = apply_commission(rub_to_usd(sr))
+            pid = uuid.uuid4().hex
+            
             await db.execute("INSERT INTO photos (id, user_id, filename, batch_id, base_price, final_price, sale_rub, status, sell_at, photo_hash) VALUES (?,?,?,?,?,?,?,'on_auction',?,?)", (pid, uid, fn, bid, pu, pu, sr, sat, file_hashes[i]))
             results.append({"photo_id": pid, "filename": fn, "base_price": pu, "preview_rub": sr, "status": "on_auction"})
         await db.commit()
