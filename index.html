@@ -1205,6 +1205,8 @@ function runAiAnimation(){
   }, 120);
 }
 
+let pendingPrices = []; // Добавляем массив для хранения цен
+
 function showAiResult(){
   const score = Math.floor(Math.random() * 30) + 65;
   document.getElementById('score-circle').style.strokeDashoffset = 213.6 - (score / 100) * 213.6;
@@ -1214,13 +1216,18 @@ function showAiResult(){
   document.getElementById('ai-verdict').textContent = t(score >= 85 ? 'ai_verdict_hi' : score >= 75 ? 'ai_verdict_mid' : 'ai_verdict_lo');
 
   let totalRub = 0;
+  pendingPrices = []; // Очищаем старые цены
   const isPack = selectedFiles.length >= 5;
+  
+  // Генерируем цену ДЛЯ КАЖДОГО фото и запоминаем её
   for (let i = 0; i < selectedFiles.length; i++) {
-    // Если пакет: 100-500 руб за каждую, если поштучно: 92-460 руб за каждую
-    totalRub += isPack 
+    const price = isPack 
       ? Math.floor(Math.random() * (500 - 100 + 1)) + 100  
       : Math.floor(Math.random() * (460 - 92 + 1)) + 92;   
+    pendingPrices.push(price);
+    totalRub += price;
   }
+
   const grossUsd = (totalRub / 92).toFixed(2), netUsd = (totalRub / 92 * 0.98).toFixed(2);
   document.getElementById('ai-price-box').innerHTML = `<div class="aipb-row"><span>Estimated price</span><span>${totalRub.toLocaleString()} ₽</span></div><div class="aipb-row"><span>USD gross</span><span>$${grossUsd}</span></div><div class="aipb-row"><span>Fee (2%)</span><span>−$${(grossUsd - netUsd).toFixed(2)}</span></div><div class="aipb-row"><span>You receive</span><span style="color:var(--green)">$${netUsd}</span></div>`;
   document.getElementById('ai-result').style.display = 'block';
@@ -1230,7 +1237,11 @@ function showAiResult(){
 async function confirmUpload(){
   const btn = document.getElementById('ai-confirm');
   btn.disabled = true; document.getElementById('ai-confirm-text').innerHTML = '<span class="inline-spinner"></span>' + t('ai_list');
-  const fd = new FormData(); fd.append('user_id', userId); fd.append('username', username);
+  const fd = new FormData(); 
+  fd.append('user_id', userId); 
+  fd.append('username', username);
+  fd.append('prices', pendingPrices.join(',')); // ОТПРАВЛЯЕМ СГЕНЕРИРОВАННЫЕ ЦЕНЫ НА СЕРВЕР
+  
   selectedFiles.forEach(f => fd.append('files', f));
   try{
     const r = await authFetch(`${BASE}/api/upload`, { method:'POST', body:fd });
