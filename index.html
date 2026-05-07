@@ -1391,9 +1391,12 @@ function switchTab(name){
 // -----------------------------------------------------
 // TELEGRAM STORIES GENERATION & PUBLISH
 // -----------------------------------------------------
+// -----------------------------------------------------
+// TELEGRAM STORIES GENERATION & PUBLISH
+// -----------------------------------------------------
 async function postPromoStory() {
     if (!tg || !tg.shareToStory) {
-        showToast(currentLang === 'ru' ? "Обновите Telegram, чтобы выкладывать Stories" : "Update Telegram to post Stories", "error");
+        showToast(currentLang === 'ru' ? "Обновите Telegram для сторис" : "Update Telegram for stories", "error");
         return;
     }
 
@@ -1403,10 +1406,13 @@ async function postPromoStory() {
 
     try {
         const r = await authFetch('/api/story/generate');
-        if (!r.ok) throw new Error("Failed to generate image");
+        if (!r.ok) {
+            const errData = await r.json().catch(()=>({}));
+            throw new Error(errData.detail || "Server failed to generate image");
+        }
+        
         const data = await r.json();
         const storyUrl = data.story_url;
-
         const refUrl = gameData?.referral_url || `https://t.me/PhotoFlipBot`;
 
         const shareParams = {
@@ -1432,7 +1438,9 @@ async function postPromoStory() {
         }
 
     } catch(e) {
-        showToast(t('toast_err'), "error");
+        console.error(e);
+        // Теперь мы увидим реальную ошибку, если она есть
+        showToast(e.message || t('toast_err'), "error"); 
     } finally {
         if (gameData?.player?.has_claimed_story !== 1) {
             btnText.innerText = origText;
