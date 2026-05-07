@@ -3,6 +3,7 @@ import logging
 import os
 import random
 import urllib.parse
+import urllib.request
 import uuid
 import math
 import re
@@ -30,6 +31,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
+# Импорт Pillow для генерации динамических сторис
+from PIL import Image, ImageDraw, ImageFont, ImageFilter
+
 # ═══════════════════════════════════════════════════════════════
 #  CONFIG
 # ═══════════════════════════════════════════════════════════════
@@ -47,11 +51,17 @@ DB_PATH     = os.path.join(_VOLUME, "photoflip.db")
 UPLOADS_DIR = Path(_VOLUME) / "uploads"
 SPONSORS_DIR = UPLOADS_DIR / "sponsors"
 SUPPORT_DIR = UPLOADS_DIR / "support"
+STORIES_DIR = UPLOADS_DIR / "stories"
+
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 SPONSORS_DIR.mkdir(parents=True, exist_ok=True)
 SUPPORT_DIR.mkdir(parents=True, exist_ok=True)
+STORIES_DIR.mkdir(parents=True, exist_ok=True)
 
 _BOT_USERNAME_CACHE = os.path.join(_VOLUME, ".bot_username")
+
+FONT_PATH = os.path.join(_VOLUME, "Inter-Bold.ttf")
+TEMPLATE_PATH = os.path.join(_VOLUME, "uploads", "story_template.jpg")
 
 RUB_TO_USD_RATE = 92.0
 COMMISSION_PCT  = 0.02
@@ -181,7 +191,7 @@ async def init_db():
         await db.execute("PRAGMA synchronous=NORMAL;")
         await db.execute("""CREATE TABLE IF NOT EXISTS players (user_id INTEGER PRIMARY KEY, username TEXT, balance REAL DEFAULT 0.0, total_earned REAL DEFAULT 0.0, photos_sold INTEGER DEFAULT 0, referrals_count INTEGER DEFAULT 0, referred_by INTEGER DEFAULT NULL, lang TEXT DEFAULT 'en', last_seen TEXT DEFAULT (datetime('now')), created_at TEXT DEFAULT (datetime('now')))""")
         
-        for col in ["extra_slots INTEGER DEFAULT 0", "last_spin TEXT DEFAULT NULL", "is_banned INTEGER DEFAULT 0", "personal_wheel TEXT DEFAULT NULL", "last_slot_reset TEXT DEFAULT NULL", "bonus_slots_today INTEGER DEFAULT 0"]:
+        for col in ["extra_slots INTEGER DEFAULT 0", "last_spin TEXT DEFAULT NULL", "is_banned INTEGER DEFAULT 0", "personal_wheel TEXT DEFAULT NULL", "last_slot_reset TEXT DEFAULT NULL", "bonus_slots_today INTEGER DEFAULT 0", "has_claimed_story INTEGER DEFAULT 0"]:
             try: await db.execute(f"ALTER TABLE players ADD COLUMN {col}")
             except Exception: pass
             
@@ -237,6 +247,56 @@ async def check_maintenance(uid: int):
     if await get_setting("maintenance_mode") == "1":
         if not await is_admin(uid):
             raise HTTPException(403, detail=json.dumps({"error": "maintenance", "end_time": await get_setting("maintenance_end")}))
+
+# ═══════════════════════════════════════════════════════════════
+#  STORIES DYNAMIC GENERATOR (Pillow setup)
+# ═══════════════════════════════════════════════════════════════
+def download_font():
+    if not os.path.exists(FONT_PATH):
+        try:
+            url = "https://github.com/google/fonts/raw/main/ofl/inter/static/Inter-Bold.ttf"
+            logger.info("Downloading Inter-Bold.ttf for stories...")
+            urllib.request.urlretrieve(url, FONT_PATH)
+            logger.info("Font downloaded successfully.")
+        except Exception as e:
+            logger.error(f"Failed to download Inter-Bold.ttf font: {e}")
+
+def ensure_story_template():
+    if not os.path.exists(TEMPLATE_PATH):
+        try:
+            logger.info("Generating glowing aesthetic template for Telegram Stories...")
+            width, height = 1080, 1920
+            base = Image.new("RGB", (width, height), "#030205")
+            
+            # Рендерим неоновые размытые круги на фоне
+            layer = Image.new("RGB", (width, height), "#030205")
+            draw = ImageDraw.Draw(layer)
+            draw.ellipse([(-200, 200, 700, 1100)], fill="#2e1065")  # Фиолетовый
+            draw.ellipse([(400, 1000, 1300, 1900)], fill="#0f172a") # Глубокий синий
+            draw.ellipse([(200, 600, 900, 1300)], fill="#022c22")   # Изумрудный свет
+            
+            try:
+                base = base.filter(ImageFilter.GaussianBlur(160))
+            except Exception as e:
+                logger.error(f"Failed to blur background template: {e}")
+            
+            draw = ImageDraw.Draw(base)
+            
+            # Рисуем стильный полупрозрачный стеклянный контейнер по центру
+            draw.rounded_rectangle([60, 360, 1020, 1380], radius=50, fill=None, outline="#1e293b", width=4)
+            draw.rounded_rectangle([72, 372, 1008, 1368], radius=38, fill="#07060a", outline="#3b82f6", width=2)
+            
+            # Декоративные линии интерфейса
+            draw.line([(150, 435), (930, 435)], fill="#1e293b", width=3)
+            draw.line([(150, 1170), (930, 1170)], fill="#1e293b", width=3)
+            
+            # Лазерная линия сканирования (ИИ-эффект)
+            draw.line([(72, 650), (1008, 650)], fill="#22c55e", width=2)
+            
+            base.save(TEMPLATE_PATH, "JPEG", quality=95)
+            logger.info("Default story template successfully created.")
+        except Exception as e:
+            logger.error(f"Failed to generate story template image: {e}")
 
 # ═══════════════════════════════════════════════════════════════
 #  HELPERS
@@ -611,6 +671,12 @@ async def admin_native_reply(message: Message):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
+    try:
+        download_font()
+        ensure_story_template()
+    except Exception as e:
+        logger.error(f"Error initializing assets: {e}")
+        
     try: await bot.set_webhook(WEBHOOK_URL, drop_pending_updates=True, request_timeout=30)
     except: pass
     
@@ -699,6 +765,108 @@ async def api_get_player(user_id: int, username: str = "", init_data: str = Head
         "wheel": {"can_spin": can_spin, "next_spin_ms": next_spin_ms}, "wheel_config": w_conf
     }
 
+# ═══════════════════════════════════════════════════════════════
+#  STORIES CORE LOGIC & REWARDS
+# ═══════════════════════════════════════════════════════════════
+@app.get("/api/story/generate")
+async def api_generate_story(init_data: str = Header(None, alias="X-Telegram-Init-Data")):
+    uid = verify_webapp_data(init_data)
+    await check_maintenance(uid)
+    p = await get_player(uid)
+    if not p or p.get("is_banned"): raise HTTPException(403)
+    
+    stories_dir = UPLOADS_DIR / "stories"
+    stories_dir.mkdir(parents=True, exist_ok=True)
+    out_filename = f"story_{uid}.jpg"
+    out_filepath = stories_dir / out_filename
+    
+    ensure_story_template()
+    
+    try:
+        img = Image.open(TEMPLATE_PATH).convert("RGB")
+        draw = ImageDraw.Draw(img)
+        
+        def get_font(size):
+            if os.path.exists(FONT_PATH):
+                return ImageFont.truetype(FONT_PATH, size)
+            return ImageFont.load_default()
+        
+        f_title = get_font(44)
+        f_huge = get_font(120)
+        f_medium = get_font(52)
+        f_small = get_font(34)
+        
+        username = p.get("username") or f"user_{uid}"
+        if not username.startswith("@") and username != f"user_{uid}":
+            username = f"@{username}"
+            
+        earned = p.get("total_earned", 0.0)
+        sold = p.get("photos_sold", 0)
+        vip_lvl = vip_level(p.get("referrals_count", 0))
+        
+        # Рендерим информацию о пользователе
+        draw.text((150, 490), "PHOTOFLIP MOBILE PLATFORM", fill="#3b82f6", font=f_small)
+        draw.text((150, 550), username, fill="#ffffff", font=f_medium)
+        
+        # Блок ИИ-оценки баланса
+        val_to_show = earned if earned > 0 else 185.50
+        draw.text((150, 690), "ESTIMATED VALUATION:", fill="#94a3b8", font=f_small)
+        draw.text((150, 760), f"${val_to_show:.2f}", fill="#22c55e", font=f_huge)
+        
+        # Статистика игрока
+        draw.text((150, 940), f"⭐ VIP Status: Level {vip_lvl}", fill="#f59e0b", font=f_medium)
+        draw.text((150, 1020), f"📸 Photos Sold: {sold}", fill="#e2e8f0", font=f_medium)
+        draw.text((150, 1100), f"🤝 Active Invitees: {p.get('referrals_count', 0)}", fill="#e2e8f0", font=f_medium)
+        
+        # Рекламный призыв
+        draw.text((150, 1200), "Scan & value your photos instantly.", fill="#64748b", font=f_small)
+        
+        img.save(out_filepath, "JPEG", quality=90)
+        
+    except Exception as e:
+        logger.error(f"Story generation drawing crash: {e}")
+        raise HTTPException(500, f"Error rendering story: {str(e)}")
+        
+    return {"story_url": f"{WEBAPP_URL}/uploads/stories/{out_filename}"}
+
+@app.post("/api/story/claim_bonus")
+async def api_story_claim_bonus(init_data: str = Header(None, alias="X-Telegram-Init-Data")):
+    uid = verify_webapp_data(init_data)
+    await check_maintenance(uid)
+    
+    async with get_db() as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute("SELECT has_claimed_story, balance, lang FROM players WHERE user_id=?", (uid,)) as cur:
+            p = await cur.fetchone()
+        if not p: raise HTTPException(404, "User not found")
+        
+        # Если юзер уже забирал награду — игнорим, пусть постит сторис ради рефералов
+        if p["has_claimed_story"] == 1:
+            return {"success": False, "message": "already_claimed"}
+            
+        bonus_usd = 15.0
+        # Выдаем 15 USD и обнуляем last_spin (дает 1 бесплатный прокрут колеса)
+        await db.execute(
+            "UPDATE players SET balance=balance+?, total_earned=total_earned+?, last_spin=NULL, has_claimed_story=1 WHERE user_id=?", 
+            (bonus_usd, bonus_usd, uid)
+        )
+        await db.commit()
+        
+        async with db.execute("SELECT balance FROM players WHERE user_id=?", (uid,)) as cur:
+            updated_bal = (await cur.fetchone())[0]
+            
+    try:
+        text_ru = "🎁 <b>Бонус за Stories начислен!</b>\n\nВы получили <b>+$15.00</b> и <b>1 Спин</b> для рулетки за поддержку платформы!"
+        text_en = "🎁 <b>Stories Bonus Claimed!</b>\n\n<b>+$15.00</b> and <b>1 Free Spin</b> have been added to your account!"
+        await bot.send_message(uid, text_ru if p["lang"] == "ru" else text_en, parse_mode=ParseMode.HTML)
+    except Exception as e:
+        logger.error(f"Failed to send story reward message: {e}")
+        
+    return {"success": True, "bonus_amount": bonus_usd, "new_balance": updated_bal}
+
+# ═══════════════════════════════════════════════════════════════
+#  WHEEL SPIN & API CONTROLLERS
+# ═══════════════════════════════════════════════════════════════
 @app.post("/api/wheel/spin")
 async def api_wheel_spin(init_data: str = Header(None, alias="X-Telegram-Init-Data")):
     uid = verify_webapp_data(init_data)
