@@ -34,8 +34,9 @@ img{display:block}
 /* LAYOUT */
 #app{height:100vh;display:flex;flex-direction:column;max-width:480px;margin:0 auto;position:relative;overflow:hidden}
 
-/* HEADER & ЛОГОТИП */
-#header{padding:12px 16px 10px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border);flex-shrink:0;position:relative;z-index:10;background:var(--bg)}
+/* HEADER & BURGER */
+#header{padding:12px 16px 10px;display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--border);flex-shrink:0;position:relative;z-index:10;background:var(--bg)}
+.burger-btn { font-size: 24px; color: var(--text); padding: 4px; background: transparent; border: none; cursor: pointer; line-height: 1; }
 #header-logo {
   width: 34px; height: 34px; border-radius: 10px;
   background: linear-gradient(135deg, #3b82f6, #8b5cf6);
@@ -45,18 +46,25 @@ img{display:block}
 }
 #header-logo svg { width: 20px; height: 20px; color: #ffffff; animation: slowSpin 8s linear infinite; }
 @keyframes slowSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-#header-logo::after {
-  content: ''; position: absolute; top: 0; left: -100%; width: 50%; height: 100%;
-  background: linear-gradient(to right, transparent, rgba(255,255,255,0.4), transparent);
-  transform: skewX(-25deg); animation: shine 4s infinite;
-}
-@keyframes shine { 0% { left: -100%; } 20% { left: 200%; } 100% { left: 200%; } }
-
 #header-info{flex:1;min-width:0}
 #header-title{font-size:15px;font-weight:700;letter-spacing:-0.02em;color:var(--text);line-height:1.1}
 #header-sub{font-size:10px;color:var(--text-3);letter-spacing:0.04em;margin-top:1px}
 #lang-toggle{background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:4px 10px;font-size:11px;font-weight:600;color:var(--text-2);letter-spacing:0.04em;transition:var(--transition)}
 #lang-toggle:active{transform:scale(.95)}
+
+/* SIDEBAR MENU */
+#sidebar-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:200; display:none; opacity:0; transition:opacity 0.2s; }
+#sidebar-overlay.active { display:block; opacity:1; }
+#sidebar { position:fixed; left:-260px; top:0; bottom:0; width:250px; background:var(--surface); z-index:201; transition:left 0.3s cubic-bezier(0.4, 0, 0.2, 1); padding-top:20px; border-right:1px solid var(--border); display:flex; flex-direction:column; box-shadow: 10px 0 30px rgba(0,0,0,0.5); }
+#sidebar.active { left:0; }
+.sidebar-header { padding: 0 20px 20px; border-bottom: 1px solid var(--border); margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between;}
+.sidebar-title { font-size: 18px; font-weight: 700; color: var(--text); }
+.sidebar-close { font-size: 24px; color: var(--text-2); background: none; border: none; cursor: pointer; }
+.sidebar-menu { display: flex; flex-direction: column; overflow-y: auto; flex: 1; }
+.sidebar-item { padding: 14px 20px; font-size: 15px; font-weight: 500; color: var(--text-2); display: flex; align-items: center; gap: 14px; text-decoration: none; transition: background 0.2s; border-left: 3px solid transparent;}
+.sidebar-item:active { background: var(--surface2); }
+.sidebar-item.active { background: var(--blue-dim); color: var(--blue); border-left-color: var(--blue); font-weight: 600;}
+.sidebar-icon { font-size: 18px; width: 24px; text-align: center; }
 
 /* STATS BAR */
 #stats-bar{display:flex;align-items:center;padding:10px 16px;gap:0;border-bottom:1px solid var(--border);flex-shrink:0;background:var(--bg)}
@@ -68,12 +76,6 @@ img{display:block}
 #vip-pill{display:flex;align-items:center;gap:5px;flex-shrink:0;margin-left:12px;background:var(--blue-dim);border:1px solid rgba(59,130,246,0.3);border-radius:20px;padding:4px 10px}
 #vip-pill .vip-dot{width:6px;height:6px;border-radius:50%;background:var(--blue);box-shadow:0 0 6px var(--blue-glow)}
 #vip-pill .vip-text{font-size:10px;font-weight:700;letter-spacing:0.04em;color:var(--blue)}
-
-/* TABS */
-#tabs{display:flex;gap:2px;padding:8px 16px;flex-shrink:0;overflow-x:auto;scrollbar-width:none;border-bottom:1px solid var(--border);background:var(--bg)}
-#tabs::-webkit-scrollbar{display:none}
-.tab{flex-shrink:0;padding:6px 10px;border-radius:var(--radius-sm);font-size:11px;font-weight:600;letter-spacing:0.02em;background:transparent;color:var(--text-3);transition:var(--transition);white-space:nowrap;border:1px solid transparent}
-.tab.active{background:var(--surface2);color:var(--text);border-color:var(--border2)}
 
 /* SCROLL AREA */
 #content{flex:1;overflow-y:auto;overflow-x:hidden;padding:16px 16px 90px;scrollbar-width:thin;scrollbar-color:var(--surface2) transparent}
@@ -169,6 +171,7 @@ img{display:block}
 .btn-secondary{background:var(--surface2);border:1px solid var(--border2);color:var(--text-2)}
 .btn-stars{background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;box-shadow:0 2px 16px rgba(99,102,241,0.35)}
 .btn-stars:disabled{opacity:.35;pointer-events:none;box-shadow:none}
+.btn-danger{background:var(--red);color:#fff;box-shadow:0 2px 16px var(--red-dim)}
 
 /* WITHDRAW CONFIRM MODAL */
 #wd-modal{display:none;position:fixed;inset:0;z-index:500;background:rgba(0,0,0,0.85);backdrop-filter:blur(8px);align-items:center;justify-content:center;padding:20px;opacity:0;transition:opacity 0.2s ease;}
@@ -336,7 +339,7 @@ img{display:block}
 /* SUPPORT CHAT & IMAGES */
 #support-chat{display:flex;flex-direction:column;height:calc(100vh - 220px);min-height:300px}
 .chat-messages{flex:1;overflow-y:auto;padding:4px 0 10px;display:flex;flex-direction:column;gap:7px;scrollbar-width:thin;scrollbar-color:var(--surface2) transparent}
-.chat-bubble{max-width:82%;padding:9px 12px;border-radius:10px;font-size:13px;line-height:1.5;word-break:break-word}
+.chat-bubble{max-width:82%;padding:9px 12px;border-radius:10px;font-size:13px;line-height:1.5;word-break:break-word;position:relative}
 .chat-bubble.from-user{align-self:flex-end;background:var(--blue);color:#fff;border-bottom-right-radius:3px}
 .chat-bubble.from-admin{align-self:flex-start;background:var(--surface2);border:1px solid var(--border2);color:var(--text);border-bottom-left-radius:3px}
 .chat-bubble img {max-width: 100%; border-radius: 6px; margin-top: 6px; display: block;}
@@ -353,6 +356,12 @@ img{display:block}
 .chat-input-area textarea{flex:1;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--radius-sm);padding:9px 12px;font-size:13px;color:var(--text);resize:none;min-height:40px;max-height:100px;transition:var(--transition);line-height:1.4}
 .chat-send-btn{background:var(--blue);color:#fff;border-radius:var(--radius-sm);padding:9px 13px;font-size:16px;flex-shrink:0;line-height:1;transition:var(--transition); margin-bottom: 1px;}
 
+.admin-msg-actions { position: absolute; right: -40px; top: 50%; transform: translateY(-50%); display: none; flex-direction: column; gap: 4px; }
+.chat-bubble:hover .admin-msg-actions { display: flex; }
+.admin-msg-btn { background: var(--surface2); border: 1px solid var(--border2); color: var(--text-2); border-radius: 4px; padding: 4px; cursor: pointer; font-size: 12px; line-height: 1; }
+.admin-msg-btn:hover { color: var(--blue); border-color: var(--blue); }
+.admin-msg-btn.trash:hover { color: var(--red); border-color: var(--red); }
+
 /* ADMIN PANEL STYLES */
 .admin-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; margin-bottom: 14px; }
 .admin-select { width: 100%; padding: 10px; border-radius: var(--radius-sm); background: var(--bg1); border: 1px solid var(--border2); margin-top: 8px; }
@@ -365,9 +374,14 @@ img{display:block}
 /* FULLSCREEN OVERLAY FOR ADMIN CHAT */
 #admin-chat-view { display: none; position: fixed; inset: 0; z-index: 400; background: var(--bg); flex-direction: column; }
 #admin-chat-view.open { display: flex; animation: fadeUp .2s ease both; }
-.acv-header { padding: 12px 16px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid var(--border); background: var(--surface); }
-.acv-back { font-size: 20px; color: var(--blue); cursor: pointer; padding: 4px; }
+.acv-header { padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); background: var(--surface); }
+.acv-header-left { display: flex; align-items: center; gap: 12px; }
+.acv-back { font-size: 20px; color: var(--blue); cursor: pointer; padding: 4px; line-height: 1;}
 .acv-title { font-weight: 700; font-size: 15px; }
+.acv-header-right { display: flex; gap: 8px; }
+.acv-btn { font-size: 11px; font-weight: 600; padding: 6px 10px; border-radius: 6px; background: var(--bg1); border: 1px solid var(--border2); color: var(--text-2); cursor: pointer; }
+.acv-btn:hover { background: var(--surface2); color: var(--text); }
+.acv-btn.danger:hover { color: var(--red); border-color: var(--red); }
 
 /* TOAST */
 #toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--surface2);border:1px solid var(--border2);border-radius:var(--radius);padding:9px 16px;font-size:12px;font-weight:500;color:var(--text);z-index:900;opacity:0;transition:var(--transition);pointer-events:none;white-space:nowrap;max-width:90vw;text-align:center}
@@ -501,8 +515,14 @@ img{display:block}
 <!-- OVERLAY: ADMIN CHAT VIEW -->
 <div id="admin-chat-view">
   <div class="acv-header">
-    <div class="acv-back" onclick="closeAdminChat()">←</div>
-    <div class="acv-title" id="acv-title">Chat</div>
+    <div class="acv-header-left">
+      <div class="acv-back" onclick="closeAdminChat()">←</div>
+      <div class="acv-title" id="acv-title">Chat</div>
+    </div>
+    <div class="acv-header-right">
+      <button class="acv-btn" onclick="closeAdminChatTicket()">🔒 Close</button>
+      <button class="acv-btn danger" onclick="clearAdminChat()">🗑 Clear</button>
+    </div>
   </div>
   <div id="admin-chat-area" class="chat-messages" style="padding:16px;"></div>
   
@@ -519,8 +539,32 @@ img{display:block}
 </div>
 
 
+<!-- SIDEBAR MENU -->
+<div id="sidebar-overlay" onclick="toggleSidebar()"></div>
+<div id="sidebar">
+    <div class="sidebar-header">
+        <div class="sidebar-title">Menu</div>
+        <button class="sidebar-close" onclick="toggleSidebar()">×</button>
+    </div>
+    <div class="sidebar-menu">
+        <a href="#" class="sidebar-item active" data-tab="upload" onclick="switchTab('upload')"><span class="sidebar-icon">📸</span> <span data-i18n="tab_upload">Upload</span></a>
+        <a href="#" class="sidebar-item" data-tab="bonus" onclick="switchTab('bonus')"><span class="sidebar-icon">🎡</span> <span data-i18n="tab_bonus">Bonus</span></a>
+        <a href="#" class="sidebar-item" data-tab="portfolio" onclick="switchTab('portfolio')"><span class="sidebar-icon">📂</span> <span data-i18n="tab_portfolio">Portfolio</span></a>
+        <a href="#" class="sidebar-item" data-tab="market" onclick="switchTab('market')"><span class="sidebar-icon">📈</span> <span data-i18n="tab_market">Market</span></a>
+        <a href="#" class="sidebar-item" data-tab="wallet" onclick="switchTab('wallet')"><span class="sidebar-icon">💳</span> <span data-i18n="tab_wallet">Wallet</span></a>
+        <a href="#" class="sidebar-item" data-tab="profile" onclick="switchTab('profile')"><span class="sidebar-icon">👤</span> <span data-i18n="tab_profile">Profile</span></a>
+        <a href="#" class="sidebar-item" data-tab="support" onclick="switchTab('support')"><span class="sidebar-icon">🎧</span> <span data-i18n="tab_support">Support</span></a>
+        
+        <div id="sidebar-admin-link" style="display:none; margin-top: 20px; border-top: 1px solid var(--border); padding-top: 10px;">
+            <a href="#" class="sidebar-item" data-tab="admin" onclick="switchTab('admin')" style="color:var(--amber)"><span class="sidebar-icon">👑</span> <span data-i18n="tab_admin">Admin</span></a>
+        </div>
+    </div>
+</div>
+
+
 <div id="app">
   <div id="header">
+    <button class="burger-btn" onclick="toggleSidebar()">☰</button>
     <div id="header-logo">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <circle cx="12" cy="12" r="10"></circle>
@@ -554,17 +598,6 @@ img{display:block}
       <div class="vip-dot"></div>
       <div class="vip-text" id="vip-level-text">VIP 0</div>
     </div>
-  </div>
-
-  <div id="tabs">
-    <button class="tab active" data-tab="upload" onclick="switchTab('upload')" data-i18n="tab_upload">Upload</button>
-    <button class="tab" data-tab="bonus" onclick="switchTab('bonus')" data-i18n="tab_bonus">Bonus</button>
-    <button class="tab" data-tab="portfolio" onclick="switchTab('portfolio')" data-i18n="tab_portfolio">Portfolio</button>
-    <button class="tab" data-tab="market" onclick="switchTab('market')" data-i18n="tab_market">Market</button>
-    <button class="tab" data-tab="wallet" onclick="switchTab('wallet')" data-i18n="tab_wallet">Wallet</button>
-    <button class="tab" data-tab="profile" onclick="switchTab('profile')" data-i18n="tab_profile">Profile</button>
-    <button class="tab" data-tab="support" onclick="switchTab('support')" data-i18n="tab_support">Support</button>
-    <button class="tab" data-tab="admin" id="tab-admin" onclick="switchTab('admin')" data-i18n="tab_admin" style="display:none; color:var(--amber)">Admin</button>
   </div>
 
   <div id="content">
@@ -994,14 +1027,10 @@ if(tg){
 }
 if(!userId) userId = 999999;
 
-// 🔒 ЗАЩИЩЕННЫЙ FETCH
 async function authFetch(url, options = {}) {
     options.headers = options.headers || {};
-    if (tg && tg.initData) {
-        options.headers['X-Telegram-Init-Data'] = tg.initData;
-    } else {
-        options.headers['X-Telegram-Init-Data'] = "DEV_BYPASS_" + userId;
-    }
+    if (tg && tg.initData) options.headers['X-Telegram-Init-Data'] = tg.initData;
+    else options.headers['X-Telegram-Init-Data'] = "DEV_BYPASS_" + userId;
     return fetch(url, options);
 }
 
@@ -1019,6 +1048,16 @@ let supportImgFile = null;
 let maintInterval = null;
 let adminCurrentChatUid = null;
 let adminSupportImgFile = null;
+
+function toggleSidebar() {
+    const sb = document.getElementById('sidebar');
+    const ov = document.getElementById('sidebar-overlay');
+    if(sb.classList.contains('active')) {
+        sb.classList.remove('active'); ov.classList.remove('active');
+    } else {
+        sb.classList.add('active'); ov.classList.add('active');
+    }
+}
 
 async function init(){
   applyTranslations();
@@ -1055,22 +1094,17 @@ async function loadPlayer(silent = false){
     
     if(r.status === 403) {
         if(data.error === 'banned') {
-            document.getElementById('ban-overlay').classList.add('active');
-            return;
+            document.getElementById('ban-overlay').classList.add('active'); return;
         }
         if(data.error === 'maintenance') {
             document.getElementById('maintenance-overlay').classList.add('active');
             if (data.end_time) {
                 document.getElementById('maint-timer-display').style.display = 'block';
                 startMaintenanceTimer(data.end_time);
-            } else {
-                document.getElementById('maint-timer-display').style.display = 'none';
-            }
+            } else { document.getElementById('maint-timer-display').style.display = 'none'; }
             return;
         }
-    } else {
-        document.getElementById('maintenance-overlay').classList.remove('active');
-    }
+    } else { document.getElementById('maintenance-overlay').classList.remove('active'); }
     
     if(!r.ok){
       if(data.error === 'subscription_required') showSubGate(data);
@@ -1083,22 +1117,16 @@ async function loadPlayer(silent = false){
     renderVipBadge(gameData.vip_level); renderReferrals();
     
     if(gameData.is_admin) {
-        document.getElementById('tab-admin').style.display = 'block';
+        document.getElementById('sidebar-admin-link').style.display = 'block';
     }
 
-    if(document.querySelector('.tab.active').dataset.tab === 'profile') {
-        loadReferralsList();
-    }
-    if(document.querySelector('.tab.active').dataset.tab === 'admin') {
-        if(!adminCurrentChatUid) loadAdminData(true);
-    }
+    const actTab = document.querySelector('.sidebar-item.active')?.dataset.tab || 'upload';
+    if(actTab === 'profile') loadReferralsList();
+    if(actTab === 'admin' && !adminCurrentChatUid) loadAdminData(true);
     
     if(gameData.wheel_config) {
-        for(let i=0; i<5; i++) {
-            if(gameData.wheel_config[i]) document.getElementById(`w-l${i}`).textContent = gameData.wheel_config[i].label;
-        }
+        for(let i=0; i<5; i++) if(gameData.wheel_config[i]) document.getElementById(`w-l${i}`).textContent = gameData.wheel_config[i].label;
     }
-    
     if(data.wheel) {
       if(data.wheel.can_spin) nextSpinMs = 0;
       else nextSpinMs = data.wheel.next_spin_ms;
@@ -1120,8 +1148,7 @@ function showSubGate(data){
   if(ch.length) {
       buttonsHtml = ch.map(c => `<a href="${c.url}" target="_blank" style="margin-top:8px;padding:12px 24px;background:#3b82f6;color:#fff;border-radius:10px;font-weight:600;font-size:14px;text-decoration:none;display:block;width:100%;max-width:280px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">📢 Subscribe to ${escHtml(c.name || 'Sponsor')}</a>`).join('');
   } else {
-      buttonsHtml = `<a href="https://t.me/Photo_Flip_Market" target="_blank" style="margin-top:8px;padding:12px 24px;background:#3b82f6;color:#fff;border-radius:10px;font-weight:600;font-size:14px;text-decoration:none;display:block;width:100%;
-max-width:280px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">📢 Subscribe to PhotoFlip Community</a>`;
+      buttonsHtml = `<a href="https://t.me/Photo_Flip_Market" target="_blank" style="margin-top:8px;padding:12px 24px;background:#3b82f6;color:#fff;border-radius:10px;font-weight:600;font-size:14px;text-decoration:none;display:block;width:100%;max-width:280px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">📢 Subscribe to PhotoFlip Community</a>`;
   }
 
   let overlay = document.getElementById('sub-gate-overlay');
@@ -1174,14 +1201,11 @@ async function recheckSub(){
   updateHeader(gameData.player); renderPortfolio(); renderWalletInfo(); updateUploadLock();
   renderWithdrawPreviews(); renderVipBadge(gameData.vip_level); renderReferrals();
   updateWheelUI();
-  if(gameData.is_admin) {
-      document.getElementById('tab-admin').style.display = 'block';
-  }
+  if(gameData.is_admin) document.getElementById('sidebar-admin-link').style.display = 'block';
 }
 
 function updateHeader(p){
   document.getElementById('header-sub').textContent = t('hdr_sub') + ' • ID: ' + p.user_id;
-
   document.getElementById('balance-val').textContent = '$' + fmt(p.balance);
   document.getElementById('earned-val').textContent  = '$' + fmt(p.total_earned);
   document.getElementById('sold-val').textContent    = p.photos_sold || 0;
@@ -1206,8 +1230,12 @@ function fmt(n){ return parseFloat(n || 0).toFixed(2); }
 function renderVipBadge(lvl){ document.getElementById('vip-level-text').textContent = `VIP ${lvl}`; }
 
 function switchTab(name){
-  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+  document.querySelectorAll('.sidebar-item').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
   document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.id === `panel-${name}`));
+  
+  const sb = document.getElementById('sidebar');
+  if(sb.classList.contains('active')) toggleSidebar();
+  
   if(name === 'profile') { renderReferrals(); loadReferralsList(); }
   if(name === 'market') renderLiveFeed();
   if(name === 'support') loadSupportMsgs();
@@ -1215,9 +1243,7 @@ function switchTab(name){
 }
 
 function updateUploadLock(){
-  const active = gameData?.active_slots || 0;
-  const slotLimit = gameData?.slot_limit || 5;
-  
+  const active = gameData?.active_slots || 0, slotLimit = gameData?.slot_limit || 5;
   const pct = slotLimit > 0 ? Math.min((active / slotLimit) * 100, 100) : 0;
   const fill = document.getElementById('slot-bar-fill');
   fill.style.width = pct + '%';
@@ -1299,7 +1325,6 @@ function runAiAnimation(){
 }
 
 let pendingPrices = []; 
-
 function showAiResult(){
   const score = Math.floor(Math.random() * 30) + 65;
   document.getElementById('score-circle').style.strokeDashoffset = 213.6 - (score / 100) * 213.6;
@@ -1308,16 +1333,12 @@ function showAiResult(){
   document.getElementById('score-badges').innerHTML = badges.map(b => `<span class="badge">${b}</span>`).join('');
   document.getElementById('ai-verdict').textContent = t(score >= 85 ? 'ai_verdict_hi' : score >= 75 ? 'ai_verdict_mid' : 'ai_verdict_lo');
 
-  let totalRub = 0;
-  pendingPrices = []; 
+  let totalRub = 0; pendingPrices = []; 
   const isPack = selectedFiles.length >= 5;
   
   for (let i = 0; i < selectedFiles.length; i++) {
-    const price = isPack 
-      ? Math.floor(Math.random() * (500 - 100 + 1)) + 100  
-      : Math.floor(Math.random() * (460 - 92 + 1)) + 92;   
-    pendingPrices.push(price);
-    totalRub += price;
+    const price = isPack ? Math.floor(Math.random() * (500 - 100 + 1)) + 100 : Math.floor(Math.random() * (460 - 92 + 1)) + 92;   
+    pendingPrices.push(price); totalRub += price;
   }
 
   const grossUsd = (totalRub / 92).toFixed(2), netUsd = (totalRub / 92 * 0.98).toFixed(2);
@@ -1330,18 +1351,14 @@ async function confirmUpload(){
   const btn = document.getElementById('ai-confirm');
   btn.disabled = true; document.getElementById('ai-confirm-text').innerHTML = '<span class="inline-spinner"></span>' + t('ai_list');
   const fd = new FormData(); 
-  fd.append('user_id', userId); 
-  fd.append('username', username);
-  fd.append('prices', pendingPrices.join(',')); 
-  
+  fd.append('user_id', userId); fd.append('username', username); fd.append('prices', pendingPrices.join(',')); 
   selectedFiles.forEach(f => fd.append('files', f));
   try{
     const r = await authFetch(`${BASE}/api/upload`, { method:'POST', body:fd });
     if(!r.ok) {
       const errData = await r.json().catch(() => ({}));
-      const detail = errData.detail || '';
-      if(detail === 'duplicate_photo') throw new Error(t('err_duplicate_photo'));
-      throw new Error(detail || t('toast_err'));
+      if(errData.detail === 'duplicate_photo') throw new Error(t('err_duplicate_photo'));
+      throw new Error(errData.detail || t('toast_err'));
     }
     const data = await r.json();
     closeAiModal(); selectedFiles = []; renderFilePreviews();
@@ -1356,24 +1373,15 @@ async function confirmUpload(){
 function updateWheelUI() {
   const btn = document.getElementById('spin-btn');
   if (nextSpinMs <= 0) {
-    btn.disabled = false;
-    btn.textContent = t('btn_spin');
-    clearInterval(wheelTimer);
+    btn.disabled = false; btn.textContent = t('btn_spin'); clearInterval(wheelTimer);
   } else {
-    btn.disabled = true;
-    updateWheelTimer();
-    clearInterval(wheelTimer);
-    wheelTimer = setInterval(() => {
-      nextSpinMs -= 1000;
-      if (nextSpinMs <= 0) updateWheelUI();
-      else updateWheelTimer();
-    }, 1000);
+    btn.disabled = true; updateWheelTimer(); clearInterval(wheelTimer);
+    wheelTimer = setInterval(() => { nextSpinMs -= 1000; if (nextSpinMs <= 0) updateWheelUI(); else updateWheelTimer(); }, 1000);
   }
 }
 
 function updateWheelTimer() {
-  const h = Math.floor(nextSpinMs / 3600000);
-  const m = Math.floor((nextSpinMs % 3600000) / 60000);
+  const h = Math.floor(nextSpinMs / 3600000), m = Math.floor((nextSpinMs % 3600000) / 60000);
   document.getElementById('spin-btn').textContent = t('spin_wait').replace('{h}', h).replace('{m}', m);
 }
 
@@ -1381,78 +1389,43 @@ let wheelSpinning = false;
 async function spinWheel() {
   if (wheelSpinning) return;
   wheelSpinning = true;
-  
   try {
     const r = await authFetch(`${BASE}/api/wheel/spin`, { method:'POST' });
     if (!r.ok) throw new Error();
     const data = await r.json();
-    
     const segmentAngles = [36, 108, 180, 252, 324];
     const targetDeg = 1800 - segmentAngles[data.prize.id];
     
     const wheelBg = document.getElementById('wheel-bg');
-    wheelBg.style.transition = 'transform 4s cubic-bezier(0.25, 0.1, 0.25, 1)';
-    wheelBg.style.transform = `rotate(${targetDeg}deg)`;
-    
+    wheelBg.style.transition = 'transform 4s cubic-bezier(0.25, 0.1, 0.25, 1)'; wheelBg.style.transform = `rotate(${targetDeg}deg)`;
     setTimeout(async () => {
       showToast(t('prize_win').replace('{p}', data.prize.label), 'success');
-      wheelBg.style.transition = 'none';
-      wheelBg.style.transform = `rotate(${-segmentAngles[data.prize.id]}deg)`;
-      wheelSpinning = false;
-      await loadPlayer(false);
+      wheelBg.style.transition = 'none'; wheelBg.style.transform = `rotate(${-segmentAngles[data.prize.id]}deg)`;
+      wheelSpinning = false; await loadPlayer(false);
     }, 4100);
-    
-  } catch (e) {
-    wheelSpinning = false;
-    showToast(t('toast_err'), 'error');
-  }
+  } catch (e) { wheelSpinning = false; showToast(t('toast_err'), 'error'); }
 }
 
 async function buyItem(item) {
   try {
     const fd = new FormData(); fd.append('item', item);
-    const r = await authFetch(`${BASE}/api/buy/item`, {
-      method: 'POST',
-      body: fd
-    });
+    const r = await authFetch(`${BASE}/api/buy/item`, { method: 'POST', body: fd });
     const data = await r.json();
-    
-    if (!r.ok) {
-        showToast(data.detail || t('toast_err'), 'error');
-        return;
-    }
-    
-    showToast("Purchase successful!", "success");
-    await loadPlayer(false);
-  } catch (e) {
-    showToast(t('toast_err'), 'error');
-  }
+    if (!r.ok) { showToast(data.detail || t('toast_err'), 'error'); return; }
+    showToast("Purchase successful!", "success"); await loadPlayer(false);
+  } catch (e) { showToast(t('toast_err'), 'error'); }
 }
 
 async function activatePromo() {
-    const inp = document.getElementById('promo-input');
-    const code = inp.value.trim();
+    const inp = document.getElementById('promo-input'), code = inp.value.trim();
     if(!code) return;
-    
     try {
-        const r = await authFetch(`${BASE}/api/promo/activate`, {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({code: code})
-        });
+        const r = await authFetch(`${BASE}/api/promo/activate`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({code: code}) });
         const data = await r.json();
-        
-        if(!r.ok) {
-            showToast(data.detail || t('toast_err'), 'error');
-            return;
-        }
-        
+        if(!r.ok) { showToast(data.detail || t('toast_err'), 'error'); return; }
         showToast(data.message || "Promo code activated!", "success");
-        inp.value = "";
-        await loadPlayer(false);
-    } catch(e) {
-        showToast(t('toast_err'), 'error');
-    }
+        inp.value = ""; await loadPlayer(false);
+    } catch(e) { showToast(t('toast_err'), 'error'); }
 }
 
 function renderPortfolio(){
@@ -1476,16 +1449,11 @@ function tickCountdowns(){
 
   const resetEl = document.getElementById('slot-reset-timer');
   if(resetEl && resetEl.style.display !== 'none') {
-      const now = new Date();
-      let nextReset = new Date();
+      const now = new Date(); let nextReset = new Date();
       nextReset.setUTCHours(21, 0, 0, 0); 
-      if (now >= nextReset) {
-          nextReset.setUTCDate(nextReset.getUTCDate() + 1);
-      }
+      if (now >= nextReset) nextReset.setUTCDate(nextReset.getUTCDate() + 1);
       const diff = nextReset - now;
-      const h = Math.floor(diff / 3600000);
-      const m = Math.floor((diff % 3600000) / 60000);
-      const s = Math.floor((diff % 60000) / 1000);
+      const h = Math.floor(diff / 3600000), m = Math.floor((diff % 3600000) / 60000), s = Math.floor((diff % 60000) / 1000);
       resetEl.textContent = t('slots_reset_in').replace('{h}', h).replace('{m}', m).replace('{s}', s);
   }
 }
@@ -1523,9 +1491,7 @@ function tickLiveFeed(){
 
 function renderWalletInfo(){
   const refs = gameData?.player?.referrals_count || 0, minRefs = gameData?.min_referrals_withdraw || 3, unlocked = refs >= minRefs;
-  const minWd = gameData?.min_withdrawal_usd || 100;
-  const activeSales = gameData?.active_auction_count || 0;
-  const bal = parseFloat(gameData?.player?.balance || 0);
+  const minWd = gameData?.min_withdrawal_usd || 100, activeSales = gameData?.active_auction_count || 0, bal = parseFloat(gameData?.player?.balance || 0);
 
   document.getElementById('wallet-progress').textContent = `${refs}/${minRefs} ${t('ref_count_sub')}`;
   document.getElementById('ruc-bar-fill').style.width = Math.min((refs / minRefs) * 100, 100) + '%';
@@ -1537,55 +1503,31 @@ function renderWalletInfo(){
   document.getElementById('withdraw-box').classList.toggle('locked-state', !unlocked);
   document.getElementById('withdraw-sub').textContent = unlocked ? t('withdraw_unlocked_hint') : t('withdraw_sub');
 
-  const warnEl = document.getElementById('active-sales-warning');
-  const warnText = document.getElementById('active-sales-warning-text');
+  const warnEl = document.getElementById('active-sales-warning'), warnText = document.getElementById('active-sales-warning-text');
   if (activeSales > 0) {
     warnEl.style.display = '';
-    const ru = currentLang === 'ru';
-    warnText.textContent = ru
-      ? `У вас ${activeSales} активных продаж. Вывод будет доступен после их завершения.`
-      : `You have ${activeSales} active photo sale(s). Withdrawal unlocks after all are sold.`;
+    warnText.textContent = currentLang === 'ru' ? `У вас ${activeSales} активных продаж. Вывод будет доступен после их завершения.` : `You have ${activeSales} active photo sale(s). Withdrawal unlocks after all are sold.`;
   } else if (unlocked && bal < minWd) {
     warnEl.style.display = '';
-    const ru = currentLang === 'ru';
-    warnText.textContent = ru
-      ? `Минимальная сумма вывода: $${minWd}. Ваш баланс: $${fmt(bal)}`
-      : `Minimum withdrawal: $${minWd}. Your balance: $${fmt(bal)}`;
-  } else {
-    warnEl.style.display = 'none';
-  }
+    warnText.textContent = currentLang === 'ru' ? `Минимальная сумма вывода: $${minWd}. Ваш баланс: $${fmt(bal)}` : `Minimum withdrawal: $${minWd}. Your balance: $${fmt(bal)}`;
+  } else { warnEl.style.display = 'none'; }
 }
 
 function renderWithdrawPreviews(){
-  const bal = parseFloat(gameData?.player?.balance || 0);
-  const refs = gameData?.player?.referrals_count || 0;
-  const unlocked = refs >= (gameData?.min_referrals_withdraw || 3);
-  const minWd = gameData?.min_withdrawal_usd || 100;
-  const activeSales = gameData?.active_auction_count || 0;
+  const bal = parseFloat(gameData?.player?.balance || 0), refs = gameData?.player?.referrals_count || 0;
+  const unlocked = refs >= (gameData?.min_referrals_withdraw || 3), minWd = gameData?.min_withdrawal_usd || 100, activeSales = gameData?.active_auction_count || 0;
 
   document.getElementById('withdraw-usd-preview').textContent = '$' + fmt(bal);
   document.getElementById('withdraw-stars-preview').textContent = (bal > 0 ? Math.floor(bal / 0.012) : 0).toLocaleString() + ' ⭐';
 
   const canWithdraw = unlocked && bal >= minWd && activeSales === 0;
-  const usdBtn = document.getElementById('withdraw-btn-usd');
-  const starsBtn = document.getElementById('withdraw-btn-stars');
+  const usdBtn = document.getElementById('withdraw-btn-usd'), starsBtn = document.getElementById('withdraw-btn-stars');
+  usdBtn.disabled = !canWithdraw; starsBtn.disabled = !canWithdraw;
 
-  usdBtn.disabled = !canWithdraw;
-  starsBtn.disabled = !canWithdraw;
-
-  if (!unlocked) {
-    usdBtn.textContent = t('withdraw_btn_locked');
-    starsBtn.textContent = t('withdraw_btn_locked');
-  } else if (activeSales > 0) {
-    usdBtn.textContent = '⏳ ' + (currentLang === 'ru' ? 'Дождитесь продаж' : 'Wait for sales');
-    starsBtn.textContent = '⏳ ' + (currentLang === 'ru' ? 'Дождитесь продаж' : 'Wait for sales');
-  } else if (bal < minWd) {
-    usdBtn.textContent = `🔒 Min $${minWd}`;
-    starsBtn.textContent = `🔒 Min $${minWd}`;
-  } else {
-    usdBtn.textContent = t('withdraw_btn_usd') + fmt(bal);
-    starsBtn.textContent = t('withdraw_btn_stars');
-  }
+  if (!unlocked) { usdBtn.textContent = t('withdraw_btn_locked'); starsBtn.textContent = t('withdraw_btn_locked'); }
+  else if (activeSales > 0) { usdBtn.textContent = '⏳ ' + (currentLang === 'ru' ? 'Дождитесь продаж' : 'Wait for sales'); starsBtn.textContent = '⏳ ' + (currentLang === 'ru' ? 'Дождитесь продаж' : 'Wait for sales'); }
+  else if (bal < minWd) { usdBtn.textContent = `🔒 Min $${minWd}`; starsBtn.textContent = `🔒 Min $${minWd}`; }
+  else { usdBtn.textContent = t('withdraw_btn_usd') + fmt(bal); starsBtn.textContent = t('withdraw_btn_stars'); }
 }
 
 function selectWithdrawTab(tab){
@@ -1597,92 +1539,47 @@ function selectWithdrawTab(tab){
 }
 
 async function initiateWithdraw(method) {
-  const bal = parseFloat(gameData?.player?.balance || 0);
-  const minWd = gameData?.min_withdrawal_usd || 100;
-  const activeSales = gameData?.active_auction_count || 0;
-  const refs = gameData?.player?.referrals_count || 0;
-  const minRefs = gameData?.min_referrals_withdraw || 3;
+  const bal = parseFloat(gameData?.player?.balance || 0), minWd = gameData?.min_withdrawal_usd || 100, activeSales = gameData?.active_auction_count || 0;
+  const refs = gameData?.player?.referrals_count || 0, minRefs = gameData?.min_referrals_withdraw || 3;
 
   if (refs < minRefs) { showToast(t('withdraw_btn_locked'), 'error'); return; }
   if (activeSales > 0) { showToast(t('err_active_sales'), 'error'); return; }
   if (bal < minWd) { showToast(t('err_min_balance'), 'error'); return; }
 
   pendingWithdrawMethod = method;
-  const btnId = method === 'usd' ? 'withdraw-btn-usd' : 'withdraw-btn-stars';
-  const btn = document.getElementById(btnId);
-  const originalText = btn.textContent;
+  const btnId = method === 'usd' ? 'withdraw-btn-usd' : 'withdraw-btn-stars', btn = document.getElementById(btnId), originalText = btn.textContent;
   btn.disabled = true; btn.textContent = 'Checking...';
 
   try {
     const r = await authFetch(`${BASE}/api/withdraw/check`, { method: 'POST' });
     const data = await r.json();
-    
-    if (!data.ok && data.channels && data.channels.length > 0) {
-        renderSubModal(data.channels);
-        document.getElementById('sub-modal').classList.add('open');
-    } else {
-        document.getElementById('wd-modal').classList.add('open');
-    }
-  } catch(e) {
-    showToast(t('toast_err'), 'error');
-  } finally {
-    btn.disabled = false; btn.textContent = originalText;
-  }
+    if (!data.ok && data.channels && data.channels.length > 0) { renderSubModal(data.channels); document.getElementById('sub-modal').classList.add('open'); }
+    else { document.getElementById('wd-modal').classList.add('open'); }
+  } catch(e) { showToast(t('toast_err'), 'error'); } finally { btn.disabled = false; btn.textContent = originalText; }
 }
 
 function renderSubModal(channels) {
-    const list = document.getElementById('sub-channel-list');
-    list.innerHTML = channels.map(ch => {
-        return `
-        <div class="sub-channel-item">
-            <div class="sub-channel-top">
-                <div class="sub-channel-name">${escHtml(ch.name || 'Sponsor')}</div>
-                <a href="${escHtml(ch.url)}" target="_blank" class="sub-channel-btn">${t('sub_btn_join')}</a>
-            </div>
-        </div>
-        `;
-    }).join('');
+    document.getElementById('sub-channel-list').innerHTML = channels.map(ch => `<div class="sub-channel-item"><div class="sub-channel-top"><div class="sub-channel-name">${escHtml(ch.name || 'Sponsor')}</div><a href="${escHtml(ch.url)}" target="_blank" class="sub-channel-btn">${t('sub_btn_join')}</a></div></div>`).join('');
 }
 
-function closeSubModal() {
-    document.getElementById('sub-modal').classList.remove('open');
-    pendingWithdrawMethod = null;
-}
+function closeSubModal() { document.getElementById('sub-modal').classList.remove('open'); pendingWithdrawMethod = null; }
 
 async function checkWithdrawSubs() {
-    const btn = document.getElementById('sub-btn-check');
-    const orig = btn.textContent;
+    const btn = document.getElementById('sub-btn-check'), orig = btn.textContent;
     btn.disabled = true; btn.textContent = '...';
-
     try {
         const r = await authFetch(`${BASE}/api/withdraw/check`, { method: 'POST' });
         const data = await r.json();
-        
-        if (data.ok) {
-            document.getElementById('sub-modal').classList.remove('open');
-            document.getElementById('wd-modal').classList.add('open');
-        } else {
-            showToast(t('toast_verify_fail'), 'error');
-            renderSubModal(data.channels);
-        }
-    } catch(e) {
-        showToast(t('toast_err'), 'error');
-    } finally {
-        btn.disabled = false; btn.textContent = orig;
-    }
+        if (data.ok) { document.getElementById('sub-modal').classList.remove('open'); document.getElementById('wd-modal').classList.add('open'); }
+        else { showToast(t('toast_verify_fail'), 'error'); renderSubModal(data.channels); }
+    } catch(e) { showToast(t('toast_err'), 'error'); } finally { btn.disabled = false; btn.textContent = orig; }
 }
 
-function closeWithdrawModal(){
-  document.getElementById('wd-modal').classList.remove('open');
-  pendingWithdrawMethod = null;
-}
+function closeWithdrawModal(){ document.getElementById('wd-modal').classList.remove('open'); pendingWithdrawMethod = null; }
 
 async function confirmWithdraw(){
-  const method = pendingWithdrawMethod;
-  const btn = document.getElementById('wd-btn-confirm');
-  const originalText = btn.textContent;
+  const method = pendingWithdrawMethod, btn = document.getElementById('wd-btn-confirm'), originalText = btn.textContent;
   btn.disabled = true; btn.textContent = 'Processing…';
-  
   const endpoint = method === 'usd' ? `${BASE}/api/withdraw` : `${BASE}/api/withdraw/stars`;
 
   try{
@@ -1692,35 +1589,20 @@ async function confirmWithdraw(){
       let errMsg = wdata.detail || wdata.message || t('toast_withdraw_err');
       try {
         const parsed = typeof errMsg === 'string' ? JSON.parse(errMsg) : errMsg;
-        if(parsed.error === 'min_balance') errMsg = t('err_min_balance');
-        else if(parsed.error === 'active_sales') errMsg = t('err_active_sales');
+        if(parsed.error === 'min_balance') errMsg = t('err_min_balance'); else if(parsed.error === 'active_sales') errMsg = t('err_active_sales');
       } catch(e) {}
       throw new Error(typeof errMsg === 'string' ? errMsg : t('toast_withdraw_err'));
     }
-    
-    closeWithdrawModal();
-    btn.disabled = false; btn.textContent = originalText;
-    showToast(wdata.message || t('toast_withdrawn'), 'success');
-    await loadPlayer(false);
+    closeWithdrawModal(); btn.disabled = false; btn.textContent = originalText;
+    showToast(wdata.message || t('toast_withdrawn'), 'success'); await loadPlayer(false);
   }catch(e){
-    closeWithdrawModal();
-    btn.disabled = false; btn.textContent = originalText;
-    showToast(e.message || t('toast_withdraw_err'), 'error');
-    renderWithdrawPreviews();
+    closeWithdrawModal(); btn.disabled = false; btn.textContent = originalText; showToast(e.message || t('toast_withdraw_err'), 'error'); renderWithdrawPreviews();
   }
 }
 
-function openVipModal() {
-    document.getElementById('vip-modal').classList.add('open');
-}
-function closeVipModal() {
-    document.getElementById('vip-modal').classList.remove('open');
-}
-
-function toggleVipDetails(index) {
-  const row = document.getElementById(`vip-tier-row-${index}`);
-  row.classList.toggle('open');
-}
+function openVipModal() { document.getElementById('vip-modal').classList.add('open'); }
+function closeVipModal() { document.getElementById('vip-modal').classList.remove('open'); }
+function toggleVipDetails(index) { document.getElementById(`vip-tier-row-${index}`).classList.toggle('open'); }
 
 let _refRetryCount = 0;
 function renderReferrals(){
@@ -1730,51 +1612,23 @@ function renderReferrals(){
 
   const refUrl = gameData.referral_url || '';
   document.getElementById('ref-url-display').textContent = refUrl || 'Loading…';
-  
   if(!refUrl && _refRetryCount < 3){ _refRetryCount++; setTimeout(() => loadPlayer(true), _refRetryCount * 3000); } else if(refUrl){ _refRetryCount = 0; }
   
   document.getElementById('vip-big-badge').textContent = 'Lv ' + lvl;
-
-  const tiers = gameData.vip_tiers || []; 
-  if(!tiers.length) return;
-  
+  const tiers = gameData.vip_tiers || []; if(!tiers.length) return;
   const maxRefs = tiers[tiers.length - 1].min; 
-  let pct = Math.min((refs / maxRefs) * 100, 100);
-  document.getElementById('vip-track-fill').style.width = pct + '%';
-
+  document.getElementById('vip-track-fill').style.width = Math.min((refs / maxRefs) * 100, 100) + '%';
   document.getElementById('vip-milestones').innerHTML = tiers.map((tier, i) => `<div class="vip-dot-wrap" style="position:absolute; left:${(tier.min/maxRefs)*100}%; transform:translateX(-50%)"><div class="vip-dot ${refs >= tier.min ? 'reached' : ''} ${i === lvl ? 'current' : ''}"></div><div class="vip-dot-lbl ${i === lvl ? 'active' : ''}">${i}</div></div>`).join('');
   
   const hint = document.getElementById('vip-next-hint');
   if(lvl >= tiers.length - 1) hint.textContent = t('vip_max_hint');
   else hint.textContent = t('vip_next_hint').replace('{n}', tiers[lvl + 1].min - refs).replace('{l}', lvl + 1);
 
-  const tNames = t('vip_tier_names'), tMax = t('vip_tier_max'), tSlots = t('vip_tier_slots'), tReq = t('vip_tier_req');
-  const VIP_ICONS = ['🟢','🥉','🥈','🥇','💎','👑'];
-  
+  const tNames = t('vip_tier_names'), tMax = t('vip_tier_max'), tSlots = t('vip_tier_slots'), tReq = t('vip_tier_req'), VIP_ICONS = ['🟢','🥉','🥈','🥇','💎','👑'];
   document.getElementById('vip-modal-tier-cards').innerHTML = tiers.map((tier, i) => {
     const unlocked = refs >= tier.min, curr = i === lvl;
-    const name = Array.isArray(tNames) ? tNames[i] : 'Level ' + i;
-    const req = Array.isArray(tReq) ? tReq[i] : `${tier.min} refs`;
-    const maxd = Array.isArray(tMax) ? tMax[i] : `${tier.max_delay/60} min`;
-    const slots = Array.isArray(tSlots) ? tSlots[i] : `${tier.slots}`;
-    
-    return `
-      <div class="vip-tier-row ${unlocked ? 'unlocked' : ''} ${curr ? 'current-tier' : ''}" id="vip-tier-row-${i}" onclick="toggleVipDetails(${i})">
-        <div class="vtc-header">
-            <div class="vtc-icon">${VIP_ICONS[i] || '●'}</div>
-            <div class="vtc-info">
-              <div class="vtc-name">${name} — Level ${i}</div>
-            </div>
-            <div class="vtc-status ${curr ? 'active' : unlocked ? 'done' : 'locked'}">${curr ? '● ACTIVE' : unlocked ? '✓' : '🔒'}</div>
-            <div class="vtc-chevron">▼</div>
-        </div>
-        <div class="vtc-details">
-            <div class="vtc-det-row"><span>${t('label_req')}</span><span>${req}</span></div>
-            <div class="vtc-det-row"><span>${t('label_slots')}</span><span>${slots}</span></div>
-            <div class="vtc-det-row"><span>${t('label_delay')}</span><span>${maxd}</span></div>
-        </div>
-      </div>
-    `;
+    const name = Array.isArray(tNames) ? tNames[i] : 'Level ' + i, req = Array.isArray(tReq) ? tReq[i] : `${tier.min} refs`, maxd = Array.isArray(tMax) ? tMax[i] : `${tier.max_delay/60} min`, slots = Array.isArray(tSlots) ? tSlots[i] : `${tier.slots}`;
+    return `<div class="vip-tier-row ${unlocked ? 'unlocked' : ''} ${curr ? 'current-tier' : ''}" id="vip-tier-row-${i}" onclick="toggleVipDetails(${i})"><div class="vtc-header"><div class="vtc-icon">${VIP_ICONS[i] || '●'}</div><div class="vtc-info"><div class="vtc-name">${name} — Level ${i}</div></div><div class="vtc-status ${curr ? 'active' : unlocked ? 'done' : 'locked'}">${curr ? '● ACTIVE' : unlocked ? '✓' : '🔒'}</div><div class="vtc-chevron">▼</div></div><div class="vtc-details"><div class="vtc-det-row"><span>${t('label_req')}</span><span>${req}</span></div><div class="vtc-det-row"><span>${t('label_slots')}</span><span>${slots}</span></div><div class="vtc-det-row"><span>${t('label_delay')}</span><span>${maxd}</span></div></div></div>`;
   }).join('');
 }
 
@@ -1789,22 +1643,11 @@ async function loadReferralsList() {
 
 function renderReferralsList(refs) {
     const list = document.getElementById('referrals-list');
-    if (!refs.length) {
-        list.innerHTML = `<div class="empty-state"><div class="empty-text" data-i18n="ref_list_empty">${t('ref_list_empty')}</div></div>`;
-        return;
-    }
+    if (!refs.length) { list.innerHTML = `<div class="empty-state"><div class="empty-text" data-i18n="ref_list_empty">${t('ref_list_empty')}</div></div>`; return; }
     list.innerHTML = refs.map(r => {
-        const name = r.username ? `@${r.username}` : `User ${r.referred_id}`;
-        const date = new Date(r.created_at + 'Z').toLocaleDateString();
-        const statusClass = r.is_active ? 'ref-status-active' : 'ref-status-new';
-        const statusText = r.is_active ? t('ref_active') : t('ref_new');
-        return `<div class="ref-list-item">
-            <div>
-                <div class="ref-list-name">${escHtml(name)}</div>
-                <div class="ref-list-date">${date}</div>
-            </div>
-            <div class="ref-list-status ${statusClass}">${statusText}</div>
-        </div>`;
+        const name = r.username ? `@${r.username}` : `User ${r.referred_id}`, date = new Date(r.created_at + 'Z').toLocaleDateString();
+        const statusClass = r.is_active ? 'ref-status-active' : 'ref-status-new', statusText = r.is_active ? t('ref_active') : t('ref_new');
+        return `<div class="ref-list-item"><div><div class="ref-list-name">${escHtml(name)}</div><div class="ref-list-date">${date}</div></div><div class="ref-list-status ${statusClass}">${statusText}</div></div>`;
     }).join('');
 }
 
@@ -1822,7 +1665,6 @@ function shareRefLink(){
   if(window.Telegram?.WebApp?.openTelegramLink) window.Telegram.WebApp.openTelegramLink(shareUrl); else window.open(shareUrl, '_blank');
 }
 
-// SUPPORT CHAT FUNCTIONS WITH IMAGES
 function handleChatImgSelect(input) {
     if(input.files && input.files[0]) {
         supportImgFile = input.files[0];
@@ -1851,9 +1693,7 @@ function renderSupportMsgs(msgs){
   if(!msgs.length){ container.innerHTML = `<div class="chat-empty">${t('chat_empty')}</div>`; return; }
   
   container.innerHTML = msgs.map(m => {
-    if (m.direction === 'system') {
-        return `<div class="chat-system-msg">${escHtml(m.text)}</div>`;
-    }
+    if (m.direction === 'system') return `<div class="chat-system-msg">${escHtml(m.text)}</div>`;
     let imgHtml = m.image ? `<img src="/uploads/support/${m.image}" loading="lazy">` : '';
     return `<div class="chat-bubble ${m.direction === 'in' ? 'from-user' : 'from-admin'}">${escHtml(m.text)}${imgHtml}<div class="bubble-meta">${m.direction === 'in' ? t('chat_you') : t('chat_support')} · ${new Date(m.created_at + 'Z').toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</div></div>`;
   }).join('');
@@ -1865,37 +1705,31 @@ async function sendSupportMsg(){
   if(!text && !supportImgFile) return;
   inp.value = ''; inp.style.height = ''; document.getElementById('chat-send-btn').disabled = true;
   
-  const fd = new FormData();
-  fd.append('text', text);
+  const fd = new FormData(); fd.append('text', text);
   if (supportImgFile) fd.append('file', supportImgFile);
 
   try{
     const r = await authFetch(`${BASE}/api/support/send`, { method: 'POST', body: fd });
     if(!r.ok) throw new Error();
-    cancelChatImg();
-    await loadSupportMsgs();
+    cancelChatImg(); await loadSupportMsgs();
   }catch(e){ showToast(t('toast_err'), 'error'); }
   document.getElementById('chat-send-btn').disabled = false;
 }
 
 async function pollSupportReplies(){
-  if(!supportMsgsLoaded) return;
-  try{
-    const msgs = (await (await authFetch(`${BASE}/api/support/messages`)).json()).messages || [];
-    if(msgs.length && msgs[msgs.length - 1].id > lastSupportMsgId){
-      renderSupportMsgs(msgs); lastSupportMsgId = msgs[msgs.length - 1].id;
-      if(document.querySelector('.panel.active')?.id !== 'panel-support') document.getElementById('support-notify').style.display = '';
-    }
-  }catch(e){}
-  
-  // Also poll admin chat if open
+  if(supportMsgsLoaded) {
+      try{
+        const msgs = (await (await authFetch(`${BASE}/api/support/messages`)).json()).messages || [];
+        if(msgs.length && msgs[msgs.length - 1].id > lastSupportMsgId){
+          renderSupportMsgs(msgs); lastSupportMsgId = msgs[msgs.length - 1].id;
+          if(document.querySelector('.panel.active')?.id !== 'panel-support') document.getElementById('support-notify').style.display = '';
+        }
+      }catch(e){}
+  }
   if (adminCurrentChatUid && document.getElementById('admin-chat-view').classList.contains('open')) {
       try {
           const r = await authFetch(`${BASE}/api/admin/chat/${adminCurrentChatUid}`);
-          if (r.ok) {
-              const data = await r.json();
-              renderAdminChatMsgs(data.messages || []);
-          }
+          if (r.ok) renderAdminChatMsgs((await r.json()).messages || []);
       } catch(e) {}
   }
 }
@@ -1928,27 +1762,22 @@ async function loadAdminData(silent = false) {
                 </div>`;
             }).join('');
         }
-    } catch(e) {
-        if(!silent) showToast('Error loading admin data', 'error');
-    }
+    } catch(e) { if(!silent) showToast('Error loading admin data', 'error'); }
 }
 
 async function setSponsorMode(mode) {
     try {
-        const fd = new FormData();
-        fd.append("mode", mode);
+        const fd = new FormData(); fd.append("mode", mode);
         const r = await authFetch(`${BASE}/api/admin/settings/sponsor_mode`, { method: "POST", body: fd });
-        if(r.ok) showToast("Sponsor check mode saved", "success");
+        if(r.ok) showToast("Sponsor mode saved", "success");
         else showToast("Error saving", "error");
     } catch(e) { showToast("Error", "error"); }
 }
 
 function openAdminChatFromInput() {
-    const inp = document.getElementById('admin-chat-search');
-    const uid = parseInt(inp.value.trim());
+    const inp = document.getElementById('admin-chat-search'), uid = parseInt(inp.value.trim());
     if(isNaN(uid) || uid <= 0) { showToast('Invalid ID', 'error'); return; }
-    inp.value = '';
-    openAdminChat(uid, `ID ${uid}`);
+    inp.value = ''; openAdminChat(uid, `ID ${uid}`);
 }
 
 async function openAdminChat(uid, displayName) {
@@ -1961,40 +1790,84 @@ async function openAdminChat(uid, displayName) {
         const r = await authFetch(`${BASE}/api/admin/chat/${uid}`);
         if(r.ok) {
             const data = await r.json();
-            if(data.username && displayName.startsWith('ID')) {
-                document.getElementById('acv-title').textContent = `Chat: @${data.username}`;
-            }
+            if(data.username && displayName.startsWith('ID')) document.getElementById('acv-title').textContent = `Chat: @${data.username}`;
             renderAdminChatMsgs(data.messages || []);
-        } else {
-            document.getElementById('admin-chat-area').innerHTML = '<div class="empty-state"><div class="empty-text">Error loading chat history</div></div>';
-        }
-    } catch(e) {
-        document.getElementById('admin-chat-area').innerHTML = '<div class="empty-state"><div class="empty-text">Error</div></div>';
-    }
+        } else { document.getElementById('admin-chat-area').innerHTML = '<div class="empty-state"><div class="empty-text">Error loading chat</div></div>'; }
+    } catch(e) { document.getElementById('admin-chat-area').innerHTML = '<div class="empty-state"><div class="empty-text">Error</div></div>'; }
 }
 
 function closeAdminChat() {
     document.getElementById('admin-chat-view').classList.remove('open');
-    adminCurrentChatUid = null;
-    cancelAdminChatImg();
-    loadAdminData(true);
+    adminCurrentChatUid = null; cancelAdminChatImg(); loadAdminData(true);
 }
 
 function renderAdminChatMsgs(msgs) {
   const container = document.getElementById('admin-chat-area');
-  if(!msgs.length){ container.innerHTML = `<div class="chat-empty">No messages history yet. You can start the conversation!</div>`; return; }
+  if(!msgs.length){ container.innerHTML = `<div class="chat-empty">No history. You can start the conversation!</div>`; return; }
   
   container.innerHTML = msgs.map(m => {
-    if (m.direction === 'system') {
-        return `<div class="chat-system-msg">${escHtml(m.text)}</div>`;
-    }
-    // "in" for admin means from user, "out" means from admin
+    if (m.direction === 'system') return `<div class="chat-system-msg">${escHtml(m.text)}</div>`;
     let imgHtml = m.image ? `<img src="/uploads/support/${m.image}" loading="lazy">` : '';
     const isFromUser = m.direction === 'in';
     
-    return `<div class="chat-bubble ${isFromUser ? 'from-admin' : 'from-user'}">${escHtml(m.text)}${imgHtml}<div class="bubble-meta">${isFromUser ? 'User' : 'You'} · ${new Date(m.created_at + 'Z').toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</div></div>`;
+    let actionsHtml = '';
+    if (!isFromUser) {
+        actionsHtml = `<div class="admin-msg-actions">
+            <button class="admin-msg-btn" onclick="editAdminChatMsg(${m.id}, '${escHtml(m.text).replace(/'/g, "\\'")}')">✏️</button>
+            <button class="admin-msg-btn trash" onclick="delAdminChatMsg(${m.id})">🗑</button>
+        </div>`;
+    }
+    
+    return `<div class="chat-bubble ${isFromUser ? 'from-admin' : 'from-user'}">${escHtml(m.text)}${imgHtml}<div class="bubble-meta">${isFromUser ? 'User' : 'You'} · ${new Date(m.created_at + 'Z').toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</div>${actionsHtml}</div>`;
   }).join('');
   container.scrollTop = container.scrollHeight;
+}
+
+async function editAdminChatMsg(msgId, oldText) {
+    const newText = prompt("Edit message:", oldText);
+    if(newText === null || newText === oldText) return;
+    try {
+        const r = await authFetch(`${BASE}/api/admin/chat/msg/${msgId}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({text: newText}) });
+        if(r.ok) {
+            const r2 = await authFetch(`${BASE}/api/admin/chat/${adminCurrentChatUid}`);
+            if(r2.ok) renderAdminChatMsgs((await r2.json()).messages || []);
+        }
+    } catch(e) { showToast('Edit failed', 'error'); }
+}
+
+async function delAdminChatMsg(msgId) {
+    if(!confirm("Delete this message?")) return;
+    try {
+        const r = await authFetch(`${BASE}/api/admin/chat/msg/${msgId}`, { method: 'DELETE' });
+        if(r.ok) {
+            const r2 = await authFetch(`${BASE}/api/admin/chat/${adminCurrentChatUid}`);
+            if(r2.ok) renderAdminChatMsgs((await r2.json()).messages || []);
+        }
+    } catch(e) { showToast('Delete failed', 'error'); }
+}
+
+async function closeAdminChatTicket() {
+    if(!adminCurrentChatUid) return;
+    if(!confirm("Close this ticket? User will see that conversation has ended.")) return;
+    try {
+        const r = await authFetch(`${BASE}/api/admin/chat/${adminCurrentChatUid}/close`, { method: 'POST' });
+        if(r.ok) {
+            const r2 = await authFetch(`${BASE}/api/admin/chat/${adminCurrentChatUid}`);
+            if(r2.ok) renderAdminChatMsgs((await r2.json()).messages || []);
+        }
+    } catch(e) { showToast('Failed to close ticket', 'error'); }
+}
+
+async function clearAdminChat() {
+    if(!adminCurrentChatUid) return;
+    if(!confirm("Delete ENTIRE chat history for this user? This cannot be undone.")) return;
+    try {
+        const r = await authFetch(`${BASE}/api/admin/chat/${adminCurrentChatUid}`, { method: 'DELETE' });
+        if(r.ok) {
+            closeAdminChat();
+            showToast('Chat history cleared', 'success');
+        }
+    } catch(e) { showToast('Failed to clear chat', 'error'); }
 }
 
 function handleAdminChatImgSelect(input) {
@@ -2005,8 +1878,7 @@ function handleAdminChatImgSelect(input) {
     }
 }
 function cancelAdminChatImg() {
-    adminSupportImgFile = null;
-    document.getElementById('admin-chat-img-upload').value = "";
+    adminSupportImgFile = null; document.getElementById('admin-chat-img-upload').value = "";
     document.getElementById('admin-chat-img-preview-box').style.display = 'none';
 }
 
@@ -2019,27 +1891,20 @@ async function sendAdminSupportMsg() {
   document.getElementById('admin-chat-send-btn').disabled = true;
   
   const fd = new FormData();
-  fd.append('target_uid', adminCurrentChatUid);
-  fd.append('text', text);
+  fd.append('target_uid', adminCurrentChatUid); fd.append('text', text);
   if (adminSupportImgFile) fd.append('file', adminSupportImgFile);
 
   try{
     const r = await authFetch(`${BASE}/api/admin/chat/send`, { method: 'POST', body: fd });
     if(!r.ok) throw new Error();
     cancelAdminChatImg();
-    
-    // reload msgs
     const r2 = await authFetch(`${BASE}/api/admin/chat/${adminCurrentChatUid}`);
-    if(r2.ok) {
-        const data = await r2.json();
-        renderAdminChatMsgs(data.messages || []);
-    }
+    if(r2.ok) renderAdminChatMsgs((await r2.json()).messages || []);
   }catch(e){ showToast('Failed to send', 'error'); }
   document.getElementById('admin-chat-send-btn').disabled = false;
 }
 
 document.getElementById('admin-chat-input').addEventListener('keydown', e => { if(e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); sendAdminSupportMsg(); } });
-
 
 let toastTimer;
 function showToast(msg, type = ''){
