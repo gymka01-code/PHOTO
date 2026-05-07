@@ -55,8 +55,17 @@ img{display:block}
 #header-info{flex:1;min-width:0}
 #header-title{font-size:15px;font-weight:700;letter-spacing:-0.02em;color:var(--text);line-height:1.1}
 #header-sub{font-size:10px;color:var(--text-3);letter-spacing:0.04em;margin-top:1px}
-#lang-toggle{background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:4px 10px;font-size:11px;font-weight:600;color:var(--text-2);letter-spacing:0.04em;transition:var(--transition)}
+#lang-toggle{background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:4px 10px;font-size:11px;font-weight:600;color:var(--text-2);letter-spacing:0.04em;transition:var(--transition);margin-right:4px;}
 #lang-toggle:active{transform:scale(.95)}
+
+/* MAIN BURGER MENU */
+.main-burger-btn { background:var(--blue-dim); border:1px solid rgba(59,130,246,0.3); color:var(--blue); padding:4px 10px; border-radius:6px; font-size:14px; cursor:pointer; }
+.main-menu-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:900; backdrop-filter:blur(4px); }
+.main-menu-overlay.open { display:block; animation:fadeIn .2s ease both; }
+.main-menu-card { position:absolute; top:60px; right:16px; background:var(--surface); border:1px solid var(--border2); border-radius:var(--radius); box-shadow:0 10px 30px rgba(0,0,0,0.8); width:200px; display:flex; flex-direction:column; overflow:hidden; }
+.main-menu-item { padding:14px 16px; font-size:13px; font-weight:600; color:var(--text); border-bottom:1px solid var(--border2); cursor:pointer; transition:var(--transition); }
+.main-menu-item:last-child { border-bottom:none; }
+.main-menu-item:hover, .main-menu-item:active { background:var(--surface2); color:var(--blue); }
 
 /* STATS BAR */
 #stats-bar{display:flex;align-items:center;padding:10px 16px;gap:0;border-bottom:1px solid var(--border);flex-shrink:0;background:var(--bg)}
@@ -69,12 +78,6 @@ img{display:block}
 #vip-pill .vip-dot{width:6px;height:6px;border-radius:50%;background:var(--blue);box-shadow:0 0 6px var(--blue-glow)}
 #vip-pill .vip-text{font-size:10px;font-weight:700;letter-spacing:0.04em;color:var(--blue)}
 
-/* TABS */
-#tabs{display:flex;gap:2px;padding:8px 16px;flex-shrink:0;overflow-x:auto;scrollbar-width:none;border-bottom:1px solid var(--border);background:var(--bg)}
-#tabs::-webkit-scrollbar{display:none}
-.tab{flex-shrink:0;padding:6px 10px;border-radius:var(--radius-sm);font-size:11px;font-weight:600;letter-spacing:0.02em;background:transparent;color:var(--text-3);transition:var(--transition);white-space:nowrap;border:1px solid transparent}
-.tab.active{background:var(--surface2);color:var(--text);border-color:var(--border2)}
-
 /* SCROLL AREA */
 #content{flex:1;overflow-y:auto;overflow-x:hidden;padding:16px 16px 90px;scrollbar-width:thin;scrollbar-color:var(--surface2) transparent}
 #content::-webkit-scrollbar{width:3px}
@@ -84,6 +87,7 @@ img{display:block}
 .panel{display:none;animation:fadeUp .25s ease both}
 .panel.active{display:block}
 @keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+@keyframes fadeIn{from{opacity:0;}to{opacity:1;}}
 
 /* SECTION HEADERS */
 .section-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
@@ -203,7 +207,6 @@ img{display:block}
 /* AI MODAL */
 #ai-modal{display:none;position:fixed;inset:0;z-index:100;background:rgba(0,0,0,0.88);backdrop-filter:blur(16px);align-items:center;justify-content:center;padding:20px}
 #ai-modal.open{display:flex;animation:fadeIn .25s ease both}
-@keyframes fadeIn{from{opacity:0;transform:scale(.97)}to{opacity:1;transform:scale(1)}}
 #ai-card{background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius-lg);padding:24px 20px;max-width:360px;width:100%;text-align:center;position:relative}
 .ai-thumbs-row{display:flex;gap:6px;justify-content:center;margin-bottom:16px;flex-wrap:wrap}
 .ai-thumb-img{width:72px;height:72px;object-fit:cover;border-radius:var(--radius-sm);border:1px solid var(--border2)}
@@ -330,7 +333,7 @@ img{display:block}
 /* PROMO CODE */
 .promo-card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:14px; margin-bottom:12px; }
 .promo-input-row { display:flex; gap:8px; align-items:center; }
-.promo-input-row input { flex:1; background:var(--bg1); border:1px solid var(--border); border-radius:var(--radius-sm); padding:10px 12px; font-size:12px; color:var(--text); transition:var(--transition); width:100%; }
+.promo-input-row input { flex:1; background:var(--bg1); border:1px solid var(--border); border-radius:var(--radius-sm); padding:10px 12px; font-size:12px; color:var(--text); transition:var(--transition); width:100%; box-sizing:border-box;}
 .promo-input-row input:focus { border-color:var(--blue); }
 
 /* SUPPORT CHAT & IMAGES */
@@ -394,19 +397,14 @@ img{display:block}
 /* ═══════════════════════════════════════════════
    ADMIN UI EXTENDED
 ═══════════════════════════════════════════════ */
-/* BURGER MENU */
-.adm-burger { background:var(--surface2); border:1px solid var(--border2); padding:6px 12px; border-radius:6px; font-size:12px; font-weight:600; color:var(--text); cursor:pointer; }
-.adm-menu-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:900; backdrop-filter:blur(4px); }
-.adm-menu-overlay.open { display:block; animation:fadeIn .2s ease both; }
-.adm-menu-card { position:absolute; top:60px; right:16px; background:var(--surface); border:1px solid var(--border2); border-radius:var(--radius); box-shadow:0 10px 30px rgba(0,0,0,0.8); width:200px; display:flex; flex-direction:column; overflow:hidden; }
-.adm-menu-item { padding:14px 16px; font-size:13px; font-weight:600; color:var(--text); border-bottom:1px solid var(--border2); cursor:pointer; transition:var(--transition); }
-.adm-menu-item:last-child { border-bottom:none; }
-.adm-menu-item:hover, .adm-menu-item:active { background:var(--surface2); color:var(--amber); }
-
+.adm-tab-bar { display:flex; gap:6px; overflow-x:auto; padding-bottom:10px; margin-bottom:16px; scrollbar-width:none; border-bottom:1px solid var(--border); }
+.adm-tab-bar::-webkit-scrollbar { display:none; }
+.adm-tab { padding:6px 12px; background:var(--surface); border:1px solid var(--border); border-radius:20px; font-size:12px; font-weight:600; color:var(--text-2); white-space:nowrap;}
+.adm-tab.active { background:var(--amber-dim); color:var(--amber); border-color:rgba(245,158,11,0.4); }
 .adm-panel { display:none; }
 .adm-panel.active { display:block; animation:fadeUp .2s ease; }
 .admin-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; margin-bottom: 14px; }
-.adm-input, .adm-select { padding: 10px; border-radius: var(--radius-sm); background: var(--bg1); border: 1px solid var(--border2); margin-top: 6px; font-size:13px; color:var(--text); box-sizing:border-box;}
+.adm-input, .adm-select { padding: 10px; border-radius: var(--radius-sm); background: var(--bg1); border: 1px solid var(--border2); margin-top: 6px; font-size:13px; color:var(--text); box-sizing:border-box; width:100%;}
 .adm-input:focus, .adm-select:focus { border-color:var(--amber); }
 .adm-btn { background:var(--surface2); border:1px solid var(--border2); color:var(--text); padding:8px 14px; border-radius:var(--radius-sm); font-size:12px; font-weight:600; cursor:pointer; text-align:center;}
 .adm-btn.primary { background:var(--amber); color:#000; border:none; }
@@ -421,9 +419,10 @@ img{display:block}
 #admin-chat-view { display: none; position: fixed; inset: 0; z-index: 400; background: var(--bg); flex-direction: column; }
 #admin-chat-view.open { display: flex; animation: fadeUp .2s ease both; }
 .acv-header { padding: 12px 16px; display: flex; align-items: center; justify-content:space-between; border-bottom: 1px solid var(--border); background: var(--surface); }
-.adm-msg-actions { position:absolute; right:-30px; top:50%; transform:translateY(-50%); display:flex; flex-direction:column; gap:4px; opacity:0; transition:0.2s; }
-.chat-bubble:hover .adm-msg-actions { opacity:1; right: -35px;}
-.adm-msg-btn { background:var(--bg1); border:1px solid var(--border2); border-radius:50%; width:24px; height:24px; display:flex; align-items:center; justify-content:center; font-size:10px; cursor:pointer;}
+.adm-msg-actions { display:flex; gap:8px; justify-content:flex-end; margin-top:6px; }
+.adm-msg-btn-inline { font-size:12px; cursor:pointer; font-weight:600; padding:4px 8px; border-radius:4px; background:var(--surface); border:1px solid var(--border2); }
+.adm-msg-btn-inline.edit { color:var(--text-2); }
+.adm-msg-btn-inline.del { color:var(--red); border-color:rgba(239,68,68,0.2); }
 </style>
 </head>
 <body>
@@ -516,14 +515,17 @@ img{display:block}
   </div>
 </div>
 
-<!-- ADMIN MENU OVERLAY -->
-<div id="adm-menu-overlay" class="adm-menu-overlay" onclick="toggleAdmMenu()">
-    <div class="adm-menu-card" onclick="event.stopPropagation()">
-        <div class="adm-menu-item" onclick="switchAdmTab('stats')" data-i18n="adm_menu_stats">Stats & Chat</div>
-        <div class="adm-menu-item" onclick="switchAdmTab('users')" data-i18n="adm_menu_users">Users</div>
-        <div class="adm-menu-item" onclick="switchAdmTab('finance')" data-i18n="adm_menu_fin">Finance</div>
-        <div class="adm-menu-item" onclick="switchAdmTab('sponsors')" data-i18n="adm_menu_promo">Sponsors/Promo</div>
-        <div class="adm-menu-item" onclick="switchAdmTab('system')" data-i18n="adm_menu_sys">System</div>
+<!-- MAIN BURGER MENU OVERLAY -->
+<div id="main-menu-overlay" class="main-menu-overlay" onclick="toggleMainMenu()">
+    <div class="main-menu-card" onclick="event.stopPropagation()">
+        <div class="main-menu-item" onclick="switchTab('upload')" data-i18n="tab_upload">📸 Upload</div>
+        <div class="main-menu-item" onclick="switchTab('bonus')" data-i18n="tab_bonus">🎁 Bonus</div>
+        <div class="main-menu-item" onclick="switchTab('portfolio')" data-i18n="tab_portfolio">📂 Portfolio</div>
+        <div class="main-menu-item" onclick="switchTab('market')" data-i18n="tab_market">🌍 Market</div>
+        <div class="main-menu-item" onclick="switchTab('wallet')" data-i18n="tab_wallet">💰 Wallet</div>
+        <div class="main-menu-item" onclick="switchTab('profile')" data-i18n="tab_profile">👤 Profile</div>
+        <div class="main-menu-item" onclick="switchTab('support')" data-i18n="tab_support">💬 Support</div>
+        <div class="main-menu-item" id="menu-item-admin" style="display:none; color:var(--amber)" onclick="switchTab('admin')" data-i18n="tab_admin">👑 Admin Panel</div>
     </div>
 </div>
 
@@ -553,53 +555,20 @@ img{display:block}
   </div>
 </div>
 
-
 <div id="app">
   <div id="header">
-    <div id="header-logo">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="12" cy="12" r="10"></circle>
-        <path d="M14.31 8l5.74 9.94M9.69 8h11.48M7.38 12l5.74-9.94M9.69 16L3.95 6.06M14.31 16H2.83m13.79-4l-5.74 9.94"></path>
-      </svg>
-    </div>
-    <div id="header-info">
-      <div id="header-title">PhotoFlip</div>
-      <div id="header-sub" data-i18n="hdr_sub">Photo Auction Platform</div>
-    </div>
-    <div id="support-notify" style="display:none;margin-right:8px">
-      <div style="width:8px;height:8px;border-radius:50%;background:var(--red);box-shadow:0 0 6px var(--red)"></div>
-    </div>
+    <div id="header-logo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><path d="M14.31 8l5.74 9.94M9.69 8h11.48M7.38 12l5.74-9.94M9.69 16L3.95 6.06M14.31 16H2.83m13.79-4l-5.74 9.94"></path></svg></div>
+    <div id="header-info"><div id="header-title">PhotoFlip</div><div id="header-sub" data-i18n="hdr_sub">Photo Auction Platform</div></div>
+    <div id="support-notify" style="display:none;margin-right:8px"><div style="width:8px;height:8px;border-radius:50%;background:var(--red);box-shadow:0 0 6px var(--red)"></div></div>
     <button id="lang-toggle" onclick="toggleLang()">RU</button>
+    <div class="main-burger-btn" onclick="toggleMainMenu()">☰ Меню</div>
   </div>
 
   <div id="stats-bar">
-    <div class="stat-item">
-      <div class="stat-label" data-i18n="balance_label">Balance</div>
-      <div class="stat-value green" id="balance-val">$0.00</div>
-    </div>
-    <div class="stat-item">
-      <div class="stat-label" data-i18n="earned_label">Earned</div>
-      <div class="stat-value" id="earned-val">$0.00</div>
-    </div>
-    <div class="stat-item">
-      <div class="stat-label" data-i18n="sold_label">Sold</div>
-      <div class="stat-value" id="sold-val">0</div>
-    </div>
-    <div id="vip-pill">
-      <div class="vip-dot"></div>
-      <div class="vip-text" id="vip-level-text">VIP 0</div>
-    </div>
-  </div>
-
-  <div id="tabs">
-    <button class="tab active" data-tab="upload" onclick="switchTab('upload')" data-i18n="tab_upload">Upload</button>
-    <button class="tab" data-tab="bonus" onclick="switchTab('bonus')" data-i18n="tab_bonus">Bonus</button>
-    <button class="tab" data-tab="portfolio" onclick="switchTab('portfolio')" data-i18n="tab_portfolio">Portfolio</button>
-    <button class="tab" data-tab="market" onclick="switchTab('market')" data-i18n="tab_market">Market</button>
-    <button class="tab" data-tab="wallet" onclick="switchTab('wallet')" data-i18n="tab_wallet">Wallet</button>
-    <button class="tab" data-tab="profile" onclick="switchTab('profile')" data-i18n="tab_profile">Profile</button>
-    <button class="tab" data-tab="support" onclick="switchTab('support')" data-i18n="tab_support">Support</button>
-    <button class="tab" data-tab="admin" id="tab-admin" onclick="switchTab('admin')" style="display:none; color:var(--amber)" data-i18n="tab_admin">Admin</button>
+    <div class="stat-item"><div class="stat-label" data-i18n="balance_label">Balance</div><div class="stat-value green" id="balance-val">$0.00</div></div>
+    <div class="stat-item"><div class="stat-label" data-i18n="earned_label">Earned</div><div class="stat-value" id="earned-val">$0.00</div></div>
+    <div class="stat-item"><div class="stat-label" data-i18n="sold_label">Sold</div><div class="stat-value" id="sold-val">0</div></div>
+    <div id="vip-pill"><div class="vip-dot"></div><div class="vip-text" id="vip-level-text">VIP 0</div></div>
   </div>
 
   <div id="content">
@@ -608,16 +577,12 @@ img{display:block}
     <div class="panel active" id="panel-upload">
       <div id="slot-indicator">
         <div class="slot-label" data-i18n="slots_label">Slots</div>
-        <div class="slot-bar-wrap">
-          <div class="slot-bar-bg"><div class="slot-bar-fill" id="slot-bar-fill" style="width:0%"></div></div>
-        </div>
+        <div class="slot-bar-wrap"><div class="slot-bar-bg"><div class="slot-bar-fill" id="slot-bar-fill" style="width:0%"></div></div></div>
         <div class="slot-count" id="slot-count">0 / 5</div>
       </div>
       <div id="slot-reset-timer"></div>
       
-      <div style="margin-bottom: 12px;">
-        <button class="btn btn-stars" onclick="buyItem('slots')" data-i18n="buy_slots">+1 Slot 7d ($40)</button>
-      </div>
+      <div style="margin-bottom: 12px;"><button class="btn btn-stars" onclick="buyItem('slots')" data-i18n="buy_slots">+1 Slot 7d ($40)</button></div>
 
       <div id="upload-drop-zone" onclick="document.getElementById('file-input').click()">
         <span class="dz-icon">🖼</span>
@@ -626,19 +591,13 @@ img{display:block}
       </div>
       <input type="file" id="file-input" accept="image/*" multiple/>
       <div id="upload-previews"></div>
-      <div class="notice" id="pack-notice" style="display:none" data-i18n="pack_notice">
-        📦 Pack mode active (5+ photos). Pack pricing applied.
-      </div>
+      <div class="notice" id="pack-notice" style="display:none" data-i18n="pack_notice">📦 Pack mode active (5+ photos). Pack pricing applied.</div>
       <button class="btn btn-primary" id="upload-btn" onclick="startUpload()" data-i18n="upload_btn">Analyse &amp; List</button>
     </div>
 
     <!-- BONUS -->
     <div class="panel" id="panel-bonus">
-      <div class="section-head">
-        <div class="section-title" data-i18n="wheel_title">Wheel of Fortune</div>
-        <div class="section-sub" data-i18n="wheel_sub">Win cash & extra slots</div>
-      </div>
-      
+      <div class="section-head"><div class="section-title" data-i18n="wheel_title">Wheel of Fortune</div><div class="section-sub" data-i18n="wheel_sub">Win cash & extra slots</div></div>
       <div class="wheel-glass-card">
           <div class="wheel-container">
             <div class="wheel-pointer">▼</div>
@@ -658,9 +617,7 @@ img{display:block}
                 <div class="wheel-center-glass"></div>
             </div>
           </div>
-          
           <button class="btn btn-primary" id="spin-btn" onclick="spinWheel()" style="margin-bottom: 12px; width: 100%" data-i18n="btn_spin">Spin (Free)</button>
-          
           <div class="buy-panel">
             <button class="btn btn-stars" onclick="buyItem('spin')" data-i18n="buy_spin">Buy Spin ($10)</button>
             <button class="btn btn-stars" onclick="buyItem('slots')" data-i18n="buy_slots">+1 Slot 7d ($40)</button>
@@ -670,52 +627,33 @@ img{display:block}
 
     <!-- PORTFOLIO -->
     <div class="panel" id="panel-portfolio">
-      <div class="section-head">
-        <div class="section-title" data-i18n="portfolio_title">My Portfolio</div>
-        <div class="section-sub" id="portfolio-count">0 items</div>
-      </div>
-      <div id="portfolio-list">
-        <div class="empty-state"><div class="empty-icon">📂</div><div class="empty-text" data-i18n="portfolio_empty">No photos yet. Upload your first shot!</div></div>
-      </div>
+      <div class="section-head"><div class="section-title" data-i18n="portfolio_title">My Portfolio</div><div class="section-sub" id="portfolio-count">0 items</div></div>
+      <div id="portfolio-list"></div>
     </div>
 
     <!-- MARKET -->
     <div class="panel" id="panel-market">
-      <div class="live-feed-header">
-        <div class="live-dot"></div>
-        <div class="live-label" data-i18n="live_label">LIVE</div>
-        <div style="font-size:11px;color:var(--text-3);margin-left:auto" data-i18n="live_sub">Real-time transactions</div>
-      </div>
+      <div class="live-feed-header"><div class="live-dot"></div><div class="live-label" data-i18n="live_label">LIVE</div><div style="font-size:11px;color:var(--text-3);margin-left:auto" data-i18n="live_sub">Real-time transactions</div></div>
       <div class="live-feed-list" id="live-feed-list"></div>
     </div>
 
     <!-- WALLET -->
     <div class="panel" id="panel-wallet">
-      <div class="section-head">
-        <div class="section-title" data-i18n="wallet_title">Wallet</div>
-        <div class="section-sub" id="wallet-progress">0/3 referrals</div>
-      </div>
-      
+      <div class="section-head"><div class="section-title" data-i18n="wallet_title">Wallet</div><div class="section-sub" id="wallet-progress">0/3 referrals</div></div>
       <div class="wallet-info-banner" id="wallet-info-banner">
-        ℹ️ <strong data-i18n="wallet_info_title">Withdrawal Info:</strong>
-        <span data-i18n="wallet_info_text">Minimum withdrawal: $100. Withdrawal is blocked while you have active photo sales — this prevents overloading the payout system. Wait for all your photos to sell first.</span>
+        ℹ️ <strong data-i18n="wallet_info_title">Withdrawal Info:</strong> <span data-i18n="wallet_info_text">Minimum withdrawal: $100.</span>
       </div>
       <div class="wallet-info-banner" id="active-sales-warning" style="display:none;background:rgba(245,158,11,0.1);border-color:rgba(245,158,11,0.35);color:var(--amber)">
         ⏳ <strong id="active-sales-warning-text"></strong>
       </div>
-
       <div class="referral-unlock-card">
         <div class="ruc-title" data-i18n="ruc_title">Withdrawal Unlock</div>
-        <div class="ruc-progress-row">
-          <div class="ruc-bar-bg"><div class="ruc-bar-fill" id="ruc-bar-fill" style="width:0%"></div></div>
-          <div class="ruc-count" id="ruc-count">0/3</div>
-        </div>
+        <div class="ruc-progress-row"><div class="ruc-bar-bg"><div class="ruc-bar-fill" id="ruc-bar-fill" style="width:0%"></div></div><div class="ruc-count" id="ruc-count">0/3</div></div>
         <div class="ruc-hint" id="ruc-hint" data-i18n="ruc_hint">Invite 3 friends (active after photo sale) to unlock withdrawal.</div>
       </div>
-
       <div class="withdraw-box locked-state" id="withdraw-box">
         <div class="withdraw-title" data-i18n="withdraw_title">Withdraw Earnings</div>
-        <div class="withdraw-sub" id="withdraw-sub" data-i18n="withdraw_sub">Invite 3 friends via your referral link (counted after their first sale) to unlock withdrawal.</div>
+        <div class="withdraw-sub" id="withdraw-sub" data-i18n="withdraw_sub">Invite 3 friends...</div>
         <div class="withdraw-tabs" id="withdraw-tabs">
           <button class="wtab active" onclick="selectWithdrawTab('usd')" id="wtab-usd" data-i18n="wtab_usd">💵 USD</button>
           <button class="wtab" onclick="selectWithdrawTab('stars')" id="wtab-stars" data-i18n="wtab_stars">⭐ Stars</button>
@@ -727,20 +665,14 @@ img{display:block}
         <div id="withdraw-stars-panel" style="display:none">
           <div class="withdraw-amount-display" style="color:var(--blue)" id="withdraw-stars-preview">0 ⭐</div>
           <div class="withdraw-rate-note" data-i18n="stars_rate">100 Stars = $1.20 · Rate: 1 USD = 83 Stars</div>
-          <div style="margin-top:12px">
-            <button class="btn btn-stars" id="withdraw-btn-stars" onclick="initiateWithdraw('stars')" disabled data-i18n="withdraw_btn_locked">🔒 Locked</button>
-          </div>
+          <div style="margin-top:12px"><button class="btn btn-stars" id="withdraw-btn-stars" onclick="initiateWithdraw('stars')" disabled data-i18n="withdraw_btn_locked">🔒 Locked</button></div>
         </div>
       </div>
     </div>
 
     <!-- PROFILE -->
     <div class="panel" id="panel-profile">
-      <div class="section-head">
-        <div class="section-title" data-i18n="profile_title">My Profile</div>
-        <div class="section-sub" id="ref-count-sub">0 referrals</div>
-      </div>
-
+      <div class="section-head"><div class="section-title" data-i18n="profile_title">My Profile</div><div class="section-sub" id="ref-count-sub">0 referrals</div></div>
       <div class="ref-link-card">
         <div class="card-label" data-i18n="ref_link_label">Your Referral Link</div>
         <div class="ref-url-row">
@@ -750,7 +682,6 @@ img{display:block}
         </div>
         <div style="font-size:10px; color:var(--amber); margin-top:8px; line-height:1.4; text-align:center;" data-i18n="ref_hint">⚠️ Referral is counted as active only after their first photo sale.</div>
       </div>
-
       <div class="promo-card">
         <div class="card-label" data-i18n="promo_title">Promo Code</div>
         <div class="promo-input-row">
@@ -758,43 +689,24 @@ img{display:block}
             <button class="btn btn-primary" onclick="activatePromo()" style="width:auto; padding: 10px 16px;" data-i18n="promo_btn">Activate</button>
         </div>
       </div>
-
       <div class="vip-progress-card" onclick="openVipModal()">
-        <div class="vip-header-row">
-          <div style="font-size:13px;font-weight:600;color:var(--text-2)" data-i18n="vip_current_level">Current Level</div>
-          <div class="vip-level-big" id="vip-big-badge">Lv 0</div>
-        </div>
-        <div class="vip-track">
-          <div class="vip-track-fill" id="vip-track-fill" style="width:0%"></div>
-          <div class="vip-milestones" id="vip-milestones"></div>
-        </div>
+        <div class="vip-header-row"><div style="font-size:13px;font-weight:600;color:var(--text-2)" data-i18n="vip_current_level">Current Level</div><div class="vip-level-big" id="vip-big-badge">Lv 0</div></div>
+        <div class="vip-track"><div class="vip-track-fill" id="vip-track-fill" style="width:0%"></div><div class="vip-milestones" id="vip-milestones"></div></div>
         <div class="vip-next-hint" id="vip-next-hint"></div>
         <div style="text-align:center; font-size:10px; color:var(--blue); margin-top:8px; font-weight:600;">Tap to view details</div>
       </div>
-
-      <div class="section-head" style="margin-top:24px; margin-bottom: 10px;">
-        <div class="section-title" data-i18n="ref_list_title">My Referrals</div>
-      </div>
+      <div class="section-head" style="margin-top:24px; margin-bottom: 10px;"><div class="section-title" data-i18n="ref_list_title">My Referrals</div></div>
       <div id="referrals-list" class="referrals-list-container"></div>
     </div>
 
     <!-- SUPPORT -->
     <div class="panel" id="panel-support">
-      <div class="section-head">
-        <div class="section-title" data-i18n="support_title">Support Chat</div>
-        <div class="section-sub" data-i18n="support_sub">Replies within 24h</div>
-      </div>
+      <div class="section-head"><div class="section-title" data-i18n="support_title">Support Chat</div><div class="section-sub" data-i18n="support_sub">Replies within 24h</div></div>
       <div id="support-chat">
-        <div class="chat-messages" id="chat-messages">
-          <div class="chat-empty" data-i18n="chat_empty">No messages yet. Send us a message!</div>
-        </div>
-        <div class="chat-img-preview-box" id="chat-img-preview-box">
-             <img id="chat-img-thumb" class="chat-img-thumb" src="">
-             <span class="chat-img-remove" onclick="cancelChatImg()">✖</span>
-        </div>
+        <div class="chat-messages" id="chat-messages"><div class="chat-empty" data-i18n="chat_empty">No messages yet. Send us a message!</div></div>
+        <div class="chat-img-preview-box" id="chat-img-preview-box"><img id="chat-img-thumb" class="chat-img-thumb" src=""><span class="chat-img-remove" onclick="cancelChatImg()">✖</span></div>
         <div class="chat-input-area">
-          <label class="chat-attach-btn" for="chat-img-upload">📎</label>
-          <input type="file" id="chat-img-upload" accept="image/*" style="display:none" onchange="handleChatImgSelect(this)">
+          <label class="chat-attach-btn" for="chat-img-upload">📎</label><input type="file" id="chat-img-upload" accept="image/*" style="display:none" onchange="handleChatImgSelect(this)">
           <textarea id="chat-input" data-i18n-placeholder="chat_placeholder" placeholder="Type a message…" rows="1" oninput="autoResize(this)"></textarea>
           <button class="chat-send-btn" id="chat-send-btn" onclick="sendSupportMsg()">➤</button>
         </div>
@@ -805,15 +717,19 @@ img{display:block}
     <div class="panel" id="panel-admin">
       <div class="section-head">
         <div class="section-title" style="color:var(--amber)" data-i18n="adm_title">👑 Admin CRM</div>
-        <div class="adm-burger" onclick="toggleAdmMenu()">☰ Меню</div>
+      </div>
+      
+      <div class="adm-tab-bar">
+          <button class="adm-tab active" onclick="switchAdmTab('stats')" data-i18n="adm_menu_stats">Stats & Chat</button>
+          <button class="adm-tab" onclick="switchAdmTab('users')" data-i18n="adm_menu_users">Users</button>
+          <button class="adm-tab" onclick="switchAdmTab('finance')" data-i18n="adm_menu_fin">Finance</button>
+          <button class="adm-tab" onclick="switchAdmTab('sponsors')" data-i18n="adm_menu_promo">Sponsors/Promo</button>
+          <button class="adm-tab" onclick="switchAdmTab('system')" data-i18n="adm_menu_sys">System</button>
       </div>
 
       <!-- ADM: STATS & CHAT -->
       <div class="adm-panel active" id="adm-stats">
-          <div class="adm-grid" id="adm-stats-grid">
-              <!-- Rendered via JS -->
-          </div>
-          
+          <div class="adm-grid" id="adm-stats-grid"></div>
           <div class="admin-card">
             <div class="card-label" style="display:flex; justify-content:space-between;">
                 <span data-i18n="adm_recent_tickets">Support Tickets</span> <span style="cursor:pointer;" onclick="admLoadDashboard()">🔄</span>
@@ -843,7 +759,7 @@ img{display:block}
                   </div>
                   <div style="margin-top:8px; display:flex; gap:6px; justify-content:space-between; align-items:center;">
                       <label style="font-size:12px; color:var(--text-2);"><input type="checkbox" id="adm-u-ban"> <span data-i18n="adm_banned">Banned</span></label>
-                      <button class="adm-btn" onclick="admSaveUser()" data-i18n="adm_save_btn">💾 Save Changes</button>
+                      <button class="adm-btn" onclick="admSaveUser()" data-i18n="adm_save_btn">💾 Save</button>
                   </div>
                   <hr style="border:0; border-top:1px solid var(--border2); margin:14px 0;">
                   <div class="card-label" data-i18n="adm_qa_title">Quick Actions</div>
@@ -882,10 +798,21 @@ img{display:block}
           </div>
           
           <div class="admin-card">
-              <div class="card-label" style="display:flex; justify-content:space-between;">
-                  <span data-i18n="adm_promo_title">Promo Codes</span>
-                  <button class="adm-btn" style="padding:2px 8px;" onclick="admShowAddPromo()" data-i18n="adm_add_btn">+ Add</button>
+              <div class="card-label" data-i18n="adm_promo_add_title">Add Promo Code</div>
+              <div class="adm-grid">
+                  <input type="text" id="adm-promo-code" class="adm-input" placeholder="Code (or AUTO)">
+                  <select id="adm-promo-type" class="adm-select">
+                      <option value="usd">USD Balance</option>
+                      <option value="spin">Wheel Spin</option>
+                      <option value="slot">Extra Slots</option>
+                  </select>
+                  <input type="number" id="adm-promo-val" class="adm-input" placeholder="Value (e.g. 5)">
+                  <input type="number" id="adm-promo-limit" class="adm-input" placeholder="Max Uses">
+                  <input type="number" id="adm-promo-dur" class="adm-input" placeholder="Duration days (Slots)">
+                  <button class="adm-btn primary" onclick="admSubmitPromo()" data-i18n="adm_promo_btn">+ Create Promo</button>
               </div>
+              <hr style="border:0; border-top:1px solid var(--border2); margin:14px 0;">
+              <div class="card-label" data-i18n="adm_promo_title">Promo Codes</div>
               <div id="adm-promos-list"></div>
           </div>
       </div>
@@ -905,7 +832,7 @@ img{display:block}
                       <option value="0">OFF</option>
                       <option value="1">ON</option>
                   </select>
-                  <input type="datetime-local" id="adm-maint-end" class="adm-input" style="margin:0; flex:1; min-width:0;">
+                  <input type="datetime-local" id="adm-maint-end" class="adm-input" style="margin:0; flex:1; min-width:0; box-sizing:border-box;">
               </div>
               <button class="adm-btn" style="margin-top:6px; width:100%;" onclick="admSaveMaintenance()" data-i18n="adm_maint_save">Save Maintenance</button>
           </div>
@@ -931,9 +858,9 @@ img{display:block}
 const TRANSLATIONS = {
   en:{
     hdr_sub:"Photo Auction Platform",
+    tab_upload:"📸 Upload", tab_portfolio:"📂 Portfolio", tab_market:"🌍 Market", tab_wallet:"💰 Wallet", tab_profile:"👤 Profile", tab_support:"💬 Support", tab_bonus:"🎁 Bonus", tab_admin:"👑 Admin Panel",
+    
     balance_label:"Balance", earned_label:"Earned", sold_label:"Sold",
-    tab_upload:"Upload", tab_portfolio:"Portfolio", tab_market:"Market",
-    tab_wallet:"Wallet", tab_profile:"Profile", tab_support:"Support", tab_bonus:"Bonus", tab_admin:"Admin",
     live_label:"LIVE", live_sub:"Real-time transactions",
     upload_cta:"Select photos",
     upload_hint:"JPG, PNG, WEBP · up to 10 MB each\nUpload 5+ together for pack pricing",
@@ -943,7 +870,6 @@ const TRANSLATIONS = {
     pack_notice:"📦 Pack mode active (5+ photos). Pack pricing applied.",
     portfolio_title:"My Portfolio", portfolio_empty:"No photos yet. Upload your first shot!",
     wallet_title:"Wallet",
-    
     wheel_title:"Wheel of Fortune", wheel_sub:"Win cash & extra slots", btn_spin:"Spin (Free)",
     buy_spin:"Buy Spin ($10)", buy_slots:"+1 Slot 7d ($40)",
     spin_wait:"Wait {h}h {m}m", prize_win:"🎉 You won: {p}",
@@ -1012,21 +938,22 @@ const TRANSLATIONS = {
     adm_stat_users: "Users", adm_stat_dau: "DAU", adm_stat_new: "New Today", adm_stat_files: "Files Stored",
     adm_recent_tickets: "Support Tickets", adm_no_tickets: "No tickets.",
     adm_find_user: "Find User", adm_search_btn: "Search",
-    adm_user_info: "User Info", adm_banned: "Banned", adm_save_btn: "💾 Save Changes",
+    adm_user_info: "User Info", adm_banned: "Banned", adm_save_btn: "💾 Save",
     adm_qa_title: "Quick Actions", adm_qa_rw: "Reset Wheel", adm_qa_sell: "Sell All Now", adm_qa_rs: "Reset Daily Slots", adm_qa_bs: "+ Bonus Slots", adm_qa_chat: "💬 Open Chat", adm_qa_pw: "Personal Wheel Config",
     adm_qa_bs_p: "Add bonus slots:", adm_qa_pw_p: "Set 5 chances (or /reset):",
     adm_wd_title: "Pending Withdrawals", adm_no_wd: "No pending requests.", adm_approve: "Approve", adm_reject: "Reject",
-    adm_sp_title: "Sponsors", adm_add_btn: "+ Add", adm_promo_title: "Promo Codes",
+    adm_sp_title: "Sponsors", adm_add_btn: "+ Add", adm_promo_title: "Promo Codes", adm_promo_add_title: "Add Promo Code", adm_promo_btn: "+ Create Promo",
     adm_bc_title: "Broadcast", adm_bc_btn: "Send Broadcast",
     adm_maint_title: "Maintenance Mode", adm_maint_save: "Save Maintenance",
     adm_bulk_title: "Bulk Actions & Cleanup", adm_bulk_rs: "Reset All Slots", adm_bulk_rw: "Reset All Wheels", adm_bulk_d30: "Del Photos > 30d", adm_bulk_d7: "Del Photos > 7d", adm_bulk_sell: "⚡ Sell All Active Photos", adm_bulk_wheel: "🎡 Edit Global Wheel",
-    adm_chat_close: "🔒 Close", adm_chat_wipe: "🗑 Wipe", adm_chat_you: "You:"
+    adm_chat_close: "🔒 Close", adm_chat_wipe: "🗑 Wipe", adm_chat_you: "You:",
+    toast_maint_saved: "Maintenance settings saved!", toast_bc_start: "Broadcast started successfully!", toast_promo_ok: "Promo code added!"
   },
   ru:{
     hdr_sub:"Платформа аукциона фото",
+    tab_upload:"📸 Загрузка", tab_portfolio:"📂 Портфолио", tab_market:"🌍 Лента", tab_wallet:"💰 Кошелёк", tab_profile:"👤 Профиль", tab_support:"💬 Поддержка", tab_bonus:"🎁 Бонус", tab_admin:"👑 Админ Панель",
+    
     balance_label:"Баланс", earned_label:"Заработано", sold_label:"Продано",
-    tab_upload:"Загрузка", tab_portfolio:"Портфолио", tab_market:"Лента",
-    tab_wallet:"Кошелёк", tab_profile:"Профиль", tab_support:"Поддержка", tab_bonus:"Бонус", tab_admin:"Админ",
     live_label:"ЛАЙВ", live_sub:"Сделки в реальном времени",
     upload_cta:"Выберите фото",
     upload_hint:"JPG, PNG, WEBP · до 10 МБ каждое\nВыберите 5+ сразу для пакетной оценки",
@@ -1036,7 +963,6 @@ const TRANSLATIONS = {
     pack_notice:"📦 Пакетный режим (5+ фото). Применена повышенная оценка.",
     portfolio_title:"Портфолио", portfolio_empty:"Фото нет. Загрузите первый снимок!",
     wallet_title:"Кошелёк",
-    
     wheel_title:"Колесо Фортуны", wheel_sub:"Выигрывай $ и слоты", btn_spin:"Крутить (Бесплатно)",
     buy_spin:"Купить Спин ($10)", buy_slots:"+1 Слот на 7д ($40)",
     spin_wait:"Жди {h}ч {m}м", prize_win:"🎉 Твой выигрыш: {p}",
@@ -1106,11 +1032,12 @@ const TRANSLATIONS = {
     adm_qa_title: "Быстрые действия", adm_qa_rw: "Сброс Колеса", adm_qa_sell: "Продать все сейчас", adm_qa_rs: "Сброс слотов", adm_qa_bs: "+ Бонусные слоты", adm_qa_chat: "💬 Открыть Чат", adm_qa_pw: "Персональная рулетка",
     adm_qa_bs_p: "Добавить бонусных слотов:", adm_qa_pw_p: "Установите 5 шансов (или /reset):",
     adm_wd_title: "Заявки на вывод", adm_no_wd: "Нет активных заявок.", adm_approve: "Одобрить", adm_reject: "Отклонить",
-    adm_sp_title: "Спонсоры", adm_add_btn: "+ Добавить", adm_promo_title: "Промокоды",
+    adm_sp_title: "Спонсоры", adm_add_btn: "+ Добавить", adm_promo_title: "Промокоды", adm_promo_add_title: "Добавить Промокод", adm_promo_btn: "+ Создать Промо",
     adm_bc_title: "Рассылка", adm_bc_btn: "Начать рассылку",
     adm_maint_title: "Технические работы", adm_maint_save: "Сохранить настройки",
     adm_bulk_title: "Массовые действия и Очистка", adm_bulk_rs: "Сброс слотов всем", adm_bulk_rw: "Сброс колеса всем", adm_bulk_d30: "Удалить фото > 30д", adm_bulk_d7: "Удалить фото > 7д", adm_bulk_sell: "⚡ Продать все на аукционе", adm_bulk_wheel: "🎡 Глобальная рулетка",
-    adm_chat_close: "🔒 Закрыть", adm_chat_wipe: "🗑 Удалить", adm_chat_you: "Вы:"
+    adm_chat_close: "🔒 Закрыть", adm_chat_wipe: "🗑 Удалить", adm_chat_you: "Вы:",
+    toast_maint_saved: "Настройки тех. работ сохранены!", toast_bc_start: "Рассылка успешно начата!", toast_promo_ok: "Промокод добавлен!"
   }
 };
 
@@ -1121,10 +1048,11 @@ function applyTranslations(){
   document.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = t(el.getAttribute('data-i18n')); });
   document.querySelectorAll('[data-i18n-placeholder]').forEach(el => { el.placeholder = t(el.getAttribute('data-i18n-placeholder')); });
   document.getElementById('lang-toggle').textContent = currentLang === 'en' ? 'RU' : 'EN';
-  updateWheelUI();
   
-  // Если админская вкладка открыта, перезагружаем для перевода динамических данных
-  if(document.querySelector('.tab.active')?.dataset.tab === 'admin') {
+  // Update wheel if present
+  if(typeof updateWheelUI === 'function') updateWheelUI();
+  
+  if(document.querySelector('.panel.active')?.id === 'panel-admin') {
       admLoadDashboard();
   }
 }
@@ -1137,7 +1065,7 @@ function toggleLang(){
   if(gameData?.player) gameData.player.lang = currentLang;
   if(gameData?.player) updateHeader(gameData.player);
   if(userId){
-    authFetch(`${BASE}/api/player/${userId}/lang`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ lang: currentLang }) }).catch(() => {});
+    authFetch(`/api/player/${userId}/lang`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ lang: currentLang }) }).catch(() => {});
   }
 }
 
@@ -1206,7 +1134,7 @@ function startMaintenanceTimer(endTimeIso) {
 
 async function loadPlayer(silent = false){
   try{
-    const r = await authFetch(`${BASE}/api/player/${userId}?username=${encodeURIComponent(username)}`);
+    const r = await authFetch(`/api/player/${userId}?username=${encodeURIComponent(username)}`);
     const data = await r.json();
     
     if(r.status === 403) {
@@ -1239,13 +1167,13 @@ async function loadPlayer(silent = false){
     renderVipBadge(gameData.vip_level); renderReferrals();
     
     if(gameData.is_admin) {
-        document.getElementById('tab-admin').style.display = 'block';
+        document.getElementById('menu-item-admin').style.display = 'block';
     }
 
-    if(document.querySelector('.tab.active').dataset.tab === 'profile') {
+    if(document.querySelector('.panel.active').id === 'panel-profile') {
         loadReferralsList();
     }
-    if(document.querySelector('.tab.active').dataset.tab === 'admin') {
+    if(document.querySelector('.panel.active').id === 'panel-admin') {
         if(!adminCurrentChatUid) admLoadDashboard();
     }
     
@@ -1310,7 +1238,7 @@ async function recheckSub(){
   const isRu = currentLang === 'ru';
   if(btn) btn.textContent = isRu ? 'Проверяем…' : 'Checking…';
 
-  const r = await authFetch(`${BASE}/api/player/${userId}?username=${encodeURIComponent(username)}`).catch(()=>null);
+  const r = await authFetch(`/api/player/${userId}?username=${encodeURIComponent(username)}`).catch(()=>null);
   if(!r || !r.ok){
     if(btn) btn.textContent = isRu ? '✅ Я подписался — Проверить' : "✅ I've Subscribed — Check";
     if(r){
@@ -1331,7 +1259,7 @@ async function recheckSub(){
   renderWithdrawPreviews(); renderVipBadge(gameData.vip_level); renderReferrals();
   updateWheelUI();
   if(gameData.is_admin) {
-      document.getElementById('tab-admin').style.display = 'block';
+      document.getElementById('menu-item-admin').style.display = 'block';
   }
 }
 
@@ -1358,18 +1286,31 @@ function updateHeader(p){
 }
 
 function fmt(n){ return parseFloat(n || 0).toFixed(2); }
-
 function renderVipBadge(lvl){ document.getElementById('vip-level-text').textContent = `VIP ${lvl}`; }
 
+function showToast(msg, type = ''){
+  const el = document.getElementById('toast'); el.textContent = msg; el.className = 'show' + (type ? ' ' + type : '');
+  setTimeout(() => el.className = '', 3000);
+}
+function escHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function toggleMainMenu() {
+    document.getElementById('main-menu-overlay').classList.toggle('open');
+}
+
 function switchTab(name){
-  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+  document.getElementById('main-menu-overlay').classList.remove('open');
   document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.id === `panel-${name}`));
+  
   if(name === 'profile') { renderReferrals(); loadReferralsList(); }
   if(name === 'market') renderLiveFeed();
   if(name === 'support') loadSupportMsgs();
   if(name === 'admin') admLoadDashboard();
 }
 
+// -----------------------------------------------------
+// UPLOAD LOGIC
+// -----------------------------------------------------
 function updateUploadLock(){
   const active = gameData?.active_slots || 0;
   const slotLimit = gameData?.slot_limit || 5;
@@ -1455,7 +1396,6 @@ function runAiAnimation(){
 }
 
 let pendingPrices = []; 
-
 function showAiResult(){
   const score = Math.floor(Math.random() * 30) + 65;
   document.getElementById('score-circle').style.strokeDashoffset = 213.6 - (score / 100) * 213.6;
@@ -1492,7 +1432,7 @@ async function confirmUpload(){
   
   selectedFiles.forEach(f => fd.append('files', f));
   try{
-    const r = await authFetch(`${BASE}/api/upload`, { method:'POST', body:fd });
+    const r = await authFetch(`/api/upload`, { method:'POST', body:fd });
     if(!r.ok) {
       const errData = await r.json().catch(() => ({}));
       const detail = errData.detail || '';
@@ -1509,6 +1449,9 @@ async function confirmUpload(){
   }
 }
 
+// -----------------------------------------------------
+// BONUS WHEEL
+// -----------------------------------------------------
 function updateWheelUI() {
   const btn = document.getElementById('spin-btn');
   if (nextSpinMs <= 0) {
@@ -1537,9 +1480,8 @@ let wheelSpinning = false;
 async function spinWheel() {
   if (wheelSpinning) return;
   wheelSpinning = true;
-  
   try {
-    const r = await authFetch(`${BASE}/api/wheel/spin`, { method:'POST' });
+    const r = await authFetch(`/api/wheel/spin`, { method:'POST' });
     if (!r.ok) throw new Error();
     const data = await r.json();
     
@@ -1557,7 +1499,6 @@ async function spinWheel() {
       wheelSpinning = false;
       await loadPlayer(false);
     }, 4100);
-    
   } catch (e) {
     wheelSpinning = false;
     showToast(t('toast_err'), 'error');
@@ -1567,50 +1508,40 @@ async function spinWheel() {
 async function buyItem(item) {
   try {
     const fd = new FormData(); fd.append('item', item);
-    const r = await authFetch(`${BASE}/api/buy/item`, {
-      method: 'POST',
-      body: fd
-    });
+    const r = await authFetch(`/api/buy/item`, { method: 'POST', body: fd });
     const data = await r.json();
-    
     if (!r.ok) {
         showToast(data.detail || t('toast_err'), 'error');
         return;
     }
-    
     showToast("Purchase successful!", "success");
     await loadPlayer(false);
-  } catch (e) {
-    showToast(t('toast_err'), 'error');
-  }
+  } catch (e) { showToast(t('toast_err'), 'error'); }
 }
 
 async function activatePromo() {
     const inp = document.getElementById('promo-input');
     const code = inp.value.trim();
     if(!code) return;
-    
     try {
-        const r = await authFetch(`${BASE}/api/promo/activate`, {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
+        const r = await authFetch(`/api/promo/activate`, {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({code: code})
         });
         const data = await r.json();
-        
         if(!r.ok) {
             showToast(data.detail || t('toast_err'), 'error');
             return;
         }
-        
         showToast(data.message || "Promo code activated!", "success");
         inp.value = "";
         await loadPlayer(false);
-    } catch(e) {
-        showToast(t('toast_err'), 'error');
-    }
+    } catch(e) { showToast(t('toast_err'), 'error'); }
 }
 
+// -----------------------------------------------------
+// PORTFOLIO & FEED
+// -----------------------------------------------------
 function renderPortfolio(){
   const photos = gameData?.photos || [];
   document.getElementById('portfolio-count').textContent = `${photos.length} items`;
@@ -1635,9 +1566,7 @@ function tickCountdowns(){
       const now = new Date();
       let nextReset = new Date();
       nextReset.setUTCHours(21, 0, 0, 0); 
-      if (now >= nextReset) {
-          nextReset.setUTCDate(nextReset.getUTCDate() + 1);
-      }
+      if (now >= nextReset) nextReset.setUTCDate(nextReset.getUTCDate() + 1);
       const diff = nextReset - now;
       const h = Math.floor(diff / 3600000);
       const m = Math.floor((diff % 3600000) / 60000);
@@ -1677,6 +1606,9 @@ function tickLiveFeed(){
   if(document.querySelector('.panel.active')?.id === 'panel-market') renderLiveFeed();
 }
 
+// -----------------------------------------------------
+// WALLET & WITHDRAW
+// -----------------------------------------------------
 function renderWalletInfo(){
   const refs = gameData?.player?.referrals_count || 0, minRefs = gameData?.min_referrals_withdraw || 3, unlocked = refs >= minRefs;
   const minWd = gameData?.min_withdrawal_usd || 100;
@@ -1770,7 +1702,7 @@ async function initiateWithdraw(method) {
   btn.disabled = true; btn.textContent = 'Checking...';
 
   try {
-    const r = await authFetch(`${BASE}/api/withdraw/check`, { method: 'POST' });
+    const r = await authFetch(`/api/withdraw/check`, { method: 'POST' });
     const data = await r.json();
     
     if (!data.ok && data.channels && data.channels.length > 0) {
@@ -1779,24 +1711,14 @@ async function initiateWithdraw(method) {
     } else {
         document.getElementById('wd-modal').classList.add('open');
     }
-  } catch(e) {
-    showToast(t('toast_err'), 'error');
-  } finally {
-    btn.disabled = false; btn.textContent = originalText;
-  }
+  } catch(e) { showToast(t('toast_err'), 'error'); } 
+  finally { btn.disabled = false; btn.textContent = originalText; }
 }
 
 function renderSubModal(channels) {
     const list = document.getElementById('sub-channel-list');
     list.innerHTML = channels.map(ch => {
-        return `
-        <div class="sub-channel-item">
-            <div class="sub-channel-top">
-                <div class="sub-channel-name">${escHtml(ch.name || 'Sponsor')}</div>
-                <a href="${escHtml(ch.url)}" target="_blank" class="sub-channel-btn">${t('sub_btn_join')}</a>
-            </div>
-        </div>
-        `;
+        return `<div class="sub-channel-item"><div class="sub-channel-top"><div class="sub-channel-name">${escHtml(ch.name || 'Sponsor')}</div><a href="${escHtml(ch.url)}" target="_blank" class="sub-channel-btn">${t('sub_btn_join')}</a></div></div>`;
     }).join('');
 }
 
@@ -1811,7 +1733,7 @@ async function checkWithdrawSubs() {
     btn.disabled = true; btn.textContent = '...';
 
     try {
-        const r = await authFetch(`${BASE}/api/withdraw/check`, { method: 'POST' });
+        const r = await authFetch(`/api/withdraw/check`, { method: 'POST' });
         const data = await r.json();
         
         if (data.ok) {
@@ -1821,11 +1743,8 @@ async function checkWithdrawSubs() {
             showToast(t('toast_verify_fail'), 'error');
             renderSubModal(data.channels);
         }
-    } catch(e) {
-        showToast(t('toast_err'), 'error');
-    } finally {
-        btn.disabled = false; btn.textContent = orig;
-    }
+    } catch(e) { showToast(t('toast_err'), 'error'); } 
+    finally { btn.disabled = false; btn.textContent = orig; }
 }
 
 function closeWithdrawModal(){
@@ -1839,7 +1758,7 @@ async function confirmWithdraw(){
   const originalText = btn.textContent;
   btn.disabled = true; btn.textContent = 'Processing…';
   
-  const endpoint = method === 'usd' ? `${BASE}/api/withdraw` : `${BASE}/api/withdraw/stars`;
+  const endpoint = method === 'usd' ? `/api/withdraw` : `/api/withdraw/stars`;
 
   try{
     const r = await authFetch(endpoint, { method: 'POST' });
@@ -1866,17 +1785,12 @@ async function confirmWithdraw(){
   }
 }
 
-function openVipModal() {
-    document.getElementById('vip-modal').classList.add('open');
-}
-function closeVipModal() {
-    document.getElementById('vip-modal').classList.remove('open');
-}
-
-function toggleVipDetails(index) {
-  const row = document.getElementById(`vip-tier-row-${index}`);
-  row.classList.toggle('open');
-}
+// -----------------------------------------------------
+// PROFILE & REFS
+// -----------------------------------------------------
+function openVipModal() { document.getElementById('vip-modal').classList.add('open'); }
+function closeVipModal() { document.getElementById('vip-modal').classList.remove('open'); }
+function toggleVipDetails(index) { document.getElementById(`vip-tier-row-${index}`).classList.toggle('open'); }
 
 let _refRetryCount = 0;
 function renderReferrals(){
@@ -1886,11 +1800,9 @@ function renderReferrals(){
 
   const refUrl = gameData.referral_url || '';
   document.getElementById('ref-url-display').textContent = refUrl || 'Loading…';
-  
   if(!refUrl && _refRetryCount < 3){ _refRetryCount++; setTimeout(() => loadPlayer(true), _refRetryCount * 3000); } else if(refUrl){ _refRetryCount = 0; }
   
   document.getElementById('vip-big-badge').textContent = 'Lv ' + lvl;
-
   const tiers = gameData.vip_tiers || []; 
   if(!tiers.length) return;
   
@@ -1916,14 +1828,7 @@ function renderReferrals(){
     
     return `
       <div class="vip-tier-row ${unlocked ? 'unlocked' : ''} ${curr ? 'current-tier' : ''}" id="vip-tier-row-${i}" onclick="toggleVipDetails(${i})">
-        <div class="vtc-header">
-            <div class="vtc-icon">${VIP_ICONS[i] || '●'}</div>
-            <div class="vtc-info">
-              <div class="vtc-name">${name} — Level ${i}</div>
-            </div>
-            <div class="vtc-status ${curr ? 'active' : unlocked ? 'done' : 'locked'}">${curr ? '● ACTIVE' : unlocked ? '✓' : '🔒'}</div>
-            <div class="vtc-chevron">▼</div>
-        </div>
+        <div class="vtc-header"><div class="vtc-icon">${VIP_ICONS[i] || '●'}</div><div class="vtc-info"><div class="vtc-name">${name} — Level ${i}</div></div><div class="vtc-status ${curr ? 'active' : unlocked ? 'done' : 'locked'}">${curr ? '● ACTIVE' : unlocked ? '✓' : '🔒'}</div><div class="vtc-chevron">▼</div></div>
         <div class="vtc-details">
             <div class="vtc-det-row"><span>${t('label_req')}</span><span>${req}</span></div>
             <div class="vtc-det-row"><span>${t('label_slots')}</span><span>${slots}</span></div>
@@ -1936,7 +1841,7 @@ function renderReferrals(){
 
 async function loadReferralsList() {
     try {
-        const r = await authFetch(`${BASE}/api/referrals/${userId}`);
+        const r = await authFetch(`/api/referrals/${userId}`);
         if (!r.ok) return;
         const data = await r.json();
         renderReferralsList(data.referrals || []);
@@ -1954,13 +1859,7 @@ function renderReferralsList(refs) {
         const date = new Date(r.created_at + 'Z').toLocaleDateString();
         const statusClass = r.is_active ? 'ref-status-active' : 'ref-status-new';
         const statusText = r.is_active ? t('ref_active') : t('ref_new');
-        return `<div class="ref-list-item">
-            <div>
-                <div class="ref-list-name">${escHtml(name)}</div>
-                <div class="ref-list-date">${date}</div>
-            </div>
-            <div class="ref-list-status ${statusClass}">${statusText}</div>
-        </div>`;
+        return `<div class="ref-list-item"><div><div class="ref-list-name">${escHtml(name)}</div><div class="ref-list-date">${date}</div></div><div class="ref-list-status ${statusClass}">${statusText}</div></div>`;
     }).join('');
 }
 
@@ -1978,14 +1877,18 @@ function shareRefLink(){
   if(window.Telegram?.WebApp?.openTelegramLink) window.Telegram.WebApp.openTelegramLink(shareUrl); else window.open(shareUrl, '_blank');
 }
 
-// SUPPORT CHAT FUNCTIONS WITH IMAGES
+// -----------------------------------------------------
+// USER SUPPORT CHAT 
+// -----------------------------------------------------
 function handleChatImgSelect(input) {
     if(input.files && input.files[0]) {
         supportImgFile = input.files[0];
         document.getElementById('chat-img-preview-box').style.display = 'flex';
-        document.getElementById('chat-img-thumb').src = URL.createObjectURL(supportImgFile);
+        document.getElementById('chat-img-thumb').src = URL.createObjectURL(supportImgFile
+);
     }
 }
+
 function cancelChatImg() {
     supportImgFile = null;
     document.getElementById('chat-img-upload').value = "";
@@ -1994,7 +1897,7 @@ function cancelChatImg() {
 
 async function loadSupportMsgs(){
   try{
-    const r = await authFetch(`${BASE}/api/support/messages`);
+    const r = await authFetch(`/api/support/messages`);
     const msgs = (await r.json()).messages || [];
     renderSupportMsgs(msgs);
     if(msgs.length) lastSupportMsgId = msgs[msgs.length - 1].id;
@@ -2026,7 +1929,7 @@ async function sendSupportMsg(){
   if (supportImgFile) fd.append('file', supportImgFile);
 
   try{
-    const r = await authFetch(`${BASE}/api/support/send`, { method: 'POST', body: fd });
+    const r = await authFetch(`/api/support/send`, { method: 'POST', body: fd });
     if(!r.ok) throw new Error();
     cancelChatImg();
     await loadSupportMsgs();
@@ -2037,7 +1940,7 @@ async function sendSupportMsg(){
 async function pollSupportReplies(){
   if(!supportMsgsLoaded) return;
   try{
-    const msgs = (await (await authFetch(`${BASE}/api/support/messages`)).json()).messages || [];
+    const msgs = (await (await authFetch(`/api/support/messages`)).json()).messages || [];
     if(msgs.length && msgs[msgs.length - 1].id > lastSupportMsgId){
       renderSupportMsgs(msgs); lastSupportMsgId = msgs[msgs.length - 1].id;
       if(document.querySelector('.panel.active')?.id !== 'panel-support') document.getElementById('support-notify').style.display = '';
@@ -2046,7 +1949,7 @@ async function pollSupportReplies(){
   
   if (adminCurrentChatUid && document.getElementById('admin-chat-view').classList.contains('open')) {
       try {
-          const r = await authFetch(`${BASE}/api/admin/chat/${adminCurrentChatUid}`);
+          const r = await authFetch(`/api/admin/chat/${adminCurrentChatUid}`);
           if (r.ok) {
               const data = await r.json();
               renderAdminChatMsgs(data.messages || []);
@@ -2058,18 +1961,12 @@ async function pollSupportReplies(){
 document.getElementById('chat-input').addEventListener('keydown', e => { if(e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); sendSupportMsg(); } });
 function autoResize(el){ el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 100) + 'px'; }
 
-
 // ═══════════════════════════════════════════════════════════════
 //  ADMIN PANEL WEBAPP LOGIC
 // ═══════════════════════════════════════════════════════════════
 
-function toggleAdmMenu() {
-    const el = document.getElementById('adm-menu-overlay');
-    el.classList.toggle('open');
-}
-
 function switchAdmTab(name){
-  toggleAdmMenu();
+  document.querySelectorAll('.adm-tab').forEach(t => t.classList.toggle('active', t.dataset.i18n.includes(name)));
   document.querySelectorAll('.adm-panel').forEach(p => p.classList.remove('active'));
   document.getElementById('adm-'+name).classList.add('active');
 }
@@ -2223,16 +2120,19 @@ async function admSaveMaintenance() {
     const mode = document.getElementById('adm-maint-mode').value;
     const end = document.getElementById('adm-maint-end').value;
     const fd = new FormData(); fd.append('mode', mode); fd.append('end_time', end);
-    await authFetch(`/api/admin/settings/maintenance`, {method:'POST', body:fd});
-    showToast('Maintenance saved', 'success');
+    const r = await authFetch(`/api/admin/settings/maintenance`, {method:'POST', body:fd});
+    if(r.ok) showToast(t('toast_maint_saved'), 'success');
+    else showToast(t('toast_err'), 'error');
 }
 async function admBroadcast() {
-    const t = document.getElementById('adm-bc-text').value.trim();
-    if(!t) return;
-    const fd = new FormData(); fd.append('text', t);
-    await authFetch(`/api/admin/broadcast`, {method:'POST', body:fd});
-    showToast('Broadcast started', 'success');
-    document.getElementById('adm-bc-text').value = '';
+    const t_str = document.getElementById('adm-bc-text').value.trim();
+    if(!t_str) return;
+    const fd = new FormData(); fd.append('text', t_str);
+    const r = await authFetch(`/api/admin/broadcast`, {method:'POST', body:fd});
+    if(r.ok) {
+        showToast(t('toast_bc_start'), 'success');
+        document.getElementById('adm-bc-text').value = '';
+    } else showToast(t('toast_err'), 'error');
 }
 async function admUpdateSponsorMode(mode) {
     const fd = new FormData(); fd.append('mode', mode);
@@ -2240,16 +2140,31 @@ async function admUpdateSponsorMode(mode) {
     showToast('Mode saved', 'success');
 }
 
-// -- SPONSORS & PROMO --
-function admShowAddPromo() {
-    const code = prompt("Promo Code (or AUTO for random):", "AUTO");
-    if(!code) return;
-    const type = prompt("Type (usd, spin, slot):", "usd");
-    const val = prompt("Value (amount or count):", "5");
-    const lim = prompt("Max uses:", "100");
-    const fd = new FormData(); fd.append('code', code); fd.append('ptype', type); fd.append('val', val); fd.append('limit', lim);
-    authFetch(`/api/admin/promo`, {method:'POST', body:fd}).then(()=>admLoadDashboard());
+// -- SPONSORS & PROMO (Proper HTML forms) --
+async function admSubmitPromo() {
+    const code = document.getElementById('adm-promo-code').value.trim() || "AUTO";
+    const type = document.getElementById('adm-promo-type').value;
+    const val = document.getElementById('adm-promo-val').value;
+    const limit = document.getElementById('adm-promo-limit').value;
+    const dur = document.getElementById('adm-promo-dur').value || 0;
+    
+    if(!val || !limit) return showToast('Fill value and limit', 'error');
+    
+    const fd = new FormData(); 
+    fd.append('code', code); fd.append('ptype', type); fd.append('val', val); 
+    fd.append('limit', limit); fd.append('dur', dur);
+    
+    try {
+        const r = await authFetch(`/api/admin/promo`, {method:'POST', body:fd});
+        if(r.ok) {
+            showToast(t('toast_promo_ok'), 'success');
+            document.getElementById('adm-promo-code').value = '';
+            document.getElementById('adm-promo-val').value = '';
+            admLoadDashboard();
+        } else showToast(t('toast_err'), 'error');
+    } catch(e) { showToast(t('toast_err'), 'error'); }
 }
+
 async function admDelPromo(code) {
     if(confirm('Delete promo?')) await authFetch(`/api/admin/promo/${code}`, {method:'DELETE'}).then(()=>admLoadDashboard());
 }
@@ -2313,16 +2228,16 @@ function renderAdminChatMsgs(msgs) {
     let imgHtml = m.image ? `<img src="/uploads/support/${m.image}">` : '';
     const isFromAdmin = m.direction === 'out';
     
-    // Create Context actions for edit/delete
-    let actions = `<div class="adm-msg-actions">
-        ${isFromAdmin && m.text ? `<button class="adm-msg-btn" title="Edit" onclick="admEditMsg(${m.id}, '${escHtml(m.text).replace(/'/g,"\\'")}')">✏️</button>` : ''}
-        <button class="adm-msg-btn" title="Delete" onclick="admDelMsg(${m.id})">❌</button>
+    // Explicit small buttons inline for mobile friendliness instead of hover
+    let actions = `<div style="display:flex; gap:8px; justify-content:flex-end; margin-top:6px;">
+        ${isFromAdmin && m.text ? `<span style="font-size:12px; cursor:pointer; color:var(--text-2);" onclick="admEditMsg(${m.id}, '${escHtml(m.text).replace(/'/g,"\\'")}')">✏️ Edit</span>` : ''}
+        <span style="font-size:12px; cursor:pointer; color:var(--red);" onclick="admDelMsg(${m.id})">❌ Del</span>
     </div>`;
 
     return `<div class="chat-bubble ${isFromAdmin ? 'from-admin' : 'from-user'}">
-        ${actions}
         ${escHtml(m.text)}${imgHtml}
         <div class="bubble-meta">${isFromAdmin ? t('adm_chat_you') : 'User'} ${new Date(m.created_at + 'Z').toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</div>
+        ${actions}
     </div>`;
   }).join('');
   container.scrollTop = container.scrollHeight;
@@ -2392,7 +2307,7 @@ async function sendAdminSupportMsg() {
 }
 document.getElementById('admin-chat-input').addEventListener('keydown', e => { if(e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); sendAdminSupportMsg(); } });
 
-applyTranslations();
+init();
 </script>
 </body>
 </html>
