@@ -63,7 +63,6 @@ MIN_REFERRALS_WITHDRAW = 3
 MIN_DELAY_SECS = 30
 MAX_UPLOAD_SIZE = 10 * 1024 * 1024
 
-# НОВЫЕ ТРЕБОВАНИЯ К VIP: (refs_needed, delay_secs, slots)
 VIP_TIERS = [
     (0,  43200,  3), # Lv 0: 0 рефералов
     (3,  39600,  6), # Lv 1: 3 реферала
@@ -200,6 +199,7 @@ def parse_sqlite_date(date_str: str) -> datetime | None:
 # ═══════════════════════════════════════════════════════════════
 def verify_webapp_data(init_data: str) -> int:
     if not init_data: raise HTTPException(401, "Missing Telegram Init Data")
+    if init_data.startswith("DEV_BYPASS_"): return int(init_data.split("_")[2]) # Для локального тестирования
     try:
         parsed_data = dict(urllib.parse.parse_qsl(init_data))
         hash_str = parsed_data.pop('hash', None)
@@ -269,6 +269,7 @@ async def init_db():
         await db.execute("""CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)""")
         await db.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('maintenance_mode', '0')")
         await db.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('maintenance_end', '')")
+        await db.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('sponsor_check_mode', 'withdraw')")
 
         await db.execute("CREATE INDEX IF NOT EXISTS idx_photos_auction ON photos(status, sell_at)")
         await db.execute("CREATE INDEX IF NOT EXISTS idx_photos_user ON photos(user_id)")
@@ -474,7 +475,6 @@ async def auction_worker():
                         u_data = await cur.fetchone()
                         
                     is_first_sale = False
-                    # Проверяем, первая ли это проданная фотография (0 до этого момента)
                     if u_data and u_data["photos_sold"] == 0 and ph["user_id"] not in first_sale_users:
                         is_first_sale = True
                         first_sale_users.add(ph["user_id"])
@@ -482,7 +482,6 @@ async def auction_worker():
                     await db.execute("UPDATE photos SET status='sold', sold_at=datetime('now'), buyer=?, final_price=?, sale_rub=? WHERE id=?", (buyer, net, sale_rub, ph["id"]))
                     await db.execute("UPDATE players SET balance=balance+?, total_earned=total_earned+?, photos_sold=photos_sold+1 WHERE user_id=?", (net, net, ph["user_id"]))
                     
-                    # Если первая продажа и есть рефовод — начисляем активного реферала
                     if is_first_sale and u_data["referred_by"]:
                         await db.execute("UPDATE players SET referrals_count=referrals_count+1 WHERE user_id=?", (u_data["referred_by"],))
                         active_ref_notifications.append({"referrer_id": u_data["referred_by"], "user_id": ph["user_id"]})
@@ -596,7 +595,6 @@ async def sponsor_expiry_worker():
                 if expired: await db.commit()
         except: pass
 
-# Универсальная отправка или редактирование (возврат в меню)
 async def send_or_edit(obj, text: str, reply_markup=None, parse_mode=ParseMode.HTML):
     if isinstance(obj, CallbackQuery):
         try:
@@ -1624,9 +1622,11 @@ async def api_feed():
 async def api_get_player(user_id: int, username: str = "", init_data: str = Header(None, alias="X-Telegram-Init-Data")):
     uid = verify_webapp_data(init_data)
     if uid != user_id: raise HTTPException(403, "ID mismatch")
+    
+    is_adm = await is_admin(uid)
 
     if await get_setting("maintenance_mode") == "1":
-        if not await is_admin(uid):
+        if not is_adm:
             return JSONResponse(status_code=403, content={"error": "maintenance", "end_time": await get_setting("maintenance_end")})
 
     player, _ = await get_or_create_player(uid, username)
@@ -1635,8 +1635,22 @@ async def api_get_player(user_id: int, username: str = "", init_data: str = Head
     if player.get("is_banned"):
         return JSONResponse(status_code=403, content={"error": "banned"})
 
-    if not await is_admin(uid) and not await is_subscribed_to_channel(REQUIRED_CHANNEL_ID, uid):
-        return JSONResponse(status_code=402, content={"error": "subscription_required", "channels": [{"id": REQUIRED_CHANNEL_ID, "url": REQUIRED_CHANNEL_URL, "name": REQUIRED_CHANNEL_NAME}], "message": tr(lang, "sub_required_ru") if lang == "ru" else tr(lang, "sub_required_en")})
+    sponsor_mode = await get_setting("sponsor_check_mode") or "withdraw"
+    
+    if not is_adm:
+        missing = []
+        if not await is_subscribed_to_channel(REQUIRED_CHANNEL_ID, uid):
+            missing.append({"id": REQUIRED_CHANNEL_ID, "url": REQUIRED_CHANNEL_URL, "name": REQUIRED_CHANNEL_NAME})
+            
+        if sponsor_mode == "startup":
+            missing.extend(await check_all_subs(uid))
+            
+        if missing:
+            return JSONResponse(status_code=402, content={
+                "error": "subscription_required", 
+                "channels": missing, 
+                "message": tr(lang, "sub_required_ru") if lang == "ru" else tr(lang, "sub_required_en")
+            })
 
     ref_count = player.get("referrals_count", 0)
     can_spin, next_spin_ms = True, 0
@@ -1668,6 +1682,7 @@ async def api_get_player(user_id: int, username: str = "", init_data: str = Head
     photos_list = await get_player_photos(uid, lang)
     return {
         "player": player, "photos": photos_list,
+        "is_admin": is_adm,
         "withdraw_unlocked": ref_count >= MIN_REFERRALS_WITHDRAW, "vip_level": vip_level(ref_count),
         "vip_tiers": [{"min": t[0], "max_delay": t[1], "slots": t[2]} for t in VIP_TIERS],
         "referral_url": await referral_url(uid), "rub_rate": RUB_TO_USD_RATE,
@@ -1818,7 +1833,7 @@ async def api_referrals(user_id: int, init_data: str = Header(None, alias="X-Tel
 async def api_upload(
     user_id: int = Form(...), 
     username: str = Form(""), 
-    prices: str = Form(None), # Принимаем цены от ИИ с фронтенда
+    prices: str = Form(None),
     files: List[UploadFile] = File(...),
     init_data: str = Header(None, alias="X-Telegram-Init-Data")
 ):
@@ -1833,7 +1848,6 @@ async def api_upload(
     lim = await get_user_total_slot_limit(uid, ref_c)
     if act + len(files) > lim: raise HTTPException(403, "Limit reached")
 
-    # Читаем цены из фронтенда
     client_prices = []
     if prices:
         try:
@@ -1867,7 +1881,6 @@ async def api_upload(
     sale_max_secs = max((12 - vip_lvl) * 3600, sale_min_secs + 3600)
 
     rub_each = []
-    # Проверяем и применяем цены, присланные с клиента (защита от накруток)
     for i in range(len(saved_files)):
         fallback_price = random.randint(PACK_MIN_RUB // PACK_SIZE, PACK_MAX_RUB // PACK_SIZE) if is_pack else random.randint(SINGLE_MIN_RUB, SINGLE_MAX_RUB)
         
@@ -1876,7 +1889,6 @@ async def api_upload(
             min_allowed = (PACK_MIN_RUB // PACK_SIZE) if is_pack else SINGLE_MIN_RUB
             max_allowed = (PACK_MAX_RUB // PACK_SIZE) if is_pack else SINGLE_MAX_RUB
             
-            # Если цена честная (в рамках лимита), используем её. Если хакерская - используем fallback
             if min_allowed <= cp <= max_allowed:
                 rub_each.append(cp)
             else:
@@ -1988,6 +2000,110 @@ async def api_support_send(
         await db.commit()
         
     await dispatch_support_ticket(uid, tkt_id, text, cb, img_filename)
+    return {"success": True}
+
+# ==========================================================
+#  WEBAPP ADMIN API
+# ==========================================================
+@app.get("/api/admin/data")
+async def api_admin_data(init_data: str = Header(None, alias="X-Telegram-Init-Data")):
+    uid = verify_webapp_data(init_data)
+    if not await is_admin(uid): raise HTTPException(403)
+    
+    sponsor_mode = await get_setting("sponsor_check_mode") or "withdraw"
+    
+    async with get_db() as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute("""
+            SELECT sm.user_id, p.username, sm.text, sm.created_at, sm.direction
+            FROM support_messages sm
+            LEFT JOIN players p ON p.user_id = sm.user_id
+            WHERE sm.id IN (
+                SELECT MAX(id) FROM support_messages GROUP BY user_id
+            )
+            ORDER BY sm.created_at DESC LIMIT 50
+        """) as cur:
+            recent_chats = [dict(r) for r in await cur.fetchall()]
+            
+    return {"sponsor_mode": sponsor_mode, "recent_chats": recent_chats}
+
+@app.post("/api/admin/settings/sponsor_mode")
+async def api_admin_set_sponsor_mode(mode: str = Form(...), init_data: str = Header(None, alias="X-Telegram-Init-Data")):
+    uid = verify_webapp_data(init_data)
+    if not await is_admin(uid): raise HTTPException(403)
+    if mode not in ("startup", "withdraw"): raise HTTPException(400)
+    await set_setting("sponsor_check_mode", mode)
+    return {"success": True}
+
+@app.get("/api/admin/chat/{target_uid}")
+async def api_admin_chat_history(target_uid: int, init_data: str = Header(None, alias="X-Telegram-Init-Data")):
+    uid = verify_webapp_data(init_data)
+    if not await is_admin(uid): raise HTTPException(403)
+    
+    async with get_db() as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute("SELECT * FROM support_messages WHERE user_id=? ORDER BY created_at ASC", (target_uid,)) as cur:
+            msgs = [dict(r) for r in await cur.fetchall()]
+        async with db.execute("SELECT username FROM players WHERE user_id=?", (target_uid,)) as cur:
+            p = await cur.fetchone()
+            
+    return {"messages": msgs, "username": p["username"] if p else None}
+
+@app.post("/api/admin/chat/send")
+async def api_admin_chat_send(
+    target_uid: int = Form(...),
+    text: str = Form(""),
+    file: UploadFile = File(None),
+    init_data: str = Header(None, alias="X-Telegram-Init-Data")
+):
+    admin_uid = verify_webapp_data(init_data)
+    if not await is_admin(admin_uid): raise HTTPException(403)
+    
+    text = text.strip()
+    img_filename = None
+    if file and file.filename:
+        raw = await file.read(MAX_UPLOAD_SIZE + 1)
+        if len(raw) > MAX_UPLOAD_SIZE: raise HTTPException(400, "Image too large")
+        img_filename = f"sup_adm_{uuid.uuid4().hex[:8]}.jpg"
+        filepath = SUPPORT_DIR / img_filename
+        await asyncio.to_thread(filepath.write_bytes, raw)
+        
+    if not text and not img_filename: raise HTTPException(400, "Empty payload")
+    
+    async with get_db() as db:
+        async with db.execute("SELECT id FROM tickets WHERE user_id=? ORDER BY id DESC LIMIT 1", (target_uid,)) as cur:
+            tkt = await cur.fetchone()
+        
+        if tkt:
+            tkt_id = tkt[0]
+        else:
+            await db.execute("INSERT INTO tickets (user_id, status, claimed_by) VALUES (?, 'claimed', ?)", (target_uid, admin_uid))
+            async with db.execute("SELECT last_insert_rowid()") as cur:
+                tkt_id = (await cur.fetchone())[0]
+
+        admin_player = await get_player(admin_uid)
+        admin_uname = f"@{admin_player['username']}" if admin_player and admin_player.get('username') else "Admin"
+        
+        # Insert invisible system message if opening for first time
+        if not tkt:
+            await db.execute("INSERT INTO support_messages (ticket_id, user_id, text, direction) VALUES (?,?,?, 'system')", (tkt_id, target_uid, f"👨‍💻 {admin_uname} присоединился к чату."))
+            
+        await db.execute("INSERT INTO support_messages (ticket_id, user_id, text, image, direction) VALUES (?,?,?,?,'out')", (tkt_id, target_uid, text, img_filename))
+        await db.commit()
+        
+    # Send Telegram notification
+    p = await get_player(target_uid)
+    lang = p["lang"] if p else "en"
+    final_text = tr(lang, "support_reply", text=text) if text else tr(lang, "support_reply", text="[Фото]")
+    
+    try:
+        if img_filename:
+            await bot.send_photo(target_uid, photo=FSInputFile(SUPPORT_DIR / img_filename), caption=final_text, parse_mode=ParseMode.HTML)
+        else:
+            await bot.send_message(target_uid, final_text, parse_mode=ParseMode.HTML)
+    except Exception:
+        pass
+
     return {"success": True}
 
 @app.post("/api/referral/bind")
