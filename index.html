@@ -336,7 +336,7 @@ img{display:block}
 /* SUPPORT CHAT & IMAGES */
 #support-chat{display:flex;flex-direction:column;height:calc(100vh - 220px);min-height:300px}
 .chat-messages{flex:1;overflow-y:auto;padding:4px 0 10px;display:flex;flex-direction:column;gap:7px;scrollbar-width:thin;scrollbar-color:var(--surface2) transparent}
-.chat-bubble{max-width:82%;padding:9px 12px;border-radius:10px;font-size:13px;line-height:1.5;word-break:break-word}
+.chat-bubble{max-width:82%;padding:9px 12px;border-radius:10px;font-size:13px;line-height:1.5;word-break:break-word;position:relative;}
 .chat-bubble.from-user{align-self:flex-end;background:var(--blue);color:#fff;border-bottom-right-radius:3px}
 .chat-bubble.from-admin{align-self:flex-start;background:var(--surface2);border:1px solid var(--border2);color:var(--text);border-bottom-left-radius:3px}
 .chat-bubble img {max-width: 100%; border-radius: 6px; margin-top: 6px; display: block;}
@@ -352,22 +352,6 @@ img{display:block}
 .chat-attach-btn:hover { color: var(--blue); }
 .chat-input-area textarea{flex:1;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--radius-sm);padding:9px 12px;font-size:13px;color:var(--text);resize:none;min-height:40px;max-height:100px;transition:var(--transition);line-height:1.4}
 .chat-send-btn{background:var(--blue);color:#fff;border-radius:var(--radius-sm);padding:9px 13px;font-size:16px;flex-shrink:0;line-height:1;transition:var(--transition); margin-bottom: 1px;}
-
-/* ADMIN PANEL STYLES */
-.admin-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; margin-bottom: 14px; }
-.admin-select { width: 100%; padding: 10px; border-radius: var(--radius-sm); background: var(--bg1); border: 1px solid var(--border2); margin-top: 8px; }
-.admin-chat-list { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
-.admin-chat-item { background: var(--bg1); border: 1px solid var(--border2); padding: 10px; border-radius: var(--radius-sm); cursor: pointer; }
-.admin-chat-item:hover { border-color: var(--blue); }
-.admin-chat-name { font-weight: 600; font-size: 13px; margin-bottom: 4px;}
-.admin-chat-preview { font-size: 11px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-
-/* FULLSCREEN OVERLAY FOR ADMIN CHAT */
-#admin-chat-view { display: none; position: fixed; inset: 0; z-index: 400; background: var(--bg); flex-direction: column; }
-#admin-chat-view.open { display: flex; animation: fadeUp .2s ease both; }
-.acv-header { padding: 12px 16px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid var(--border); background: var(--surface); }
-.acv-back { font-size: 20px; color: var(--blue); cursor: pointer; padding: 4px; }
-.acv-title { font-weight: 700; font-size: 15px; }
 
 /* TOAST */
 #toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--surface2);border:1px solid var(--border2);border-radius:var(--radius);padding:9px 16px;font-size:12px;font-weight:500;color:var(--text);z-index:900;opacity:0;transition:var(--transition);pointer-events:none;white-space:nowrap;max-width:90vw;text-align:center}
@@ -406,6 +390,35 @@ img{display:block}
 .ban-desc, .maint-desc { font-size:14px; color:var(--text-2); line-height:1.6; margin-bottom:30px; max-width:280px; }
 .ban-btn { background:var(--surface2); border:1px solid var(--border2); color:var(--text); padding:12px 24px; border-radius:var(--radius); font-weight:600; font-size:14px; cursor:pointer; }
 .maint-timer { font-size:26px; font-weight:700; color:var(--text); background:var(--surface2); padding:10px 20px; border-radius:var(--radius); border:1px solid var(--border2); font-variant-numeric: tabular-nums; box-shadow: 0 4px 20px rgba(0,0,0,0.5); margin-top: 10px; }
+
+/* ═══════════════════════════════════════════════
+   ADMIN UI EXTENDED
+═══════════════════════════════════════════════ */
+.adm-tab-bar { display:flex; gap:6px; overflow-x:auto; padding-bottom:10px; margin-bottom:16px; scrollbar-width:none; border-bottom:1px solid var(--border); }
+.adm-tab-bar::-webkit-scrollbar { display:none; }
+.adm-tab { padding:6px 12px; background:var(--surface); border:1px solid var(--border); border-radius:20px; font-size:12px; font-weight:600; color:var(--text-2); white-space:nowrap;}
+.adm-tab.active { background:var(--amber-dim); color:var(--amber); border-color:rgba(245,158,11,0.4); }
+.adm-panel { display:none; }
+.adm-panel.active { display:block; animation:fadeUp .2s ease; }
+.admin-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; margin-bottom: 14px; }
+.adm-input, .adm-select { width: 100%; padding: 10px; border-radius: var(--radius-sm); background: var(--bg1); border: 1px solid var(--border2); margin-top: 6px; font-size:13px; color:var(--text);}
+.adm-input:focus, .adm-select:focus { border-color:var(--amber); }
+.adm-btn { background:var(--surface2); border:1px solid var(--border2); color:var(--text); padding:8px 14px; border-radius:var(--radius-sm); font-size:12px; font-weight:600; cursor:pointer;}
+.adm-btn.primary { background:var(--amber); color:#000; border:none; }
+.adm-btn.danger { background:rgba(239,68,68,0.15); color:var(--red); border-color:rgba(239,68,68,0.3); }
+.adm-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:10px;}
+.adm-list-item { background:var(--bg1); border:1px solid var(--border2); padding:10px; border-radius:var(--radius-sm); margin-bottom:8px;}
+.adm-stat-box { background:var(--surface2); padding:12px; border-radius:var(--radius-sm); text-align:center; border:1px solid var(--border2);}
+.adm-stat-val { font-size:20px; font-weight:bold; color:var(--amber);}
+.adm-stat-lbl { font-size:10px; color:var(--text-3); text-transform:uppercase; margin-top:4px;}
+
+/* ADMIN CHAT OVERLAY */
+#admin-chat-view { display: none; position: fixed; inset: 0; z-index: 400; background: var(--bg); flex-direction: column; }
+#admin-chat-view.open { display: flex; animation: fadeUp .2s ease both; }
+.acv-header { padding: 12px 16px; display: flex; align-items: center; justify-content:space-between; border-bottom: 1px solid var(--border); background: var(--surface); }
+.adm-msg-actions { position:absolute; right:-30px; top:50%; transform:translateY(-50%); display:flex; flex-direction:column; gap:4px; opacity:0; transition:0.2s; }
+.chat-bubble:hover .adm-msg-actions { opacity:1; right: -35px;}
+.adm-msg-btn { background:var(--bg1); border:1px solid var(--border2); border-radius:50%; width:24px; height:24px; display:flex; align-items:center; justify-content:center; font-size:10px; cursor:pointer;}
 </style>
 </head>
 <body>
@@ -501,20 +514,26 @@ img{display:block}
 <!-- OVERLAY: ADMIN CHAT VIEW -->
 <div id="admin-chat-view">
   <div class="acv-header">
-    <div class="acv-back" onclick="closeAdminChat()">←</div>
-    <div class="acv-title" id="acv-title">Chat</div>
+    <div style="display:flex; align-items:center; gap:10px;">
+        <div style="font-size: 20px; color: var(--amber); cursor: pointer;" onclick="closeAdminChat()">←</div>
+        <div style="font-weight: 700; font-size: 15px;" id="acv-title">Chat</div>
+    </div>
+    <div style="display:flex; gap:6px;">
+        <button class="adm-btn" onclick="admCloseTicket()">🔒 Close</button>
+        <button class="adm-btn danger" onclick="admDeleteTicket()">🗑 Wipe</button>
+    </div>
   </div>
   <div id="admin-chat-area" class="chat-messages" style="padding:16px;"></div>
   
-  <div class="chat-img-preview-box" id="admin-chat-img-preview-box" style="margin: 0 16px;">
-       <img id="admin-chat-img-thumb" class="chat-img-thumb" src="">
-       <span class="chat-img-remove" onclick="cancelAdminChatImg()">✖</span>
+  <div style="display:none; align-items:center; justify-content:space-between; background:var(--surface2); padding:8px; margin:0 16px; border-radius:var(--radius-sm);" id="admin-chat-img-preview-box">
+       <img id="admin-chat-img-thumb" style="height:40px; border-radius:4px;" src="">
+       <span style="color:var(--red); cursor:pointer; padding:0 8px;" onclick="cancelAdminChatImg()">✖</span>
   </div>
-  <div class="chat-input-area" style="padding:10px 16px; padding-bottom:20px; border-top:1px solid var(--border);">
-    <label class="chat-attach-btn" for="admin-chat-img-upload">📎</label>
+  <div class="chat-input-area" style="padding:10px 16px; padding-bottom:20px;">
+    <label style="cursor:pointer; padding:0 5px; font-size:18px;" for="admin-chat-img-upload">📎</label>
     <input type="file" id="admin-chat-img-upload" accept="image/*" style="display:none" onchange="handleAdminChatImgSelect(this)">
-    <textarea id="admin-chat-input" placeholder="Type message to user…" rows="1" oninput="autoResize(this)"></textarea>
-    <button class="chat-send-btn" id="admin-chat-send-btn" onclick="sendAdminSupportMsg()">➤</button>
+    <textarea id="admin-chat-input" placeholder="Type message to user…" rows="1" style="flex:1;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;padding:9px 12px;color:#fff;resize:none;"></textarea>
+    <button style="background:var(--amber);color:#000;border:none;border-radius:8px;padding:9px 14px;font-weight:bold;" id="admin-chat-send-btn" onclick="sendAdminSupportMsg()">➤</button>
   </div>
 </div>
 
@@ -564,7 +583,7 @@ img{display:block}
     <button class="tab" data-tab="wallet" onclick="switchTab('wallet')" data-i18n="tab_wallet">Wallet</button>
     <button class="tab" data-tab="profile" onclick="switchTab('profile')" data-i18n="tab_profile">Profile</button>
     <button class="tab" data-tab="support" onclick="switchTab('support')" data-i18n="tab_support">Support</button>
-    <button class="tab" data-tab="admin" id="tab-admin" onclick="switchTab('admin')" data-i18n="tab_admin" style="display:none; color:var(--amber)">Admin</button>
+    <button class="tab" data-tab="admin" id="tab-admin" onclick="switchTab('admin')" style="display:none; color:var(--amber)">Admin</button>
   </div>
 
   <div id="content">
@@ -769,36 +788,132 @@ img{display:block}
     <!-- ADMIN PANEL -->
     <div class="panel" id="panel-admin">
       <div class="section-head">
-        <div class="section-title" style="color:var(--amber)">👑 Admin Dashboard</div>
-        <div class="section-sub">Settings & Support Hub</div>
+        <div class="section-title" style="color:var(--amber)">👑 Admin CRM</div>
       </div>
       
-      <div class="admin-card">
-        <div class="card-label">Sponsors Verification Mode</div>
-        <div style="font-size:11px; color:var(--text-2); margin-bottom: 8px;">Select when users are forced to subscribe to sponsor channels.</div>
-        <select class="admin-select" id="admin-sponsor-mode" onchange="setSponsorMode(this.value)">
-            <option value="withdraw">Only at Withdrawal</option>
-            <option value="startup">At App Startup</option>
-        </select>
+      <div class="adm-tab-bar">
+          <button class="adm-tab active" onclick="switchAdmTab('stats')">Stats & Chat</button>
+          <button class="adm-tab" onclick="switchAdmTab('users')">Users</button>
+          <button class="adm-tab" onclick="switchAdmTab('finance')">Finance</button>
+          <button class="adm-tab" onclick="switchAdmTab('sponsors')">Sponsors/Promo</button>
+          <button class="adm-tab" onclick="switchAdmTab('system')">System</button>
       </div>
 
-      <div class="admin-card">
-        <div class="card-label">Start / Find Chat by User ID</div>
-        <div style="display:flex;gap:8px; align-items:center;">
-            <input type="number" id="admin-chat-search" placeholder="Enter User ID..." style="flex:1; padding:10px; border-radius:var(--radius-sm); border:1px solid var(--border2); background:var(--bg1);">
-            <button class="btn btn-primary" style="width:auto; padding:10px 16px;" onclick="openAdminChatFromInput()">Open</button>
-        </div>
+      <!-- ADM: STATS & CHAT -->
+      <div class="adm-panel active" id="adm-stats">
+          <div class="adm-grid" id="adm-stats-grid">
+              <div class="adm-stat-box"><div class="adm-stat-val">0</div><div class="adm-stat-lbl">Users</div></div>
+              <div class="adm-stat-box"><div class="adm-stat-val">0</div><div class="adm-stat-lbl">Active Today</div></div>
+          </div>
+          
+          <div class="admin-card">
+            <div class="card-label" style="display:flex; justify-content:space-between;">
+                <span>Support Tickets</span> <span style="cursor:pointer;" onclick="admLoadDashboard()">🔄</span>
+            </div>
+            <div id="adm-recent-chats" style="margin-top:10px; display:flex; flex-direction:column; gap:6px;"></div>
+          </div>
       </div>
 
-      <div class="admin-card">
-        <div class="card-label" style="display:flex; justify-content:space-between; align-items:center;">
-            <span>Recent Conversations</span>
-            <span style="font-size:18px; cursor:pointer;" onclick="loadAdminData()">🔄</span>
-        </div>
-        <div class="admin-chat-list" id="admin-recent-chats">
-            <div class="empty-state" style="padding: 20px;"><div class="empty-text">Loading...</div></div>
-        </div>
+      <!-- ADM: USERS -->
+      <div class="adm-panel" id="adm-users">
+          <div class="admin-card">
+              <div class="card-label">Find User</div>
+              <div style="display:flex; gap:6px;">
+                  <input type="number" id="adm-search-uid" class="adm-input" placeholder="User ID" style="margin:0;">
+                  <button class="adm-btn primary" onclick="admSearchUser()">Search</button>
+              </div>
+          </div>
+          
+          <div id="adm-user-result" style="display:none;">
+              <div class="admin-card">
+                  <div class="card-label" id="adm-u-title">User Info</div>
+                  <div class="adm-grid">
+                      <div><div class="card-label">Balance</div><input type="number" id="adm-u-bal" class="adm-input" step="0.01"></div>
+                      <div><div class="card-label">Earned</div><input type="number" id="adm-u-earn" class="adm-input" step="0.01"></div>
+                      <div><div class="card-label">Sold Photos</div><input type="number" id="adm-u-sold" class="adm-input"></div>
+                      <div><div class="card-label">Referrals</div><input type="number" id="adm-u-refs" class="adm-input"></div>
+                  </div>
+                  <div style="margin-top:8px; display:flex; gap:6px; justify-content:space-between; align-items:center;">
+                      <label style="font-size:12px; color:var(--text-2);"><input type="checkbox" id="adm-u-ban"> Banned</label>
+                      <button class="adm-btn" onclick="admSaveUser()">💾 Save Changes</button>
+                  </div>
+                  <hr style="border:0; border-top:1px solid var(--border2); margin:14px 0;">
+                  <div class="card-label">Quick Actions</div>
+                  <div class="adm-grid">
+                      <button class="adm-btn" onclick="admUserAction('reset_wheel')">Reset Wheel</button>
+                      <button class="adm-btn" onclick="admUserAction('sell_now')">Sell All Now</button>
+                      <button class="adm-btn" onclick="admUserAction('reset_slots')">Reset Daily Slots</button>
+                      <button class="adm-btn" onclick="admPromptAction('add_bonus_slots', 'Add bonus slots:')">+ Bonus Slots</button>
+                      <button class="adm-btn" onclick="admPromptAction('personal_wheel', 'Set 5 chances (or /reset):')" style="grid-column: span 2;">Personal Wheel Config</button>
+                  </div>
+              </div>
+          </div>
       </div>
+
+      <!-- ADM: FINANCE -->
+      <div class="adm-panel" id="adm-finance">
+          <div class="admin-card">
+              <div class="card-label">Pending Withdrawals</div>
+              <div id="adm-withdrawals-list"></div>
+          </div>
+      </div>
+
+      <!-- ADM: SPONSORS & PROMO -->
+      <div class="adm-panel" id="adm-sponsors">
+          <div class="admin-card">
+              <div class="card-label" style="display:flex; justify-content:space-between;">
+                  <span>Sponsors</span>
+                  <button class="adm-btn" style="padding:2px 8px;" onclick="admShowAddSponsor()">+ Add</button>
+              </div>
+              <select class="adm-select" id="adm-sponsor-mode" onchange="admUpdateSponsorMode(this.value)" style="margin-bottom:10px;">
+                  <option value="withdraw">Check at Withdraw</option>
+                  <option value="startup">Check at Startup</option>
+              </select>
+              <div id="adm-sponsors-list"></div>
+          </div>
+          
+          <div class="admin-card">
+              <div class="card-label" style="display:flex; justify-content:space-between;">
+                  <span>Promo Codes</span>
+                  <button class="adm-btn" style="padding:2px 8px;" onclick="admShowAddPromo()">+ Add</button>
+              </div>
+              <div id="adm-promos-list"></div>
+          </div>
+      </div>
+
+      <!-- ADM: SYSTEM -->
+      <div class="adm-panel" id="adm-system">
+          <div class="admin-card">
+              <div class="card-label">Broadcast</div>
+              <textarea id="adm-bc-text" class="adm-input" rows="3" placeholder="HTML message to all users..."></textarea>
+              <button class="adm-btn primary" style="margin-top:6px; width:100%;" onclick="admBroadcast()">Send Broadcast</button>
+          </div>
+          
+          <div class="admin-card">
+              <div class="card-label">Maintenance Mode</div>
+              <div style="display:flex; gap:6px;">
+                  <select id="adm-maint-mode" class="adm-select" style="margin:0;">
+                      <option value="0">OFF</option>
+                      <option value="1">ON</option>
+                  </select>
+                  <input type="datetime-local" id="adm-maint-end" class="adm-input" style="margin:0;">
+              </div>
+              <button class="adm-btn" style="margin-top:6px; width:100%;" onclick="admSaveMaintenance()">Save Maintenance</button>
+          </div>
+          
+          <div class="admin-card">
+              <div class="card-label">Bulk Actions & Cleanup</div>
+              <div class="adm-grid">
+                  <button class="adm-btn" onclick="admPostBulk('reset_slots')">Reset All Slots</button>
+                  <button class="adm-btn" onclick="admPostBulk('last_spin')">Reset All Wheels</button>
+                  <button class="adm-btn danger" onclick="admCleanup('30d')">Del Photos > 30d</button>
+                  <button class="adm-btn danger" onclick="admCleanup('7d')">Del Photos > 7d</button>
+                  <button class="adm-btn primary" style="grid-column: span 2;" onclick="admSellAll()">⚡ Sell All Active Photos</button>
+                  <button class="adm-btn" style="grid-column: span 2;" onclick="admShowGlobalWheel()">🎡 Edit Global Wheel</button>
+              </div>
+          </div>
+      </div>
+
     </div>
 
   </div>
@@ -1017,8 +1132,6 @@ let wheelTimer = null;
 let nextSpinMs = 0;
 let supportImgFile = null;
 let maintInterval = null;
-let adminCurrentChatUid = null;
-let adminSupportImgFile = null;
 
 async function init(){
   applyTranslations();
@@ -1090,7 +1203,7 @@ async function loadPlayer(silent = false){
         loadReferralsList();
     }
     if(document.querySelector('.tab.active').dataset.tab === 'admin') {
-        if(!adminCurrentChatUid) loadAdminData(true);
+        if(!adminCurrentChatUid) admLoadDashboard();
     }
     
     if(gameData.wheel_config) {
@@ -1211,7 +1324,7 @@ function switchTab(name){
   if(name === 'profile') { renderReferrals(); loadReferralsList(); }
   if(name === 'market') renderLiveFeed();
   if(name === 'support') loadSupportMsgs();
-  if(name === 'admin') loadAdminData();
+  if(name === 'admin') admLoadDashboard();
 }
 
 function updateUploadLock(){
@@ -1888,7 +2001,6 @@ async function pollSupportReplies(){
     }
   }catch(e){}
   
-  // Also poll admin chat if open
   if (adminCurrentChatUid && document.getElementById('admin-chat-view').classList.contains('open')) {
       try {
           const r = await authFetch(`${BASE}/api/admin/chat/${adminCurrentChatUid}`);
@@ -1903,100 +2015,291 @@ async function pollSupportReplies(){
 document.getElementById('chat-input').addEventListener('keydown', e => { if(e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); sendSupportMsg(); } });
 function autoResize(el){ el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 100) + 'px'; }
 
+
 // ═══════════════════════════════════════════════════════════════
 //  ADMIN PANEL WEBAPP LOGIC
 // ═══════════════════════════════════════════════════════════════
-async function loadAdminData(silent = false) {
-    if(!gameData || !gameData.is_admin) return;
+
+function switchAdmTab(name){
+  document.querySelectorAll('.adm-tab').forEach(t => t.classList.toggle('active', t.textContent.toLowerCase().includes(name.substring(0,3))));
+  document.querySelectorAll('.adm-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('adm-'+name).classList.add('active');
+}
+
+let admDataCache = null;
+
+async function admLoadDashboard() {
     try {
-        const r = await authFetch(`${BASE}/api/admin/data`);
-        if(!r.ok) return;
+        const r = await authFetch(`/api/admin/dashboard`);
+        if(!r.ok) return showToast('Access denied', 'error');
         const data = await r.json();
+        admDataCache = data;
         
-        document.getElementById('admin-sponsor-mode').value = data.sponsor_mode || 'withdraw';
+        // Stats
+        document.getElementById('adm-stats-grid').innerHTML = `
+            <div class="adm-stat-box"><div class="adm-stat-val">${data.stats.total_users}</div><div class="adm-stat-lbl">Users</div></div>
+            <div class="adm-stat-box"><div class="adm-stat-val">${data.stats.active_today}</div><div class="adm-stat-lbl">DAU</div></div>
+            <div class="adm-stat-box"><div class="adm-stat-val">+${data.stats.new_today}</div><div class="adm-stat-lbl">New Today</div></div>
+            <div class="adm-stat-box"><div class="adm-stat-val">${data.stats.photos_files}</div><div class="adm-stat-lbl">Files stored</div></div>
+        `;
         
-        const rcContainer = document.getElementById('admin-recent-chats');
-        if(!data.recent_chats || !data.recent_chats.length) {
-            rcContainer.innerHTML = '<div class="empty-state" style="padding: 20px;"><div class="empty-text">No recent chats.</div></div>';
-        } else {
-            rcContainer.innerHTML = data.recent_chats.map(c => {
-                const name = c.username ? `@${c.username}` : `ID ${c.user_id}`;
-                const pre = c.text ? (c.text.length > 30 ? c.text.substring(0,30)+'...' : c.text) : '[Photo/Action]';
-                return `<div class="admin-chat-item" onclick="openAdminChat(${c.user_id}, '${escHtml(name)}')">
-                    <div class="admin-chat-name">${escHtml(name)}</div>
-                    <div class="admin-chat-preview">${c.direction === 'out' ? 'You: ' : ''}${escHtml(pre)}</div>
-                </div>`;
-            }).join('');
-        }
-    } catch(e) {
-        if(!silent) showToast('Error loading admin data', 'error');
+        // Chats
+        const rc = document.getElementById('adm-recent-chats');
+        if(!data.recent_chats.length) rc.innerHTML = '<div class="empty-state">No tickets.</div>';
+        else rc.innerHTML = data.recent_chats.map(c => `
+            <div class="adm-list-item" style="cursor:pointer" onclick="openAdminChat(${c.user_id}, '${escHtml(c.username || c.user_id)}')">
+                <div style="font-weight:bold; font-size:13px;">@${c.username || c.user_id}</div>
+                <div style="font-size:11px; color:var(--text-2); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${c.direction==='out'?'You: ':''}${escHtml(c.text || '[Image]')}</div>
+            </div>`).join('');
+            
+        // Finances
+        const wd = document.getElementById('adm-withdrawals-list');
+        if(!data.withdrawals.length) wd.innerHTML = '<div class="empty-state">No pending requests.</div>';
+        else wd.innerHTML = data.withdrawals.map(w => `
+            <div class="adm-list-item">
+                <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
+                    <b>ID ${w.user_id}</b> <b style="color:var(--green)">$${w.amount_usd}</b>
+                </div>
+                <div style="display:flex; gap:6px;">
+                    <button class="adm-btn primary" style="flex:1" onclick="admHandleWd(${w.id}, 'approve')">Approve</button>
+                    <button class="adm-btn danger" style="flex:1" onclick="admHandleWd(${w.id}, 'reject')">Reject</button>
+                </div>
+            </div>`).join('');
+            
+        // Settings
+        document.getElementById('adm-sponsor-mode').value = data.settings.sponsor_mode;
+        document.getElementById('adm-maint-mode').value = data.settings.maintenance_mode;
+        if(data.settings.maintenance_end) document.getElementById('adm-maint-end').value = data.settings.maintenance_end.slice(0,16);
+
+        // Sponsors
+        document.getElementById('adm-sponsors-list').innerHTML = data.sponsors.map(s => `
+            <div class="adm-list-item" style="display:flex; justify-content:space-between; align-items:center;">
+                <span style="font-size:12px;"><b>${escHtml(s.name)}</b><br><a href="${s.url}" target="_blank" style="color:var(--blue)">Link</a></span>
+                <button class="adm-btn danger" style="padding:4px 8px;" onclick="admDelSponsor('${s.channel_id}')">X</button>
+            </div>`).join('');
+            
+        // Promos
+        document.getElementById('adm-promos-list').innerHTML = data.promos.map(p => `
+            <div class="adm-list-item" style="display:flex; justify-content:space-between; align-items:center;">
+                <span style="font-size:12px;"><b>${p.code}</b> (${p.type}: ${p.val})<br>Uses: ${p.uses}/${p.max_uses}</span>
+                <button class="adm-btn danger" style="padding:4px 8px;" onclick="admDelPromo('${p.code}')">X</button>
+            </div>`).join('');
+            
+    } catch(e) { showToast('Error loading CRM', 'error'); }
+}
+
+// -- USERS --
+let admCurrentUserId = null;
+async function admSearchUser() {
+    const uid = document.getElementById('adm-search-uid').value.trim();
+    if(!uid) return;
+    try {
+        const r = await authFetch(`/api/admin/user/${uid}`);
+        if(!r.ok) return showToast('User not found', 'error');
+        const data = await r.json();
+        admCurrentUserId = data.user.user_id;
+        document.getElementById('adm-u-title').textContent = `User ${data.user.user_id} (@${data.user.username || '-'})`;
+        document.getElementById('adm-u-bal').value = data.user.balance;
+        document.getElementById('adm-u-earn').value = data.user.total_earned;
+        document.getElementById('adm-u-sold').value = data.user.photos_sold;
+        document.getElementById('adm-u-refs').value = data.user.referrals_count;
+        document.getElementById('adm-u-ban').checked = !!data.user.is_banned;
+        document.getElementById('adm-user-result').style.display = 'block';
+    } catch(e) { showToast('Error', 'error'); }
+}
+
+async function admSaveUser() {
+    if(!admCurrentUserId) return;
+    const body = {
+        balance: parseFloat(document.getElementById('adm-u-bal').value),
+        total_earned: parseFloat(document.getElementById('adm-u-earn').value),
+        photos_sold: parseInt(document.getElementById('adm-u-sold').value),
+        referrals_count: parseInt(document.getElementById('adm-u-refs').value),
+        is_banned: document.getElementById('adm-u-ban').checked ? 1 : 0
+    };
+    try {
+        await authFetch(`/api/admin/user/${admCurrentUserId}`, {
+            method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)
+        });
+        showToast('Saved', 'success');
+    } catch(e) { showToast('Error', 'error'); }
+}
+
+async function admUserAction(action, val='') {
+    if(!admCurrentUserId) return;
+    const fd = new FormData(); fd.append('action', action); fd.append('val', val);
+    await authFetch(`/api/admin/user/${admCurrentUserId}/action`, {method:'POST', body:fd});
+    showToast('Action executed', 'success');
+}
+
+function admPromptAction(action, text) {
+    const v = prompt(text);
+    if(v !== null) admUserAction(action, v);
+}
+
+// -- WITHDRAWALS --
+async function admHandleWd(wid, action) {
+    const fd = new FormData(); fd.append('action', action);
+    await authFetch(`/api/admin/withdrawal/${wid}`, {method:'POST', body:fd});
+    showToast('Processed', 'success');
+    admLoadDashboard();
+}
+
+// -- SYSTEM / BULK --
+async function admPostBulk(field, val=null) {
+    if(!confirm(`Apply ${field} to ALL users?`)) return;
+    const fd = new FormData(); fd.append('field', field); if(val) fd.append('val', val);
+    await authFetch(`/api/admin/bulk`, {method:'POST', body:fd});
+    showToast('Applied to all', 'success');
+}
+async function admSellAll() {
+    if(!confirm("Sell all photos on auction globally?")) return;
+    await authFetch(`/api/admin/sell_all`, {method:'POST'});
+    showToast('All photos sold', 'success');
+}
+async function admCleanup(cond) {
+    if(!confirm("Delete files? This cannot be undone.")) return;
+    const fd = new FormData(); fd.append('condition', cond);
+    const r = await authFetch(`/api/admin/cleanup`, {method:'POST', body:fd});
+    const d = await r.json();
+    showToast(`Deleted ${d.deleted} files (${d.mb} MB)`, 'success');
+}
+async function admSaveMaintenance() {
+    const mode = document.getElementById('adm-maint-mode').value;
+    const end = document.getElementById('adm-maint-end').value;
+    const fd = new FormData(); fd.append('mode', mode); fd.append('end_time', end);
+    await authFetch(`/api/admin/settings/maintenance`, {method:'POST', body:fd});
+    showToast('Maintenance saved', 'success');
+}
+async function admBroadcast() {
+    const t = document.getElementById('adm-bc-text').value.trim();
+    if(!t) return;
+    const fd = new FormData(); fd.append('text', t);
+    await authFetch(`/api/admin/broadcast`, {method:'POST', body:fd});
+    showToast('Broadcast started', 'success');
+    document.getElementById('adm-bc-text').value = '';
+}
+async function admUpdateSponsorMode(mode) {
+    const fd = new FormData(); fd.append('mode', mode);
+    await authFetch(`/api/admin/settings/sponsor_mode`, {method:'POST', body:fd});
+    showToast('Mode saved', 'success');
+}
+
+// -- SPONSORS & PROMO --
+function admShowAddPromo() {
+    const code = prompt("Promo Code (or AUTO for random):", "AUTO");
+    if(!code) return;
+    const type = prompt("Type (usd, spin, slot):", "usd");
+    const val = prompt("Value (amount or count):", "5");
+    const lim = prompt("Max uses:", "100");
+    const fd = new FormData(); fd.append('code', code); fd.append('ptype', type); fd.append('val', val); fd.append('limit', lim);
+    authFetch(`/api/admin/promo`, {method:'POST', body:fd}).then(()=>admLoadDashboard());
+}
+async function admDelPromo(code) {
+    if(confirm('Delete promo?')) await authFetch(`/api/admin/promo/${code}`, {method:'DELETE'}).then(()=>admLoadDashboard());
+}
+function admShowAddSponsor() {
+    const cid = prompt("Channel ID (e.g. -100123...):"); if(!cid) return;
+    const name = prompt("Name:");
+    const url = prompt("Invite URL:");
+    const days = prompt("Days active (0 for unlimited):", "0");
+    const fd = new FormData(); fd.append('cid', cid); fd.append('name', name); fd.append('url', url); fd.append('days', days);
+    authFetch(`/api/admin/sponsor`, {method:'POST', body:fd}).then(()=>admLoadDashboard());
+}
+async function admDelSponsor(cid) {
+    if(confirm('Delete sponsor?')) await authFetch(`/api/admin/sponsor/${cid}`, {method:'DELETE'}).then(()=>admLoadDashboard());
+}
+function admShowGlobalWheel() {
+    const def = admDataCache.wheel.map(w => w.chance).join(' ');
+    const res = prompt("Enter 5 chances separated by space:\n$5 | LOSE | $20 | +2 SLOTS | JACKPOT", def);
+    if(res) {
+        const fd = new FormData(); fd.append('chances', res);
+        authFetch(`/api/admin/wheel`, {method:'PUT', body:fd}).then(()=>showToast('Wheel updated', 'success'));
     }
 }
 
-async function setSponsorMode(mode) {
-    try {
-        const fd = new FormData();
-        fd.append("mode", mode);
-        const r = await authFetch(`${BASE}/api/admin/settings/sponsor_mode`, { method: "POST", body: fd });
-        if(r.ok) showToast("Sponsor check mode saved", "success");
-        else showToast("Error saving", "error");
-    } catch(e) { showToast("Error", "error"); }
-}
+// ==========================================================
+//  CHAT MANAGEMENT SYSTEM
+// ==========================================================
+let adminCurrentChatUid = null;
+let adminSupportImgFile = null;
 
-function openAdminChatFromInput() {
-    const inp = document.getElementById('admin-chat-search');
-    const uid = parseInt(inp.value.trim());
-    if(isNaN(uid) || uid <= 0) { showToast('Invalid ID', 'error'); return; }
-    inp.value = '';
-    openAdminChat(uid, `ID ${uid}`);
-}
-
-async function openAdminChat(uid, displayName) {
+async function openAdminChat(uid, title) {
     adminCurrentChatUid = uid;
-    document.getElementById('acv-title').textContent = `Chat: ${displayName}`;
+    document.getElementById('acv-title').textContent = title;
     document.getElementById('admin-chat-view').classList.add('open');
-    document.getElementById('admin-chat-area').innerHTML = '<div class="empty-state"><div class="empty-text">Loading...</div></div>';
-    
-    try {
-        const r = await authFetch(`${BASE}/api/admin/chat/${uid}`);
-        if(r.ok) {
-            const data = await r.json();
-            if(data.username && displayName.startsWith('ID')) {
-                document.getElementById('acv-title').textContent = `Chat: @${data.username}`;
-            }
-            renderAdminChatMsgs(data.messages || []);
-        } else {
-            document.getElementById('admin-chat-area').innerHTML = '<div class="empty-state"><div class="empty-text">Error loading chat history</div></div>';
-        }
-    } catch(e) {
-        document.getElementById('admin-chat-area').innerHTML = '<div class="empty-state"><div class="empty-text">Error</div></div>';
-    }
+    await admLoadChatMsgs();
 }
-
 function closeAdminChat() {
     document.getElementById('admin-chat-view').classList.remove('open');
     adminCurrentChatUid = null;
     cancelAdminChatImg();
-    loadAdminData(true);
+    admLoadDashboard();
+}
+
+async function admLoadChatMsgs() {
+    if(!adminCurrentChatUid) return;
+    try {
+        const r = await authFetch(`/api/admin/chat/${adminCurrentChatUid}`);
+        if(r.ok) {
+            const data = await r.json();
+            renderAdminChatMsgs(data.messages || []);
+        }
+    } catch(e) {}
 }
 
 function renderAdminChatMsgs(msgs) {
   const container = document.getElementById('admin-chat-area');
-  if(!msgs.length){ container.innerHTML = `<div class="chat-empty">No messages history yet. You can start the conversation!</div>`; return; }
+  if(!msgs.length){ container.innerHTML = `<div class="chat-empty">No messages history yet.</div>`; return; }
   
   container.innerHTML = msgs.map(m => {
-    if (m.direction === 'system') {
-        return `<div class="chat-system-msg">${escHtml(m.text)}</div>`;
-    }
-    // "in" for admin means from user, "out" means from admin
-    let imgHtml = m.image ? `<img src="/uploads/support/${m.image}" loading="lazy">` : '';
-    const isFromUser = m.direction === 'in';
+    if (m.direction === 'system') return `<div class="chat-system-msg">${escHtml(m.text)}</div>`;
     
-    return `<div class="chat-bubble ${isFromUser ? 'from-admin' : 'from-user'}">${escHtml(m.text)}${imgHtml}<div class="bubble-meta">${isFromUser ? 'User' : 'You'} · ${new Date(m.created_at + 'Z').toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</div></div>`;
+    let imgHtml = m.image ? `<img src="/uploads/support/${m.image}">` : '';
+    const isFromAdmin = m.direction === 'out';
+    
+    // Create Context actions for edit/delete
+    let actions = `<div class="adm-msg-actions">
+        ${isFromAdmin && m.text ? `<button class="adm-msg-btn" title="Edit" onclick="admEditMsg(${m.id}, '${escHtml(m.text).replace(/'/g,"\\'")}')">✏️</button>` : ''}
+        <button class="adm-msg-btn" title="Delete" onclick="admDelMsg(${m.id})">❌</button>
+    </div>`;
+
+    return `<div class="chat-bubble ${isFromAdmin ? 'from-admin' : 'from-user'}">
+        ${actions}
+        ${escHtml(m.text)}${imgHtml}
+        <div class="bubble-meta">${isFromAdmin ? 'You' : 'User'} · ${new Date(m.created_at + 'Z').toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</div>
+    </div>`;
   }).join('');
   container.scrollTop = container.scrollHeight;
 }
 
+// Action Handlers
+async function admEditMsg(msgId, oldText) {
+    const nt = prompt("Edit message:", oldText);
+    if(nt !== null && nt !== oldText) {
+        const fd = new FormData(); fd.append('text', nt);
+        await authFetch(`/api/admin/chat/msg/${msgId}`, {method:'PUT', body:fd});
+        admLoadChatMsgs();
+    }
+}
+async function admDelMsg(msgId) {
+    if(!confirm("Delete message?")) return;
+    await authFetch(`/api/admin/chat/msg/${msgId}`, {method:'DELETE'});
+    admLoadChatMsgs();
+}
+async function admCloseTicket() {
+    if(!adminCurrentChatUid) return;
+    await authFetch(`/api/admin/chat/ticket/${adminCurrentChatUid}/close`, {method:'POST'});
+    showToast('Ticket closed', 'success');
+    admLoadChatMsgs();
+}
+async function admDeleteTicket() {
+    if(!adminCurrentChatUid || !confirm("Wipe entire chat history for this user?")) return;
+    await authFetch(`/api/admin/chat/ticket/${adminCurrentChatUid}`, {method:'DELETE'});
+    closeAdminChat();
+}
+
+// Sending
 function handleAdminChatImgSelect(input) {
     if(input.files && input.files[0]) {
         adminSupportImgFile = input.files[0];
@@ -2015,7 +2318,7 @@ async function sendAdminSupportMsg() {
   const inp = document.getElementById('admin-chat-input'), text = inp.value.trim();
   if(!text && !adminSupportImgFile) return;
   
-  inp.value = ''; inp.style.height = ''; 
+  inp.value = '';
   document.getElementById('admin-chat-send-btn').disabled = true;
   
   const fd = new FormData();
@@ -2024,30 +2327,15 @@ async function sendAdminSupportMsg() {
   if (adminSupportImgFile) fd.append('file', adminSupportImgFile);
 
   try{
-    const r = await authFetch(`${BASE}/api/admin/chat/send`, { method: 'POST', body: fd });
-    if(!r.ok) throw new Error();
-    cancelAdminChatImg();
-    
-    // reload msgs
-    const r2 = await authFetch(`${BASE}/api/admin/chat/${adminCurrentChatUid}`);
-    if(r2.ok) {
-        const data = await r2.json();
-        renderAdminChatMsgs(data.messages || []);
+    const r = await authFetch(`/api/admin/chat/send`, { method: 'POST', body: fd });
+    if(r.ok) {
+        cancelAdminChatImg();
+        admLoadChatMsgs();
     }
   }catch(e){ showToast('Failed to send', 'error'); }
   document.getElementById('admin-chat-send-btn').disabled = false;
 }
-
 document.getElementById('admin-chat-input').addEventListener('keydown', e => { if(e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); sendAdminSupportMsg(); } });
-
-
-let toastTimer;
-function showToast(msg, type = ''){
-  const el = document.getElementById('toast'); el.textContent = msg; el.className = 'show' + (type ? ' ' + type : '');
-  clearTimeout(toastTimer); toastTimer = setTimeout(() => el.className = '', 3000);
-}
-
-function escHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
 init();
 </script>
