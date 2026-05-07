@@ -1119,18 +1119,19 @@ function toggleLang(){
   
   if (gameData?.player) {
       const storyReady = gameData?.story_bonus ? gameData.story_bonus.can_claim : true;
-    if (!storyReady) {
-        document.getElementById('spc-reward-tag').textContent = "🔗 REF";
-        document.getElementById('spc-reward-tag').style.background = "var(--blue)";
-        const hrs = Math.ceil((gameData?.story_bonus?.cooldown_ms || 0) / 3600000);
-        document.getElementById('spc-desc-text').textContent = currentLang === 'ru' 
-            ? `Бонус получен ✓ (Доступно через ${hrs} ч.)` 
-            : `Claimed ✓ (Available in ${hrs} h.)`;
-    } else {
-        document.getElementById('spc-reward-tag').textContent = "+$15 & 1 SPIN";
-        document.getElementById('spc-reward-tag').style.background = "var(--green)";
-        document.getElementById('spc-desc-text').textContent = t('story_promo_text');
-    }
+      if (!storyReady) {
+          document.getElementById('spc-reward-tag').textContent = "🔗 REF";
+          document.getElementById('spc-reward-tag').style.background = "var(--blue)";
+          const hrs = Math.ceil((gameData?.story_bonus?.cooldown_ms || 0) / 3600000);
+          document.getElementById('spc-desc-text').textContent = currentLang === 'ru' 
+              ? `Бонус получен ✓ (Доступно через ${hrs} ч.)` 
+              : `Claimed ✓ (Available in ${hrs} h.)`;
+      } else {
+          document.getElementById('spc-reward-tag').textContent = "+$15 & 1 SPIN";
+          document.getElementById('spc-reward-tag').style.background = "var(--green)";
+          document.getElementById('spc-desc-text').textContent = t('story_promo_text');
+      }
+  } // <--- ВОТ ЭТОЙ СКОБКИ НЕ ХВАТАЛО!
 
   if(userId){
     authFetch(`/api/player/${userId}/lang`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ lang: currentLang }) }).catch(() => {});
