@@ -394,16 +394,21 @@ img{display:block}
 /* ═══════════════════════════════════════════════
    ADMIN UI EXTENDED
 ═══════════════════════════════════════════════ */
-.adm-tab-bar { display:flex; gap:6px; overflow-x:auto; padding-bottom:10px; margin-bottom:16px; scrollbar-width:none; border-bottom:1px solid var(--border); }
-.adm-tab-bar::-webkit-scrollbar { display:none; }
-.adm-tab { padding:6px 12px; background:var(--surface); border:1px solid var(--border); border-radius:20px; font-size:12px; font-weight:600; color:var(--text-2); white-space:nowrap;}
-.adm-tab.active { background:var(--amber-dim); color:var(--amber); border-color:rgba(245,158,11,0.4); }
+/* BURGER MENU */
+.adm-burger { background:var(--surface2); border:1px solid var(--border2); padding:6px 12px; border-radius:6px; font-size:12px; font-weight:600; color:var(--text); cursor:pointer; }
+.adm-menu-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:900; backdrop-filter:blur(4px); }
+.adm-menu-overlay.open { display:block; animation:fadeIn .2s ease both; }
+.adm-menu-card { position:absolute; top:60px; right:16px; background:var(--surface); border:1px solid var(--border2); border-radius:var(--radius); box-shadow:0 10px 30px rgba(0,0,0,0.8); width:200px; display:flex; flex-direction:column; overflow:hidden; }
+.adm-menu-item { padding:14px 16px; font-size:13px; font-weight:600; color:var(--text); border-bottom:1px solid var(--border2); cursor:pointer; transition:var(--transition); }
+.adm-menu-item:last-child { border-bottom:none; }
+.adm-menu-item:hover, .adm-menu-item:active { background:var(--surface2); color:var(--amber); }
+
 .adm-panel { display:none; }
 .adm-panel.active { display:block; animation:fadeUp .2s ease; }
 .admin-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; margin-bottom: 14px; }
-.adm-input, .adm-select { width: 100%; padding: 10px; border-radius: var(--radius-sm); background: var(--bg1); border: 1px solid var(--border2); margin-top: 6px; font-size:13px; color:var(--text);}
+.adm-input, .adm-select { padding: 10px; border-radius: var(--radius-sm); background: var(--bg1); border: 1px solid var(--border2); margin-top: 6px; font-size:13px; color:var(--text); box-sizing:border-box;}
 .adm-input:focus, .adm-select:focus { border-color:var(--amber); }
-.adm-btn { background:var(--surface2); border:1px solid var(--border2); color:var(--text); padding:8px 14px; border-radius:var(--radius-sm); font-size:12px; font-weight:600; cursor:pointer;}
+.adm-btn { background:var(--surface2); border:1px solid var(--border2); color:var(--text); padding:8px 14px; border-radius:var(--radius-sm); font-size:12px; font-weight:600; cursor:pointer; text-align:center;}
 .adm-btn.primary { background:var(--amber); color:#000; border:none; }
 .adm-btn.danger { background:rgba(239,68,68,0.15); color:var(--red); border-color:rgba(239,68,68,0.3); }
 .adm-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:10px;}
@@ -511,7 +516,18 @@ img{display:block}
   </div>
 </div>
 
-<!-- OVERLAY: ADMIN CHAT VIEW -->
+<!-- ADMIN MENU OVERLAY -->
+<div id="adm-menu-overlay" class="adm-menu-overlay" onclick="toggleAdmMenu()">
+    <div class="adm-menu-card" onclick="event.stopPropagation()">
+        <div class="adm-menu-item" onclick="switchAdmTab('stats')" data-i18n="adm_menu_stats">Stats & Chat</div>
+        <div class="adm-menu-item" onclick="switchAdmTab('users')" data-i18n="adm_menu_users">Users</div>
+        <div class="adm-menu-item" onclick="switchAdmTab('finance')" data-i18n="adm_menu_fin">Finance</div>
+        <div class="adm-menu-item" onclick="switchAdmTab('sponsors')" data-i18n="adm_menu_promo">Sponsors/Promo</div>
+        <div class="adm-menu-item" onclick="switchAdmTab('system')" data-i18n="adm_menu_sys">System</div>
+    </div>
+</div>
+
+<!-- ADMIN CHAT OVERLAY -->
 <div id="admin-chat-view">
   <div class="acv-header">
     <div style="display:flex; align-items:center; gap:10px;">
@@ -519,8 +535,8 @@ img{display:block}
         <div style="font-weight: 700; font-size: 15px;" id="acv-title">Chat</div>
     </div>
     <div style="display:flex; gap:6px;">
-        <button class="adm-btn" onclick="admCloseTicket()">🔒 Close</button>
-        <button class="adm-btn danger" onclick="admDeleteTicket()">🗑 Wipe</button>
+        <button class="adm-btn" onclick="admCloseTicket()" data-i18n="adm_chat_close">🔒 Close</button>
+        <button class="adm-btn danger" onclick="admDeleteTicket()" data-i18n="adm_chat_wipe">🗑 Wipe</button>
     </div>
   </div>
   <div id="admin-chat-area" class="chat-messages" style="padding:16px;"></div>
@@ -583,7 +599,7 @@ img{display:block}
     <button class="tab" data-tab="wallet" onclick="switchTab('wallet')" data-i18n="tab_wallet">Wallet</button>
     <button class="tab" data-tab="profile" onclick="switchTab('profile')" data-i18n="tab_profile">Profile</button>
     <button class="tab" data-tab="support" onclick="switchTab('support')" data-i18n="tab_support">Support</button>
-    <button class="tab" data-tab="admin" id="tab-admin" onclick="switchTab('admin')" style="display:none; color:var(--amber)">Admin</button>
+    <button class="tab" data-tab="admin" id="tab-admin" onclick="switchTab('admin')" style="display:none; color:var(--amber)" data-i18n="tab_admin">Admin</button>
   </div>
 
   <div id="content">
@@ -788,27 +804,19 @@ img{display:block}
     <!-- ADMIN PANEL -->
     <div class="panel" id="panel-admin">
       <div class="section-head">
-        <div class="section-title" style="color:var(--amber)">👑 Admin CRM</div>
-      </div>
-      
-      <div class="adm-tab-bar">
-          <button class="adm-tab active" onclick="switchAdmTab('stats')">Stats & Chat</button>
-          <button class="adm-tab" onclick="switchAdmTab('users')">Users</button>
-          <button class="adm-tab" onclick="switchAdmTab('finance')">Finance</button>
-          <button class="adm-tab" onclick="switchAdmTab('sponsors')">Sponsors/Promo</button>
-          <button class="adm-tab" onclick="switchAdmTab('system')">System</button>
+        <div class="section-title" style="color:var(--amber)" data-i18n="adm_title">👑 Admin CRM</div>
+        <div class="adm-burger" onclick="toggleAdmMenu()">☰ Меню</div>
       </div>
 
       <!-- ADM: STATS & CHAT -->
       <div class="adm-panel active" id="adm-stats">
           <div class="adm-grid" id="adm-stats-grid">
-              <div class="adm-stat-box"><div class="adm-stat-val">0</div><div class="adm-stat-lbl">Users</div></div>
-              <div class="adm-stat-box"><div class="adm-stat-val">0</div><div class="adm-stat-lbl">Active Today</div></div>
+              <!-- Rendered via JS -->
           </div>
           
           <div class="admin-card">
             <div class="card-label" style="display:flex; justify-content:space-between;">
-                <span>Support Tickets</span> <span style="cursor:pointer;" onclick="admLoadDashboard()">🔄</span>
+                <span data-i18n="adm_recent_tickets">Support Tickets</span> <span style="cursor:pointer;" onclick="admLoadDashboard()">🔄</span>
             </div>
             <div id="adm-recent-chats" style="margin-top:10px; display:flex; flex-direction:column; gap:6px;"></div>
           </div>
@@ -817,16 +825,16 @@ img{display:block}
       <!-- ADM: USERS -->
       <div class="adm-panel" id="adm-users">
           <div class="admin-card">
-              <div class="card-label">Find User</div>
+              <div class="card-label" data-i18n="adm_find_user">Find User</div>
               <div style="display:flex; gap:6px;">
-                  <input type="number" id="adm-search-uid" class="adm-input" placeholder="User ID" style="margin:0;">
-                  <button class="adm-btn primary" onclick="admSearchUser()">Search</button>
+                  <input type="number" id="adm-search-uid" class="adm-input" placeholder="User ID" style="margin:0; flex:1;">
+                  <button class="adm-btn primary" onclick="admSearchUser()" data-i18n="adm_search_btn">Search</button>
               </div>
           </div>
           
           <div id="adm-user-result" style="display:none;">
               <div class="admin-card">
-                  <div class="card-label" id="adm-u-title">User Info</div>
+                  <div class="card-label" id="adm-u-title" data-i18n="adm_user_info">User Info</div>
                   <div class="adm-grid">
                       <div><div class="card-label">Balance</div><input type="number" id="adm-u-bal" class="adm-input" step="0.01"></div>
                       <div><div class="card-label">Earned</div><input type="number" id="adm-u-earn" class="adm-input" step="0.01"></div>
@@ -834,17 +842,18 @@ img{display:block}
                       <div><div class="card-label">Referrals</div><input type="number" id="adm-u-refs" class="adm-input"></div>
                   </div>
                   <div style="margin-top:8px; display:flex; gap:6px; justify-content:space-between; align-items:center;">
-                      <label style="font-size:12px; color:var(--text-2);"><input type="checkbox" id="adm-u-ban"> Banned</label>
-                      <button class="adm-btn" onclick="admSaveUser()">💾 Save Changes</button>
+                      <label style="font-size:12px; color:var(--text-2);"><input type="checkbox" id="adm-u-ban"> <span data-i18n="adm_banned">Banned</span></label>
+                      <button class="adm-btn" onclick="admSaveUser()" data-i18n="adm_save_btn">💾 Save Changes</button>
                   </div>
                   <hr style="border:0; border-top:1px solid var(--border2); margin:14px 0;">
-                  <div class="card-label">Quick Actions</div>
+                  <div class="card-label" data-i18n="adm_qa_title">Quick Actions</div>
                   <div class="adm-grid">
-                      <button class="adm-btn" onclick="admUserAction('reset_wheel')">Reset Wheel</button>
-                      <button class="adm-btn" onclick="admUserAction('sell_now')">Sell All Now</button>
-                      <button class="adm-btn" onclick="admUserAction('reset_slots')">Reset Daily Slots</button>
-                      <button class="adm-btn" onclick="admPromptAction('add_bonus_slots', 'Add bonus slots:')">+ Bonus Slots</button>
-                      <button class="adm-btn" onclick="admPromptAction('personal_wheel', 'Set 5 chances (or /reset):')" style="grid-column: span 2;">Personal Wheel Config</button>
+                      <button class="adm-btn" onclick="admUserAction('reset_wheel')" data-i18n="adm_qa_rw">Reset Wheel</button>
+                      <button class="adm-btn" onclick="admUserAction('sell_now')" data-i18n="adm_qa_sell">Sell All Now</button>
+                      <button class="adm-btn" onclick="admUserAction('reset_slots')" data-i18n="adm_qa_rs">Reset Daily Slots</button>
+                      <button class="adm-btn" onclick="admPromptAction('add_bonus_slots', t('adm_qa_bs_p'))" data-i18n="adm_qa_bs">+ Bonus Slots</button>
+                      <button class="adm-btn primary" onclick="admOpenChatWithFoundUser()" data-i18n="adm_qa_chat" style="grid-column: span 2;">💬 Open Chat</button>
+                      <button class="adm-btn" onclick="admPromptAction('personal_wheel', t('adm_qa_pw_p'))" style="grid-column: span 2;" data-i18n="adm_qa_pw">Personal Wheel Config</button>
                   </div>
               </div>
           </div>
@@ -853,7 +862,7 @@ img{display:block}
       <!-- ADM: FINANCE -->
       <div class="adm-panel" id="adm-finance">
           <div class="admin-card">
-              <div class="card-label">Pending Withdrawals</div>
+              <div class="card-label" data-i18n="adm_wd_title">Pending Withdrawals</div>
               <div id="adm-withdrawals-list"></div>
           </div>
       </div>
@@ -862,8 +871,8 @@ img{display:block}
       <div class="adm-panel" id="adm-sponsors">
           <div class="admin-card">
               <div class="card-label" style="display:flex; justify-content:space-between;">
-                  <span>Sponsors</span>
-                  <button class="adm-btn" style="padding:2px 8px;" onclick="admShowAddSponsor()">+ Add</button>
+                  <span data-i18n="adm_sp_title">Sponsors</span>
+                  <button class="adm-btn" style="padding:2px 8px;" onclick="admShowAddSponsor()" data-i18n="adm_add_btn">+ Add</button>
               </div>
               <select class="adm-select" id="adm-sponsor-mode" onchange="admUpdateSponsorMode(this.value)" style="margin-bottom:10px;">
                   <option value="withdraw">Check at Withdraw</option>
@@ -874,8 +883,8 @@ img{display:block}
           
           <div class="admin-card">
               <div class="card-label" style="display:flex; justify-content:space-between;">
-                  <span>Promo Codes</span>
-                  <button class="adm-btn" style="padding:2px 8px;" onclick="admShowAddPromo()">+ Add</button>
+                  <span data-i18n="adm_promo_title">Promo Codes</span>
+                  <button class="adm-btn" style="padding:2px 8px;" onclick="admShowAddPromo()" data-i18n="adm_add_btn">+ Add</button>
               </div>
               <div id="adm-promos-list"></div>
           </div>
@@ -884,38 +893,37 @@ img{display:block}
       <!-- ADM: SYSTEM -->
       <div class="adm-panel" id="adm-system">
           <div class="admin-card">
-              <div class="card-label">Broadcast</div>
+              <div class="card-label" data-i18n="adm_bc_title">Broadcast</div>
               <textarea id="adm-bc-text" class="adm-input" rows="3" placeholder="HTML message to all users..."></textarea>
-              <button class="adm-btn primary" style="margin-top:6px; width:100%;" onclick="admBroadcast()">Send Broadcast</button>
+              <button class="adm-btn primary" style="margin-top:6px; width:100%;" onclick="admBroadcast()" data-i18n="adm_bc_btn">Send Broadcast</button>
           </div>
           
           <div class="admin-card">
-              <div class="card-label">Maintenance Mode</div>
+              <div class="card-label" data-i18n="adm_maint_title">Maintenance Mode</div>
               <div style="display:flex; gap:6px;">
-                  <select id="adm-maint-mode" class="adm-select" style="margin:0;">
+                  <select id="adm-maint-mode" class="adm-select" style="margin:0; flex:1; min-width:0;">
                       <option value="0">OFF</option>
                       <option value="1">ON</option>
                   </select>
-                  <input type="datetime-local" id="adm-maint-end" class="adm-input" style="margin:0;">
+                  <input type="datetime-local" id="adm-maint-end" class="adm-input" style="margin:0; flex:1; min-width:0;">
               </div>
-              <button class="adm-btn" style="margin-top:6px; width:100%;" onclick="admSaveMaintenance()">Save Maintenance</button>
+              <button class="adm-btn" style="margin-top:6px; width:100%;" onclick="admSaveMaintenance()" data-i18n="adm_maint_save">Save Maintenance</button>
           </div>
           
           <div class="admin-card">
-              <div class="card-label">Bulk Actions & Cleanup</div>
+              <div class="card-label" data-i18n="adm_bulk_title">Bulk Actions & Cleanup</div>
               <div class="adm-grid">
-                  <button class="adm-btn" onclick="admPostBulk('reset_slots')">Reset All Slots</button>
-                  <button class="adm-btn" onclick="admPostBulk('last_spin')">Reset All Wheels</button>
-                  <button class="adm-btn danger" onclick="admCleanup('30d')">Del Photos > 30d</button>
-                  <button class="adm-btn danger" onclick="admCleanup('7d')">Del Photos > 7d</button>
-                  <button class="adm-btn primary" style="grid-column: span 2;" onclick="admSellAll()">⚡ Sell All Active Photos</button>
-                  <button class="adm-btn" style="grid-column: span 2;" onclick="admShowGlobalWheel()">🎡 Edit Global Wheel</button>
+                  <button class="adm-btn" onclick="admPostBulk('reset_slots')" data-i18n="adm_bulk_rs">Reset All Slots</button>
+                  <button class="adm-btn" onclick="admPostBulk('last_spin')" data-i18n="adm_bulk_rw">Reset All Wheels</button>
+                  <button class="adm-btn danger" onclick="admCleanup('30d')" data-i18n="adm_bulk_d30">Del Photos > 30d</button>
+                  <button class="adm-btn danger" onclick="admCleanup('7d')" data-i18n="adm_bulk_d7">Del Photos > 7d</button>
+                  <button class="adm-btn primary" style="grid-column: span 2;" onclick="admSellAll()" data-i18n="adm_bulk_sell">⚡ Sell All Active Photos</button>
+                  <button class="adm-btn" style="grid-column: span 2;" onclick="admShowGlobalWheel()" data-i18n="adm_bulk_wheel">🎡 Edit Global Wheel</button>
               </div>
           </div>
       </div>
 
     </div>
-
   </div>
 </div>
 
@@ -997,7 +1005,22 @@ const TRANSLATIONS = {
     ref_count_sub:"referrals",
     ban_title:"Account Suspended",
     ban_desc:"Your account has been blocked for violation of terms. If you believe this is a mistake, close this app and send a message directly to the bot to contact support.",
-    maint_title:"Maintenance Break", maint_desc:"We are currently updating the platform. Please check back later!"
+    maint_title:"Maintenance Break", maint_desc:"We are currently updating the platform. Please check back later!",
+    
+    adm_title: "👑 Admin CRM",
+    adm_menu_stats: "Stats & Chat", adm_menu_users: "Users", adm_menu_fin: "Finance", adm_menu_promo: "Sponsors/Promo", adm_menu_sys: "System",
+    adm_stat_users: "Users", adm_stat_dau: "DAU", adm_stat_new: "New Today", adm_stat_files: "Files Stored",
+    adm_recent_tickets: "Support Tickets", adm_no_tickets: "No tickets.",
+    adm_find_user: "Find User", adm_search_btn: "Search",
+    adm_user_info: "User Info", adm_banned: "Banned", adm_save_btn: "💾 Save Changes",
+    adm_qa_title: "Quick Actions", adm_qa_rw: "Reset Wheel", adm_qa_sell: "Sell All Now", adm_qa_rs: "Reset Daily Slots", adm_qa_bs: "+ Bonus Slots", adm_qa_chat: "💬 Open Chat", adm_qa_pw: "Personal Wheel Config",
+    adm_qa_bs_p: "Add bonus slots:", adm_qa_pw_p: "Set 5 chances (or /reset):",
+    adm_wd_title: "Pending Withdrawals", adm_no_wd: "No pending requests.", adm_approve: "Approve", adm_reject: "Reject",
+    adm_sp_title: "Sponsors", adm_add_btn: "+ Add", adm_promo_title: "Promo Codes",
+    adm_bc_title: "Broadcast", adm_bc_btn: "Send Broadcast",
+    adm_maint_title: "Maintenance Mode", adm_maint_save: "Save Maintenance",
+    adm_bulk_title: "Bulk Actions & Cleanup", adm_bulk_rs: "Reset All Slots", adm_bulk_rw: "Reset All Wheels", adm_bulk_d30: "Del Photos > 30d", adm_bulk_d7: "Del Photos > 7d", adm_bulk_sell: "⚡ Sell All Active Photos", adm_bulk_wheel: "🎡 Edit Global Wheel",
+    adm_chat_close: "🔒 Close", adm_chat_wipe: "🗑 Wipe", adm_chat_you: "You:"
   },
   ru:{
     hdr_sub:"Платформа аукциона фото",
@@ -1072,7 +1095,22 @@ const TRANSLATIONS = {
     ref_count_sub:"рефералов",
     ban_title:"Аккаунт Заблокирован",
     ban_desc:"Ваш аккаунт был заблокирован за нарушение правил. Если вы считаете, что это ошибка, закройте приложение и напишите сообщение прямо в бота для связи с поддержкой.",
-    maint_title:"Технические работы", maint_desc:"Платформа обновляется. Мы скоро вернемся!"
+    maint_title:"Технические работы", maint_desc:"Платформа обновляется. Мы скоро вернемся!",
+    
+    adm_title: "👑 Админ Панель",
+    adm_menu_stats: "Статистика и Чат", adm_menu_users: "Пользователи", adm_menu_fin: "Финансы", adm_menu_promo: "Спонсоры/Промо", adm_menu_sys: "Система",
+    adm_stat_users: "Юзеры", adm_stat_dau: "DAU (Актив)", adm_stat_new: "Новые за день", adm_stat_files: "Файлов фото",
+    adm_recent_tickets: "Тикеты поддержки", adm_no_tickets: "Нет тикетов.",
+    adm_find_user: "Найти пользователя", adm_search_btn: "Поиск",
+    adm_user_info: "Информация", adm_banned: "Заблокирован", adm_save_btn: "💾 Сохранить",
+    adm_qa_title: "Быстрые действия", adm_qa_rw: "Сброс Колеса", adm_qa_sell: "Продать все сейчас", adm_qa_rs: "Сброс слотов", adm_qa_bs: "+ Бонусные слоты", adm_qa_chat: "💬 Открыть Чат", adm_qa_pw: "Персональная рулетка",
+    adm_qa_bs_p: "Добавить бонусных слотов:", adm_qa_pw_p: "Установите 5 шансов (или /reset):",
+    adm_wd_title: "Заявки на вывод", adm_no_wd: "Нет активных заявок.", adm_approve: "Одобрить", adm_reject: "Отклонить",
+    adm_sp_title: "Спонсоры", adm_add_btn: "+ Добавить", adm_promo_title: "Промокоды",
+    adm_bc_title: "Рассылка", adm_bc_btn: "Начать рассылку",
+    adm_maint_title: "Технические работы", adm_maint_save: "Сохранить настройки",
+    adm_bulk_title: "Массовые действия и Очистка", adm_bulk_rs: "Сброс слотов всем", adm_bulk_rw: "Сброс колеса всем", adm_bulk_d30: "Удалить фото > 30д", adm_bulk_d7: "Удалить фото > 7д", adm_bulk_sell: "⚡ Продать все на аукционе", adm_bulk_wheel: "🎡 Глобальная рулетка",
+    adm_chat_close: "🔒 Закрыть", adm_chat_wipe: "🗑 Удалить", adm_chat_you: "Вы:"
   }
 };
 
@@ -1084,6 +1122,11 @@ function applyTranslations(){
   document.querySelectorAll('[data-i18n-placeholder]').forEach(el => { el.placeholder = t(el.getAttribute('data-i18n-placeholder')); });
   document.getElementById('lang-toggle').textContent = currentLang === 'en' ? 'RU' : 'EN';
   updateWheelUI();
+  
+  // Если админская вкладка открыта, перезагружаем для перевода динамических данных
+  if(document.querySelector('.tab.active')?.dataset.tab === 'admin') {
+      admLoadDashboard();
+  }
 }
 
 function toggleLang(){
@@ -2020,8 +2063,13 @@ function autoResize(el){ el.style.height = 'auto'; el.style.height = Math.min(el
 //  ADMIN PANEL WEBAPP LOGIC
 // ═══════════════════════════════════════════════════════════════
 
+function toggleAdmMenu() {
+    const el = document.getElementById('adm-menu-overlay');
+    el.classList.toggle('open');
+}
+
 function switchAdmTab(name){
-  document.querySelectorAll('.adm-tab').forEach(t => t.classList.toggle('active', t.textContent.toLowerCase().includes(name.substring(0,3))));
+  toggleAdmMenu();
   document.querySelectorAll('.adm-panel').forEach(p => p.classList.remove('active'));
   document.getElementById('adm-'+name).classList.add('active');
 }
@@ -2037,32 +2085,32 @@ async function admLoadDashboard() {
         
         // Stats
         document.getElementById('adm-stats-grid').innerHTML = `
-            <div class="adm-stat-box"><div class="adm-stat-val">${data.stats.total_users}</div><div class="adm-stat-lbl">Users</div></div>
-            <div class="adm-stat-box"><div class="adm-stat-val">${data.stats.active_today}</div><div class="adm-stat-lbl">DAU</div></div>
-            <div class="adm-stat-box"><div class="adm-stat-val">+${data.stats.new_today}</div><div class="adm-stat-lbl">New Today</div></div>
-            <div class="adm-stat-box"><div class="adm-stat-val">${data.stats.photos_files}</div><div class="adm-stat-lbl">Files stored</div></div>
+            <div class="adm-stat-box"><div class="adm-stat-val">${data.stats.total_users}</div><div class="adm-stat-lbl">${t('adm_stat_users')}</div></div>
+            <div class="adm-stat-box"><div class="adm-stat-val">${data.stats.active_today}</div><div class="adm-stat-lbl">${t('adm_stat_dau')}</div></div>
+            <div class="adm-stat-box"><div class="adm-stat-val">+${data.stats.new_today}</div><div class="adm-stat-lbl">${t('adm_stat_new')}</div></div>
+            <div class="adm-stat-box"><div class="adm-stat-val">${data.stats.photos_files}</div><div class="adm-stat-lbl">${t('adm_stat_files')}</div></div>
         `;
         
         // Chats
         const rc = document.getElementById('adm-recent-chats');
-        if(!data.recent_chats.length) rc.innerHTML = '<div class="empty-state">No tickets.</div>';
+        if(!data.recent_chats.length) rc.innerHTML = `<div class="empty-state">${t('adm_no_tickets')}</div>`;
         else rc.innerHTML = data.recent_chats.map(c => `
             <div class="adm-list-item" style="cursor:pointer" onclick="openAdminChat(${c.user_id}, '${escHtml(c.username || c.user_id)}')">
                 <div style="font-weight:bold; font-size:13px;">@${c.username || c.user_id}</div>
-                <div style="font-size:11px; color:var(--text-2); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${c.direction==='out'?'You: ':''}${escHtml(c.text || '[Image]')}</div>
+                <div style="font-size:11px; color:var(--text-2); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${c.direction==='out'?t('adm_chat_you')+' ':''}${escHtml(c.text || '[Image]')}</div>
             </div>`).join('');
             
         // Finances
         const wd = document.getElementById('adm-withdrawals-list');
-        if(!data.withdrawals.length) wd.innerHTML = '<div class="empty-state">No pending requests.</div>';
+        if(!data.withdrawals.length) wd.innerHTML = `<div class="empty-state">${t('adm_no_wd')}</div>`;
         else wd.innerHTML = data.withdrawals.map(w => `
             <div class="adm-list-item">
                 <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
                     <b>ID ${w.user_id}</b> <b style="color:var(--green)">$${w.amount_usd}</b>
                 </div>
                 <div style="display:flex; gap:6px;">
-                    <button class="adm-btn primary" style="flex:1" onclick="admHandleWd(${w.id}, 'approve')">Approve</button>
-                    <button class="adm-btn danger" style="flex:1" onclick="admHandleWd(${w.id}, 'reject')">Reject</button>
+                    <button class="adm-btn primary" style="flex:1" onclick="admHandleWd(${w.id}, 'approve')">${t('adm_approve')}</button>
+                    <button class="adm-btn danger" style="flex:1" onclick="admHandleWd(${w.id}, 'reject')">${t('adm_reject')}</button>
                 </div>
             </div>`).join('');
             
@@ -2090,6 +2138,7 @@ async function admLoadDashboard() {
 
 // -- USERS --
 let admCurrentUserId = null;
+let admCurrentUsername = null;
 async function admSearchUser() {
     const uid = document.getElementById('adm-search-uid').value.trim();
     if(!uid) return;
@@ -2098,7 +2147,8 @@ async function admSearchUser() {
         if(!r.ok) return showToast('User not found', 'error');
         const data = await r.json();
         admCurrentUserId = data.user.user_id;
-        document.getElementById('adm-u-title').textContent = `User ${data.user.user_id} (@${data.user.username || '-'})`;
+        admCurrentUsername = data.user.username || data.user.user_id;
+        document.getElementById('adm-u-title').textContent = `${t('adm_user_info')} ${data.user.user_id} (@${data.user.username || '-'})`;
         document.getElementById('adm-u-bal').value = data.user.balance;
         document.getElementById('adm-u-earn').value = data.user.total_earned;
         document.getElementById('adm-u-sold').value = data.user.photos_sold;
@@ -2135,6 +2185,11 @@ async function admUserAction(action, val='') {
 function admPromptAction(action, text) {
     const v = prompt(text);
     if(v !== null) admUserAction(action, v);
+}
+
+function admOpenChatWithFoundUser() {
+    if(!admCurrentUserId) return;
+    openAdminChat(admCurrentUserId, `@${admCurrentUsername}`);
 }
 
 // -- WITHDRAWALS --
@@ -2267,7 +2322,7 @@ function renderAdminChatMsgs(msgs) {
     return `<div class="chat-bubble ${isFromAdmin ? 'from-admin' : 'from-user'}">
         ${actions}
         ${escHtml(m.text)}${imgHtml}
-        <div class="bubble-meta">${isFromAdmin ? 'You' : 'User'} · ${new Date(m.created_at + 'Z').toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</div>
+        <div class="bubble-meta">${isFromAdmin ? t('adm_chat_you') : 'User'} ${new Date(m.created_at + 'Z').toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</div>
     </div>`;
   }).join('');
   container.scrollTop = container.scrollHeight;
@@ -2337,7 +2392,7 @@ async function sendAdminSupportMsg() {
 }
 document.getElementById('admin-chat-input').addEventListener('keydown', e => { if(e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); sendAdminSupportMsg(); } });
 
-init();
+applyTranslations();
 </script>
 </body>
 </html>
