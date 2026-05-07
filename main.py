@@ -777,53 +777,52 @@ async def api_generate_story(init_data: str = Header(None, alias="X-Telegram-Ini
     
     stories_dir = UPLOADS_DIR / "stories"
     stories_dir.mkdir(parents=True, exist_ok=True)
-    out_filename = f"story_{uid}.jpg"
+    
+    # Удаляем старые сторис этого юзера, чтобы не забивать память
+    for f in stories_dir.glob(f"story_{uid}_*.jpg"):
+        try: f.unlink()
+        except: pass
+
+    # УНИКАЛЬНОЕ ИМЯ ФАЙЛА (чтобы Telegram не брал черную картинку из кэша)
+    unique_id = int(time.time())
+    out_filename = f"story_{uid}_{unique_id}.jpg"
     out_filepath = stories_dir / out_filename
     
     try:
-        # Создаем картинку
         width, height = 1080, 1920
-        img = Image.new("RGB", (width, height), "#030205")
+        # Делаем фон ярким фиолетово-синим, чтобы он точно не казался черным
+        img = Image.new("RGB", (width, height), "#0f0c29")
         draw = ImageDraw.Draw(img)
         
-        # ИСПРАВЛЕНО: правильный формат координат для Pillow
-        draw.ellipse([-200, 200, 700, 1100], fill="#2e1065")
-        draw.ellipse([400, 1000, 1300, 1900], fill="#0f172a")
-        draw.ellipse([200, 600, 900, 1300], fill="#022c22")
+        # Яркие неоновые круги
+        draw.ellipse([-200, -200, 800, 800], fill="#4c1d95") # Фиолетовый
+        draw.ellipse([400, 1000, 1400, 2000], fill="#1e3a8a") # Синий
+        draw.ellipse([100, 600, 900, 1400], fill="#064e3b") # Зеленый
         
-        # Блюр фона (обрабатываем ошибку для старых версий Pillow)
         try:
-            img = img.filter(ImageFilter.GaussianBlur(80))
+            img = img.filter(ImageFilter.GaussianBlur(100))
             draw = ImageDraw.Draw(img)
         except:
             pass
         
-        # Рисуем интерфейс
+        # Стеклянная карточка
         try:
-            draw.rounded_rectangle([60, 360, 1020, 1380], radius=50, outline="#1e293b", width=4)
-            draw.rounded_rectangle([72, 372, 1008, 1368], radius=38, fill="#07060a", outline="#3b82f6", width=2)
+            draw.rounded_rectangle([80, 400, 1000, 1400], radius=40, outline="#38bdf8", width=4)
+            draw.rounded_rectangle([90, 410, 990, 1390], radius=30, fill="#020617", outline="#818cf8", width=2)
         except AttributeError:
-            draw.rectangle([60, 360, 1020, 1380], outline="#1e293b", width=4)
-            draw.rectangle([72, 372, 1008, 1368], fill="#07060a", outline="#3b82f6", width=2)
+            draw.rectangle([80, 400, 1000, 1400], outline="#38bdf8", width=4)
+            draw.rectangle([90, 410, 990, 1390], fill="#020617", outline="#818cf8", width=2)
         
-        draw.line([(150, 435), (930, 435)], fill="#1e293b", width=3)
-        draw.line([(150, 1170), (930, 1170)], fill="#1e293b", width=3)
-        draw.line([(72, 650), (1008, 650)], fill="#22c55e", width=2)
-        
-        # Загрузка шрифта
         def get_font(size):
             if os.path.exists(FONT_PATH):
-                try:
-                    return ImageFont.truetype(FONT_PATH, size)
-                except Exception:
-                    pass
+                try: return ImageFont.truetype(FONT_PATH, size)
+                except: pass
             return ImageFont.load_default()
         
         f_huge = get_font(120)
-        f_medium = get_font(52)
+        f_medium = get_font(50)
         f_small = get_font(34)
         
-        # Данные пользователя
         username = p.get("username") or f"user_{uid}"
         if not username.startswith("@") and username != f"user_{uid}":
             username = f"@{username}"
@@ -832,17 +831,16 @@ async def api_generate_story(init_data: str = Header(None, alias="X-Telegram-Ini
         sold = p.get("photos_sold", 0)
         vip_lvl = vip_level(p.get("referrals_count", 0))
         
-        draw.text((150, 490), "PHOTOFLIP MOBILE PLATFORM", fill="#3b82f6", font=f_small)
-        draw.text((150, 550), username, fill="#ffffff", font=f_medium)
+        draw.text((150, 480), "PHOTOFLIP ESTIMATION", fill="#38bdf8", font=f_small)
+        draw.text((150, 540), username, fill="#ffffff", font=f_medium)
         
         val_to_show = earned if earned > 0 else 185.50
-        draw.text((150, 690), "ESTIMATED VALUATION:", fill="#94a3b8", font=f_small)
-        draw.text((150, 760), f"${val_to_show:.2f}", fill="#22c55e", font=f_huge)
+        draw.text((150, 690), "TOTAL VALUE:", fill="#94a3b8", font=f_small)
+        draw.text((150, 760), f"${val_to_show:.2f}", fill="#4ade80", font=f_huge) # Ярко-зеленый цвет
         
-        draw.text((150, 940), f"VIP Status: Level {vip_lvl}", fill="#f59e0b", font=f_medium)
-        draw.text((150, 1020), f"Photos Sold: {sold}", fill="#e2e8f0", font=f_medium)
-        draw.text((150, 1100), f"Active Invitees: {p.get('referrals_count', 0)}", fill="#e2e8f0", font=f_medium)
-        draw.text((150, 1200), "Scan & value your photos instantly.", fill="#64748b", font=f_small)
+        draw.text((150, 960), f"VIP Status: Level {vip_lvl}", fill="#fcd34d", font=f_medium)
+        draw.text((150, 1040), f"Photos Sold: {sold}", fill="#e2e8f0", font=f_medium)
+        draw.text((150, 1120), f"Active Referrals: {p.get('referrals_count', 0)}", fill="#e2e8f0", font=f_medium)
         
         img.save(out_filepath, "JPEG", quality=90)
         
