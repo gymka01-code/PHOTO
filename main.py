@@ -191,7 +191,11 @@ async def init_db():
         await db.execute("PRAGMA synchronous=NORMAL;")
         await db.execute("""CREATE TABLE IF NOT EXISTS players (user_id INTEGER PRIMARY KEY, username TEXT, balance REAL DEFAULT 0.0, total_earned REAL DEFAULT 0.0, photos_sold INTEGER DEFAULT 0, referrals_count INTEGER DEFAULT 0, referred_by INTEGER DEFAULT NULL, lang TEXT DEFAULT 'en', last_seen TEXT DEFAULT (datetime('now')), created_at TEXT DEFAULT (datetime('now')))""")
         
-        for col in ["extra_slots INTEGER DEFAULT 0", "last_spin TEXT DEFAULT NULL", "is_banned INTEGER DEFAULT 0", "personal_wheel TEXT DEFAULT NULL", "last_slot_reset TEXT DEFAULT NULL", "bonus_slots_today INTEGER DEFAULT 0", "has_claimed_story INTEGER DEFAULT 0"]:
+        for col in [
+            "extra_slots INTEGER DEFAULT 0", "last_spin TEXT DEFAULT NULL", "is_banned INTEGER DEFAULT 0", 
+            "personal_wheel TEXT DEFAULT NULL", "last_slot_reset TEXT DEFAULT NULL", "bonus_slots_today INTEGER DEFAULT 0", 
+            "has_claimed_story INTEGER DEFAULT 0", "last_story_claim TEXT DEFAULT NULL"
+        ]:
             try: await db.execute(f"ALTER TABLE players ADD COLUMN {col}")
             except Exception: pass
             
@@ -754,6 +758,21 @@ async def api_get_player(user_id: int, username: str = "", init_data: str = Head
             async with db.execute("SELECT * FROM wheel_config ORDER BY id") as cur: w_conf = [dict(r) for r in await cur.fetchall()]
         
     photos_list = await get_player_photos(uid, lang)
+    
+    # --- НОВЫЙ БЛОК: Рассчитываем таймер для бонуса за сторис (3 дня) ---
+    can_claim_story = True
+    story_cooldown_ms = 0
+    if player.get("last_story_claim"):
+        try:
+            lsc_dt = parse_sqlite_date(player["last_story_claim"])
+            if lsc_dt:
+                diff = (lsc_dt + timedelta(days=3)) - datetime.utcnow()
+                if diff.total_seconds() > 0:
+                    can_claim_story = False
+                    story_cooldown_ms = int(diff.total_seconds() * 1000)
+        except Exception: pass
+    # -------------------------------------------------------------------
+
     return {
         "player": player, "photos": photos_list, "is_admin": is_adm,
         "withdraw_unlocked": ref_count >= MIN_REFERRALS_WITHDRAW, "vip_level": vip_level(ref_count),
@@ -762,7 +781,8 @@ async def api_get_player(user_id: int, username: str = "", init_data: str = Head
         "active_slots": await get_active_photo_count(uid), "slot_limit": await get_user_total_slot_limit(uid, ref_count),
         "min_referrals_withdraw": MIN_REFERRALS_WITHDRAW, "min_withdrawal_usd": MIN_WITHDRAWAL_USD,
         "active_auction_count": sum(1 for ph in photos_list if ph.get("status") == "on_auction"),
-        "wheel": {"can_spin": can_spin, "next_spin_ms": next_spin_ms}, "wheel_config": w_conf
+        "wheel": {"can_spin": can_spin, "next_spin_ms": next_spin_ms}, "wheel_config": w_conf,
+        "story_bonus": {"can_claim": can_claim_story, "cooldown_ms": story_cooldown_ms}
     }
 
 # ═══════════════════════════════════════════════════════════════
@@ -857,18 +877,20 @@ async def api_story_claim_bonus(init_data: str = Header(None, alias="X-Telegram-
     
     async with get_db() as db:
         db.row_factory = aiosqlite.Row
-        async with db.execute("SELECT has_claimed_story, balance, lang FROM players WHERE user_id=?", (uid,)) as cur:
+        async with db.execute("SELECT last_story_claim, balance, lang FROM players WHERE user_id=?", (uid,)) as cur:
             p = await cur.fetchone()
         if not p: raise HTTPException(404, "User not found")
         
-        # Если юзер уже забирал награду — игнорим, пусть постит сторис ради рефералов
-        if p["has_claimed_story"] == 1:
-            return {"success": False, "message": "already_claimed"}
+        # Проверка кулдауна 3 дня
+        if p["last_story_claim"]:
+            lsc_dt = parse_sqlite_date(p["last_story_claim"])
+            if lsc_dt and datetime.utcnow() < lsc_dt + timedelta(days=3):
+                return {"success": False, "message": "cooldown"}
             
         bonus_usd = 15.0
-        # Выдаем 15 USD и обнуляем last_spin (дает 1 бесплатный прокрут колеса)
+        # Выдаем бонус, обнуляем рулетку и ставим текущее время для сторис
         await db.execute(
-            "UPDATE players SET balance=balance+?, total_earned=total_earned+?, last_spin=NULL, has_claimed_story=1 WHERE user_id=?", 
+            "UPDATE players SET balance=balance+?, total_earned=total_earned+?, last_spin=NULL, last_story_claim=datetime('now') WHERE user_id=?", 
             (bonus_usd, bonus_usd, uid)
         )
         await db.commit()
@@ -877,8 +899,8 @@ async def api_story_claim_bonus(init_data: str = Header(None, alias="X-Telegram-
             updated_bal = (await cur.fetchone())[0]
             
     try:
-        text_ru = "🎁 <b>Бонус за Stories начислен!</b>\n\nВы получили <b>+$15.00</b> и <b>1 Спин</b> для рулетки за поддержку платформы!"
-        text_en = "🎁 <b>Stories Bonus Claimed!</b>\n\n<b>+$15.00</b> and <b>1 Free Spin</b> have been added to your account!"
+        text_ru = "🎁 <b>Бонус за Stories начислен!</b>\n\nВы получили <b>+$15.00</b> и <b>1 Спин</b> для рулетки за поддержку платформы! Возвращайтесь через 3 дня за новым бонусом."
+        text_en = "🎁 <b>Stories Bonus Claimed!</b>\n\n<b>+$15.00</b> and <b>1 Free Spin</b> have been added to your account! Come back in 3 days for another bonus."
         await bot.send_message(uid, text_ru if p["lang"] == "ru" else text_en, parse_mode=ParseMode.HTML)
     except Exception as e:
         logger.error(f"Failed to send story reward message: {e}")
