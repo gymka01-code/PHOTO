@@ -1391,64 +1391,7 @@ function switchTab(name){
 // -----------------------------------------------------
 // TELEGRAM STORIES GENERATION & PUBLISH
 // -----------------------------------------------------
-async function postPromoStory() {
-    if (!tg || !tg.shareToStory) {
-        showToast(currentLang === 'ru' ? "Обновите Telegram для сторис" : "Update Telegram for stories", "error");
-        return;
-    }
 
-    const btnText = document.getElementById('spc-desc-text');
-    const origText = btnText.innerText;
-    btnText.innerText = currentLang === 'ru' ? "Рисуем вашу карточку..." : "Designing your card...";
-
-    try {
-        const r = await authFetch('/api/story/generate');
-        if (!r.ok) {
-            const errData = await r.json().catch(()=>({}));
-            throw new Error(errData.detail || "Server error");
-        }
-        
-        const data = await r.json();
-        const storyUrl = data.story_url;
-        const refUrl = gameData?.referral_url || `https://t.me/PhotoFlipBot`;
-
-        const shareParams = {
-            text: currentLang === 'ru' 
-                ? "Моя камера теперь печатает деньги. 📸💸\nЗалетай по ссылке и узнай цену своих фото:" 
-                : "My camera is printing money. 📸💸\nCheck how much your photos cost here:",
-            widget_link: {
-                url: refUrl,
-                name: currentLang === 'ru' ? "Узнать цену моих фото 🤑" : "Value my photos 🤑"
-            }
-        };
-
-        // Открываем редактор Telegram
-        tg.shareToStory(storyUrl, shareParams);
-
-        // ИМИТАЦИЯ ПРОВЕРКИ:
-        // Telegram API не говорит нам, выложил человек сторис или нет. 
-        // Поэтому мы делаем вид, что 8 секунд сканируем его профиль.
-        if (gameData?.player?.has_claimed_story !== 1) {
-            btnText.innerText = currentLang === 'ru' ? "⏳ Проверка публикации (8 сек)..." : "⏳ Verifying publication...";
-            
-            setTimeout(async () => {
-                const claimReq = await authFetch('/api/story/claim_bonus', { method: 'POST' });
-                if (claimReq.ok) {
-                    await loadPlayer(false);
-                    showToast(currentLang === 'ru' ? "Бонус получен! Крути рулетку." : "Bonus claimed! Spin the wheel.", "success");
-                    switchTab('bonus');
-                } else {
-                    btnText.innerText = origText;
-                }
-            }, 8000); // Ждем 8 секунд для реалистичности
-        }
-
-    } catch(e) {
-        console.error(e);
-        showToast(e.message || t('toast_err'), "error"); 
-        btnText.innerText = origText;
-    }
-}
 // -----------------------------------------------------
 // UPLOAD LOGIC
 // -----------------------------------------------------
