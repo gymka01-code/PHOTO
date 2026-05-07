@@ -560,7 +560,7 @@ async def cb_check_sub(cb: CallbackQuery):
 async def cmd_admin(message: Message):
     if not await is_admin(message.from_user.id): return
     kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="Отрыть Админ Панель", web_app=WebAppInfo(url=WEBAPP_URL))]])
-    await message.answer("👑 <b>Админ Панель теперь в приложении!</b>\nОткройте WebApp и перейдите во вкладку <b>Admin</b> (оранжевая).", parse_mode=ParseMode.HTML, reply_markup=kb)
+    await message.answer("👑 <b>Админ Панель теперь в приложении!</b>\nОткройте WebApp и перейдите во вкладку через <b>☰ Меню</b> -> <b>Admin</b>.", parse_mode=ParseMode.HTML, reply_markup=kb)
 
 @dp.message(F.reply_to_message)
 async def admin_native_reply(message: Message):
@@ -585,7 +585,7 @@ async def admin_native_reply(message: Message):
         if not tkt: return
         uid, status = tkt[0], tkt[1]
         
-        # Переоткрываем тикет, если он был закрыт, чтобы история продолжалась
+        # Переоткрываем тикет, если он был закрыт
         if status == 'closed':
             await db.execute("UPDATE tickets SET status='open' WHERE id=?", (tkt_id,))
         
@@ -1241,7 +1241,7 @@ async def api_admin_chat_send(target_uid: int = Form(...), text: str = Form(""),
     if not text and not img_filename: raise HTTPException(400, "Empty payload")
     
     async with get_db() as db:
-        async with db.execute("SELECT id, status FROM tickets WHERE user_id=? ORDER BY id DESC LIMIT 1", (target_uid,)) as cur:
+        async with db.execute("SELECT id FROM tickets WHERE user_id=? ORDER BY id DESC LIMIT 1", (target_uid,)) as cur:
             tkt = await cur.fetchone()
         
         if tkt: 
