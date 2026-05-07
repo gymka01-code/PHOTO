@@ -781,24 +781,24 @@ async def api_generate_story(init_data: str = Header(None, alias="X-Telegram-Ini
     out_filepath = stories_dir / out_filename
     
     try:
-        # Создаем картинку сразу в памяти (безопасный метод)
+        # Создаем картинку
         width, height = 1080, 1920
         img = Image.new("RGB", (width, height), "#030205")
         draw = ImageDraw.Draw(img)
         
-        # Рисуем градиентные свечения
-        draw.ellipse([(-200, 200, 700, 1100)], fill="#2e1065")
-        draw.ellipse([(400, 1000, 1300, 1900)], fill="#0f172a")
-        draw.ellipse([(200, 600, 900, 1300)], fill="#022c22")
+        # ИСПРАВЛЕНО: правильный формат координат для Pillow
+        draw.ellipse([-200, 200, 700, 1100], fill="#2e1065")
+        draw.ellipse([400, 1000, 1300, 1900], fill="#0f172a")
+        draw.ellipse([200, 600, 900, 1300], fill="#022c22")
         
-        # Безопасный блюр (игнорим ошибку на старых версиях Pillow)
+        # Блюр фона (обрабатываем ошибку для старых версий Pillow)
         try:
             img = img.filter(ImageFilter.GaussianBlur(80))
             draw = ImageDraw.Draw(img)
         except:
             pass
         
-        # Безопасное скругление углов интерфейса
+        # Рисуем интерфейс
         try:
             draw.rounded_rectangle([60, 360, 1020, 1380], radius=50, outline="#1e293b", width=4)
             draw.rounded_rectangle([72, 372, 1008, 1368], radius=38, fill="#07060a", outline="#3b82f6", width=2)
@@ -810,7 +810,7 @@ async def api_generate_story(init_data: str = Header(None, alias="X-Telegram-Ini
         draw.line([(150, 1170), (930, 1170)], fill="#1e293b", width=3)
         draw.line([(72, 650), (1008, 650)], fill="#22c55e", width=2)
         
-        # Безопасная загрузка шрифта (если скачался битым - берет стандартный)
+        # Загрузка шрифта
         def get_font(size):
             if os.path.exists(FONT_PATH):
                 try:
@@ -823,6 +823,7 @@ async def api_generate_story(init_data: str = Header(None, alias="X-Telegram-Ini
         f_medium = get_font(52)
         f_small = get_font(34)
         
+        # Данные пользователя
         username = p.get("username") or f"user_{uid}"
         if not username.startswith("@") and username != f"user_{uid}":
             username = f"@{username}"
