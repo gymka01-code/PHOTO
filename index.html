@@ -1118,14 +1118,19 @@ function toggleLang(){
   updateUploadLock(); renderWithdrawPreviews();
   
   if (gameData?.player) {
-      if (gameData.player.has_claimed_story === 1) {
-          document.getElementById('spc-desc-text').textContent = t('story_promo_claimed');
-      } else {
-          document.getElementById('spc-desc-text').textContent = t('story_promo_text');
-      }
-      gameData.player.lang = currentLang;
-      updateHeader(gameData.player);
-  }
+      const storyReady = gameData?.story_bonus ? gameData.story_bonus.can_claim : true;
+    if (!storyReady) {
+        document.getElementById('spc-reward-tag').textContent = "🔗 REF";
+        document.getElementById('spc-reward-tag').style.background = "var(--blue)";
+        const hrs = Math.ceil((gameData?.story_bonus?.cooldown_ms || 0) / 3600000);
+        document.getElementById('spc-desc-text').textContent = currentLang === 'ru' 
+            ? `Бонус получен ✓ (Доступно через ${hrs} ч.)` 
+            : `Claimed ✓ (Available in ${hrs} h.)`;
+    } else {
+        document.getElementById('spc-reward-tag').textContent = "+$15 & 1 SPIN";
+        document.getElementById('spc-reward-tag').style.background = "var(--green)";
+        document.getElementById('spc-desc-text').textContent = t('story_promo_text');
+    }
 
   if(userId){
     authFetch(`/api/player/${userId}/lang`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ lang: currentLang }) }).catch(() => {});
@@ -1227,10 +1232,14 @@ async function loadPlayer(silent = false){
     gameData = data;
     
     // Check Story Bonus Status
-    if (gameData.player.has_claimed_story === 1) {
+    const storyReady = gameData.story_bonus ? gameData.story_bonus.can_claim : true;
+    if (!storyReady) {
         document.getElementById('spc-reward-tag').textContent = "🔗 REF";
         document.getElementById('spc-reward-tag').style.background = "var(--blue)";
-        document.getElementById('spc-desc-text').textContent = t('story_promo_claimed');
+        const hrs = Math.ceil(gameData.story_bonus.cooldown_ms / 3600000);
+        document.getElementById('spc-desc-text').textContent = currentLang === 'ru' 
+            ? `Бонус получен ✓ (Доступно через ${hrs} ч.)` 
+            : `Claimed ✓ (Available in ${hrs} h.)`;
     } else {
         document.getElementById('spc-reward-tag').textContent = "+$15 & 1 SPIN";
         document.getElementById('spc-reward-tag').style.background = "var(--green)";
@@ -1333,11 +1342,19 @@ async function recheckSub(){
   renderWithdrawPreviews(); renderVipBadge(gameData.vip_level); renderReferrals();
   updateWheelUI();
   
-  if (gameData?.player?.has_claimed_story === 1) {
-      document.getElementById('spc-reward-tag').textContent = "🔗 REF";
-      document.getElementById('spc-reward-tag').style.background = "var(--blue)";
-      document.getElementById('spc-desc-text').textContent = t('story_promo_claimed');
-  }
+  const storyReady = gameData?.story_bonus ? gameData.story_bonus.can_claim : true;
+    if (!storyReady) {
+        document.getElementById('spc-reward-tag').textContent = "🔗 REF";
+        document.getElementById('spc-reward-tag').style.background = "var(--blue)";
+        const hrs = Math.ceil((gameData?.story_bonus?.cooldown_ms || 0) / 3600000);
+        document.getElementById('spc-desc-text').textContent = currentLang === 'ru' 
+            ? `Бонус получен ✓ (Доступно через ${hrs} ч.)` 
+            : `Claimed ✓ (Available in ${hrs} h.)`;
+    } else {
+        document.getElementById('spc-reward-tag').textContent = "+$15 & 1 SPIN";
+        document.getElementById('spc-reward-tag').style.background = "var(--green)";
+        document.getElementById('spc-desc-text').textContent = t('story_promo_text');
+    }
   if(gameData.is_admin) {
       document.getElementById('menu-item-admin').style.display = 'block';
   }
@@ -1421,8 +1438,10 @@ async function postPromoStory() {
         // Открываем редактор Telegram
         tg.shareToStory(storyUrl, shareParams);
 
-        // Имитация проверки: ждем 8 секунд и выдаем бонус
-        if (gameData?.player?.has_claimed_story !== 1) {
+        // Имитация проверки: ждем 8 секунд и выдаем бонус, ЕСЛИ кулдаун прошел
+        const storyReady = gameData?.story_bonus ? gameData.story_bonus.can_claim : true;
+        
+        if (storyReady) {
             btnText.innerText = currentLang === 'ru' ? "⏳ Проверка публикации (8 сек)..." : "⏳ Verifying publication...";
             
             setTimeout(async () => {
@@ -1436,7 +1455,7 @@ async function postPromoStory() {
                 }
             }, 8000); 
         } else {
-            // Если бонус уже был получен ранее, просто возвращаем текст кнопки
+            // Если бонус недоступен (таймер еще идет), просто возвращаем текст кнопки обратно
             setTimeout(() => { btnText.innerText = origText; }, 2000);
         }
 
