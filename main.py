@@ -269,8 +269,6 @@ async def init_db():
         await db.execute("""CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)""")
         await db.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('maintenance_mode', '0')")
         await db.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('maintenance_end', '')")
-        
-        # Настройка спонсоров: startup или withdraw
         await db.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('sponsor_check_mode', 'withdraw')")
 
         await db.execute("CREATE INDEX IF NOT EXISTS idx_photos_auction ON photos(status, sell_at)")
@@ -597,7 +595,6 @@ async def sponsor_expiry_worker():
                 if expired: await db.commit()
         except: pass
 
-# Универсальная отправка или редактирование (возврат в меню)
 async def send_or_edit(obj, text: str, reply_markup=None, parse_mode=ParseMode.HTML):
     if isinstance(obj, CallbackQuery):
         try:
@@ -657,7 +654,7 @@ async def cb_check_sub(cb: CallbackQuery):
     if p: await _process_start(cb.message, cb.from_user.id, p)
 
 # ═══════════════════════════════════════════════════════════════
-#  АДМИН ПАНЕЛЬ (БОТ)
+#  АДМИН ПАНЕЛЬ
 # ═══════════════════════════════════════════════════════════════
 @dp.message(Command("admin"))
 @dp.message(Command("panel"))
@@ -675,7 +672,7 @@ async def cmd_admin(obj, state: FSMContext=None):
         [InlineKeyboardButton(text="🧹 Очистка памяти (Фото)", callback_data="crm_cleanup_menu")],
         [InlineKeyboardButton(text="🛠 Тех. работы", callback_data="crm_maintenance")],
     ])
-    await send_or_edit(obj, "👑 <b>Админ Панель CRM</b>\n\n<i>Внимание: для удобного общения с пользователями теперь есть раздел Admin Panel внутри WebApp!</i>\n\nВыберите раздел:", reply_markup=kb)
+    await send_or_edit(obj, "👑 <b>Админ Панель CRM</b>\nВыберите раздел:", reply_markup=kb)
 
 @dp.callback_query(F.data == "crm_main")
 async def cq_crm_main(cb: CallbackQuery, state: FSMContext):
@@ -1441,6 +1438,48 @@ async def sp_add_6(m: Message, state: FSMContext):
     await state.clear(); await m.answer("✅ Спонсор добавлен!"); await cq_sponsors(m)
 
 # ═════ ОТВЕТЫ АДМИНА В ТИКЕТАХ (С ФОТО) ═════
+@dp.message(F.reply_to_message)
+async def admin_native_reply(message: Message):
+    if not await is_admin(message.from_user.id): return
+    if not message.reply_to_message.text and not message.reply_to_message.caption: return
+    
+    src_text = message.reply_to_message.text or message.reply_to_message.caption
+    match = re.search(r"Тикет #(\d+)", src_text, re.IGNORECASE)
+    if not match: return
+    tkt_id = int(match.group(1))
+    
+    reply_text = message.text or message.caption or ""
+    image_name = None
+    
+    if message.photo:
+        image_name = f"sup_adm_{uuid.uuid4().hex[:8]}.jpg"
+        await bot.download(message.photo[-1].file_id, destination=SUPPORT_DIR / image_name)
+        
+    async with get_db() as db:
+        async with db.execute("SELECT user_id, status FROM tickets WHERE id=?", (tkt_id,)) as cur:
+            tkt = await cur.fetchone()
+        if not tkt: return
+        uid, status = tkt[0], tkt[1]
+        
+        if status == 'closed': return await message.reply("⚠️ Закрыт.")
+        if status == 'open':
+            await db.execute("UPDATE tickets SET status='claimed', claimed_by=? WHERE id=?", (message.from_user.id, tkt_id))
+            await db.execute("INSERT INTO support_messages (ticket_id, user_id, text, direction) VALUES (?,?,?, 'system')", (tkt_id, uid, f"👨‍💻 @{message.from_user.username or 'Admin'} в чате."))
+            
+        await db.execute("INSERT INTO support_messages (ticket_id, user_id, text, image, direction) VALUES (?,?,?,?,'out')", (tkt_id, uid, reply_text, image_name))
+        await db.commit()
+        
+    p = await get_player(uid)
+    try:
+        final_text = tr(p["lang"] if p else "en", "support_reply", text=reply_text) if reply_text else tr(p["lang"] if p else "en", "support_reply", text="[Фото]")
+        if image_name:
+            await bot.send_photo(uid, photo=FSInputFile(SUPPORT_DIR / image_name), caption=final_text, parse_mode=ParseMode.HTML)
+        else:
+            await bot.send_message(uid, final_text, parse_mode=ParseMode.HTML)
+        await message.reply("✅ Отправлено пользователю.")
+    except Exception:
+        await message.reply("❌ Юзер заблокировал бота, но он увидит ответ в приложении.")
+
 @dp.callback_query(F.data == "crm_tickets")
 async def call_tickets(cb: CallbackQuery):
     await cq_tickets(cb)
@@ -1466,6 +1505,28 @@ async def cq_tview(cb: CallbackQuery):
             msg = await cur.fetchone()
     kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🙋‍♂️ Взять", callback_data=f"crm_tclaim:{tkt_id}")], [InlineKeyboardButton(text="🔙 К списку", callback_data="crm_tickets")]])
     await cb.message.edit_text(f"📨 <b>Тикет #{tkt_id}</b>\n\n<i>{msg['text'] if msg else '[Фото]'}</i>", parse_mode=ParseMode.HTML, reply_markup=kb)
+
+@dp.callback_query(F.data.startswith("crm_tclaim:"))
+async def cq_tclaim(cb: CallbackQuery):
+    tkt_id = int(cb.data.split(":")[1])
+    async with get_db() as db:
+        async with db.execute("SELECT user_id, status FROM tickets WHERE id=?", (tkt_id,)) as cur:
+            tkt = await cur.fetchone()
+        if not tkt or tkt[1] != "open": return await cb.answer("Уже взят.", show_alert=True)
+        await db.execute("UPDATE tickets SET status='claimed', claimed_by=? WHERE id=?", (cb.from_user.id, tkt_id))
+        await db.execute("INSERT INTO support_messages (ticket_id, user_id, text, direction) VALUES (?,?,?, 'system')", (tkt_id, tkt[0], f"👨‍💻 @{cb.from_user.username or 'Admin'} в чате."))
+        await db.commit()
+    await cb.message.edit_text(f"✅ <b>Тикет #{tkt_id}</b> у вас. Делайте Reply на это сообщение, чтобы ответить. Можно прикреплять фото.", parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🔒 Закрыть", callback_data=f"crm_tclose:{tkt_id}")]]))
+
+@dp.callback_query(F.data.startswith("crm_tclose:"))
+async def cq_tclose(cb: CallbackQuery):
+    tkt_id = int(cb.data.split(":")[1])
+    async with get_db() as db:
+        async with db.execute("SELECT user_id FROM tickets WHERE id=?", (tkt_id,)) as cur: uid = (await cur.fetchone())[0]
+        await db.execute("UPDATE tickets SET status='closed' WHERE id=?", (tkt_id,))
+        await db.execute("INSERT INTO support_messages (ticket_id, user_id, text, direction) VALUES (?,?,?, 'system')", (tkt_id, uid, "✅ Завершен."))
+        await db.commit()
+    await cb.message.edit_text(f"✅ Тикет #{tkt_id} закрыт.", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🔙 К списку", callback_data="crm_tickets")]]))
 
 @dp.callback_query(F.data == "crm_wd")
 async def call_wd(cb: CallbackQuery):
@@ -1543,8 +1604,6 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="PhotoFlip", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 app.mount("/uploads", StaticFiles(directory=str(UPLOADS_DIR)), name="uploads")
-app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 @app.get("/")
 async def root(): return FileResponse("index.html")
@@ -1560,8 +1619,7 @@ async def api_feed():
     return {"events": events}
 
 @app.get("/api/player/{user_id}")
-@limiter.limit("30/minute")
-async def api_get_player(request: Request, user_id: int, username: str = "", init_data: str = Header(None, alias="X-Telegram-Init-Data")):
+async def api_get_player(user_id: int, username: str = "", init_data: str = Header(None, alias="X-Telegram-Init-Data")):
     uid = verify_webapp_data(init_data)
     if uid != user_id: raise HTTPException(403, "ID mismatch")
     
@@ -1637,8 +1695,7 @@ async def api_get_player(request: Request, user_id: int, username: str = "", ini
     }
 
 @app.post("/api/wheel/spin")
-@limiter.limit("5/minute")
-async def api_wheel_spin(request: Request, init_data: str = Header(None, alias="X-Telegram-Init-Data")):
+async def api_wheel_spin(init_data: str = Header(None, alias="X-Telegram-Init-Data")):
     uid = verify_webapp_data(init_data)
     await check_maintenance(uid)
     p = await get_player(uid)
@@ -1680,8 +1737,10 @@ async def api_wheel_spin(request: Request, init_data: str = Header(None, alias="
     return {"success": True, "prize": prize}
 
 @app.post("/api/buy/item")
-@limiter.limit("5/minute")
-async def api_buy_item(request: Request, item: str = Form(...), init_data: str = Header(None, alias="X-Telegram-Init-Data")):
+async def api_buy_item(
+    item: str = Form(...),
+    init_data: str = Header(None, alias="X-Telegram-Init-Data")
+):
     uid = verify_webapp_data(init_data)
     await check_maintenance(uid)
     
@@ -1709,8 +1768,7 @@ class PromoReq(BaseModel):
     code: str
 
 @app.post("/api/promo/activate")
-@limiter.limit("5/minute")
-async def api_promo_activate(request: Request, req: PromoReq, init_data: str = Header(None, alias="X-Telegram-Init-Data")):
+async def api_promo_activate(req: PromoReq, init_data: str = Header(None, alias="X-Telegram-Init-Data")):
     uid = verify_webapp_data(init_data)
     await check_maintenance(uid)
     code = req.code.strip().upper()
@@ -1772,9 +1830,12 @@ async def api_referrals(user_id: int, init_data: str = Header(None, alias="X-Tel
     return {"referrals": await get_referral_list(uid), "referrals_count": await get_referral_count(uid), "referral_url": await referral_url(uid)}
 
 @app.post("/api/upload")
-@limiter.limit("5/minute")
 async def api_upload(
-    request: Request, user_id: int = Form(...), username: str = Form(""), prices: str = Form(None), files: List[UploadFile] = File(...), init_data: str = Header(None, alias="X-Telegram-Init-Data")
+    user_id: int = Form(...), 
+    username: str = Form(""), 
+    prices: str = Form(None),
+    files: List[UploadFile] = File(...),
+    init_data: str = Header(None, alias="X-Telegram-Init-Data")
 ):
     uid = verify_webapp_data(init_data)
     await check_maintenance(uid)
@@ -1789,7 +1850,8 @@ async def api_upload(
 
     client_prices = []
     if prices:
-        try: client_prices = [int(float(x)) for x in prices.split(",")]
+        try:
+            client_prices = [int(float(x)) for x in prices.split(",")]
         except: pass
 
     saved_files = []
@@ -1799,9 +1861,7 @@ async def api_upload(
         if len(raw) > MAX_UPLOAD_SIZE:
             raise HTTPException(400, "File too large")
 
-        clean_bytes = await process_image_safe(raw)
-        photo_hash = hashlib.sha256(clean_bytes).hexdigest()
-
+        photo_hash = hashlib.sha256(raw).hexdigest()
         async with get_db() as db:
             async with db.execute("SELECT 1 FROM photos WHERE photo_hash=?", (photo_hash,)) as cur:
                 if await cur.fetchone():
@@ -1810,7 +1870,7 @@ async def api_upload(
 
         fn = f"{uuid.uuid4().hex}.jpg"
         filepath = UPLOADS_DIR / fn
-        await asyncio.to_thread(filepath.write_bytes, clean_bytes)
+        await asyncio.to_thread(filepath.write_bytes, raw)
         saved_files.append(fn)
 
     is_pack, results = len(saved_files) >= PACK_SIZE, []
@@ -1829,9 +1889,12 @@ async def api_upload(
             min_allowed = (PACK_MIN_RUB // PACK_SIZE) if is_pack else SINGLE_MIN_RUB
             max_allowed = (PACK_MAX_RUB // PACK_SIZE) if is_pack else SINGLE_MAX_RUB
             
-            if min_allowed <= cp <= max_allowed: rub_each.append(cp)
-            else: rub_each.append(fallback_price)
-        else: rub_each.append(fallback_price)
+            if min_allowed <= cp <= max_allowed:
+                rub_each.append(cp)
+            else:
+                rub_each.append(fallback_price)
+        else:
+            rub_each.append(fallback_price)
 
     async with get_db() as db:
         for i, fn in enumerate(saved_files):
@@ -1847,8 +1910,7 @@ async def api_upload(
     return {"batch_id": bid, "is_pack": is_pack, "photos": results, "total_rub": sum(rub_each), "slot_limit": lim, "active_after": act + len(saved_files)}
 
 @app.post("/api/withdraw/check")
-@limiter.limit("10/minute")
-async def api_withdraw_check(request: Request, init_data: str = Header(None, alias="X-Telegram-Init-Data")):
+async def api_withdraw_check(init_data: str = Header(None, alias="X-Telegram-Init-Data")):
     uid = verify_webapp_data(init_data)
     await check_maintenance(uid)
     missing = await check_all_subs(uid)
@@ -1856,7 +1918,6 @@ async def api_withdraw_check(request: Request, init_data: str = Header(None, ali
 
 @app.post("/api/withdraw")
 @app.post("/api/withdraw/stars")
-@limiter.limit("3/minute")
 async def api_withdraw_both(request: Request, init_data: str = Header(None, alias="X-Telegram-Init-Data")):
     uid = verify_webapp_data(init_data)
     await check_maintenance(uid)
@@ -1905,9 +1966,10 @@ async def api_support_messages(init_data: str = Header(None, alias="X-Telegram-I
             return {"messages": [dict(r) for r in await cur.fetchall()]}
 
 @app.post("/api/support/send")
-@limiter.limit("10/minute")
 async def api_support_send(
-    request: Request, text: str = Form(""), file: UploadFile = File(None), init_data: str = Header(None, alias="X-Telegram-Init-Data")
+    text: str = Form(""),
+    file: UploadFile = File(None),
+    init_data: str = Header(None, alias="X-Telegram-Init-Data")
 ):
     uid = verify_webapp_data(init_data)
     await check_maintenance(uid)
@@ -1917,10 +1979,9 @@ async def api_support_send(
     if file and file.filename:
         raw = await file.read(MAX_UPLOAD_SIZE + 1)
         if len(raw) > MAX_UPLOAD_SIZE: raise HTTPException(400, "Image too large")
-        clean_bytes = await process_image_safe(raw)
         img_filename = f"sup_usr_{uuid.uuid4().hex[:8]}.jpg"
         filepath = SUPPORT_DIR / img_filename
-        await asyncio.to_thread(filepath.write_bytes, clean_bytes)
+        await asyncio.to_thread(filepath.write_bytes, raw)
         
     if not text and not img_filename: raise HTTPException(400, "Empty payload")
     
@@ -1931,7 +1992,7 @@ async def api_support_send(
         if not tkt:
             await db.execute("INSERT INTO tickets (user_id) VALUES (?)", (uid,))
             await db.commit()
-            async with db.execute("SELECT MAX(id) FROM tickets WHERE user_id=?", (uid,)) as cur: tkt_id = (await cur.fetchone())[0]
+            async with db.execute("SELECT last_insert_rowid()") as cur: tkt_id = (await cur.fetchone())[0]
             cb = None
         else: tkt_id, cb = tkt["id"], tkt["claimed_by"]
         
@@ -1942,7 +2003,7 @@ async def api_support_send(
     return {"success": True}
 
 # ==========================================================
-#  WEBAPP ADMIN API (Новое)
+#  WEBAPP ADMIN API
 # ==========================================================
 @app.get("/api/admin/data")
 async def api_admin_data(init_data: str = Header(None, alias="X-Telegram-Init-Data")):
@@ -1989,9 +2050,7 @@ async def api_admin_chat_history(target_uid: int, init_data: str = Header(None, 
     return {"messages": msgs, "username": p["username"] if p else None}
 
 @app.post("/api/admin/chat/send")
-@limiter.limit("20/minute")
 async def api_admin_chat_send(
-    request: Request,
     target_uid: int = Form(...),
     text: str = Form(""),
     file: UploadFile = File(None),
@@ -2005,10 +2064,9 @@ async def api_admin_chat_send(
     if file and file.filename:
         raw = await file.read(MAX_UPLOAD_SIZE + 1)
         if len(raw) > MAX_UPLOAD_SIZE: raise HTTPException(400, "Image too large")
-        clean_bytes = await process_image_safe(raw)
         img_filename = f"sup_adm_{uuid.uuid4().hex[:8]}.jpg"
         filepath = SUPPORT_DIR / img_filename
-        await asyncio.to_thread(filepath.write_bytes, clean_bytes)
+        await asyncio.to_thread(filepath.write_bytes, raw)
         
     if not text and not img_filename: raise HTTPException(400, "Empty payload")
     
@@ -2020,16 +2078,20 @@ async def api_admin_chat_send(
             tkt_id = tkt[0]
         else:
             await db.execute("INSERT INTO tickets (user_id, status, claimed_by) VALUES (?, 'claimed', ?)", (target_uid, admin_uid))
-            await db.commit()
-            async with db.execute("SELECT MAX(id) FROM tickets WHERE user_id=?", (target_uid,)) as cur:
+            async with db.execute("SELECT last_insert_rowid()") as cur:
                 tkt_id = (await cur.fetchone())[0]
 
+        admin_player = await get_player(admin_uid)
+        admin_uname = f"@{admin_player['username']}" if admin_player and admin_player.get('username') else "Admin"
+        
+        # Insert invisible system message if opening for first time
         if not tkt:
-            await db.execute("INSERT INTO support_messages (ticket_id, user_id, text, direction) VALUES (?,?,?, 'system')", (tkt_id, target_uid, f"👨‍💻 Служба поддержки присоединилась к диалогу."))
+            await db.execute("INSERT INTO support_messages (ticket_id, user_id, text, direction) VALUES (?,?,?, 'system')", (tkt_id, target_uid, f"👨‍💻 {admin_uname} присоединился к чату."))
             
         await db.execute("INSERT INTO support_messages (ticket_id, user_id, text, image, direction) VALUES (?,?,?,?,'out')", (tkt_id, target_uid, text, img_filename))
         await db.commit()
         
+    # Send Telegram notification
     p = await get_player(target_uid)
     lang = p["lang"] if p else "en"
     final_text = tr(lang, "support_reply", text=text) if text else tr(lang, "support_reply", text="[Фото]")
@@ -2042,50 +2104,6 @@ async def api_admin_chat_send(
     except Exception:
         pass
 
-    return {"success": True}
-
-@app.delete("/api/admin/chat/msg/{msg_id}")
-async def api_admin_chat_del_msg(msg_id: int, init_data: str = Header(None, alias="X-Telegram-Init-Data")):
-    uid = verify_webapp_data(init_data)
-    if not await is_admin(uid): raise HTTPException(403)
-    async with get_db() as db:
-        await db.execute("DELETE FROM support_messages WHERE id=?", (msg_id,))
-        await db.commit()
-    return {"success": True}
-
-class EditMsgReq(BaseModel):
-    text: str
-
-@app.put("/api/admin/chat/msg/{msg_id}")
-async def api_admin_chat_edit_msg(msg_id: int, req: EditMsgReq, init_data: str = Header(None, alias="X-Telegram-Init-Data")):
-    uid = verify_webapp_data(init_data)
-    if not await is_admin(uid): raise HTTPException(403)
-    async with get_db() as db:
-        await db.execute("UPDATE support_messages SET text=? WHERE id=?", (req.text.strip(), msg_id))
-        await db.commit()
-    return {"success": True}
-
-@app.post("/api/admin/chat/{target_uid}/close")
-async def api_admin_chat_close(target_uid: int, init_data: str = Header(None, alias="X-Telegram-Init-Data")):
-    uid = verify_webapp_data(init_data)
-    if not await is_admin(uid): raise HTTPException(403)
-    async with get_db() as db:
-        async with db.execute("SELECT id FROM tickets WHERE user_id=? AND status='claimed' ORDER BY id DESC LIMIT 1", (target_uid,)) as cur:
-            tkt = await cur.fetchone()
-        if tkt:
-            await db.execute("UPDATE tickets SET status='closed' WHERE id=?", (tkt[0],))
-            await db.execute("INSERT INTO support_messages (ticket_id, user_id, text, direction) VALUES (?,?,?, 'system')", (tkt[0], target_uid, "✅ Диалог завершен."))
-            await db.commit()
-    return {"success": True}
-
-@app.delete("/api/admin/chat/{target_uid}")
-async def api_admin_chat_clear(target_uid: int, init_data: str = Header(None, alias="X-Telegram-Init-Data")):
-    uid = verify_webapp_data(init_data)
-    if not await is_admin(uid): raise HTTPException(403)
-    async with get_db() as db:
-        await db.execute("DELETE FROM support_messages WHERE user_id=?", (target_uid,))
-        await db.execute("DELETE FROM tickets WHERE user_id=?", (target_uid,))
-        await db.commit()
     return {"success": True}
 
 @app.post("/api/referral/bind")
@@ -2107,9 +2125,7 @@ async def api_referral_bind(request: Request):
 @app.post(WEBHOOK_PATH)
 async def bot_webhook(request: Request):
     from aiogram.types import Update
-    try:
-        asyncio.create_task(dp.feed_update(bot, Update(**await request.json())))
-    except: pass
+    asyncio.create_task(dp.feed_update(bot, Update(**await request.json())))
     return {"ok": True}
 
 if __name__ == "__main__":
