@@ -564,7 +564,6 @@ async def cmd_admin(message: Message):
 
 @dp.message(F.reply_to_message)
 async def admin_native_reply(message: Message):
-    # Native reply fallback for admins
     if not await is_admin(message.from_user.id): return
     if not message.reply_to_message.text and not message.reply_to_message.caption: return
     
@@ -586,7 +585,10 @@ async def admin_native_reply(message: Message):
         if not tkt: return
         uid, status = tkt[0], tkt[1]
         
-        if status == 'closed': return await message.reply("⚠️ Закрыт.")
+        # Переоткрываем тикет, если он был закрыт, чтобы история продолжалась
+        if status == 'closed':
+            await db.execute("UPDATE tickets SET status='open' WHERE id=?", (tkt_id,))
+        
         if status == 'open':
             await db.execute("UPDATE tickets SET status='claimed', claimed_by=? WHERE id=?", (message.from_user.id, tkt_id))
             await db.execute("INSERT INTO support_messages (ticket_id, user_id, text, direction) VALUES (?,?,?, 'system')", (tkt_id, uid, f"👨‍💻 @{message.from_user.username or 'Admin'} в чате."))
@@ -933,14 +935,20 @@ async def api_support_send(text: str = Form(""), file: UploadFile = File(None), 
     
     async with get_db() as db:
         db.row_factory = aiosqlite.Row
-        async with db.execute("SELECT id, claimed_by FROM tickets WHERE user_id=? AND status IN ('open', 'claimed')", (uid,)) as cur:
+        # Берем самый последний тикет, неважно открыт он или закрыт
+        async with db.execute("SELECT id, claimed_by, status FROM tickets WHERE user_id=? ORDER BY id DESC LIMIT 1", (uid,)) as cur:
             tkt = await cur.fetchone()
+            
         if not tkt:
             await db.execute("INSERT INTO tickets (user_id) VALUES (?)", (uid,))
             await db.commit()
             async with db.execute("SELECT last_insert_rowid()") as cur: tkt_id = (await cur.fetchone())[0]
             cb = None
-        else: tkt_id, cb = tkt["id"], tkt["claimed_by"]
+        else: 
+            tkt_id, cb, status = tkt["id"], tkt["claimed_by"], tkt["status"]
+            # Если тикет был закрыт, снова делаем его открытым, чтобы история не терялась
+            if status == 'closed':
+                await db.execute("UPDATE tickets SET status='open' WHERE id=?", (tkt_id,))
         
         await db.execute("INSERT INTO support_messages (ticket_id, user_id, text, image, direction) VALUES (?,?,?,?,'in')", (tkt_id, uid, text, img_filename))
         await db.commit()
@@ -968,7 +976,7 @@ async def api_admin_dashboard(init_data: str = Header(None, alias="X-Telegram-In
         async with db.execute("SELECT COUNT(*) FROM players WHERE date(last_seen) = date('now')") as cur: act_today = (await cur.fetchone())[0]
         async with db.execute("SELECT COUNT(*) FROM photos WHERE filename IS NOT NULL") as cur: photos_files_count = (await cur.fetchone())[0]
         
-        # Recent Chats
+        # Recent Chats (Grouping to get last msg per user)
         async with db.execute("""
             SELECT sm.user_id, p.username, sm.text, sm.created_at, sm.direction
             FROM support_messages sm LEFT JOIN players p ON p.user_id = sm.user_id
@@ -1233,10 +1241,13 @@ async def api_admin_chat_send(target_uid: int = Form(...), text: str = Form(""),
     if not text and not img_filename: raise HTTPException(400, "Empty payload")
     
     async with get_db() as db:
-        async with db.execute("SELECT id FROM tickets WHERE user_id=? ORDER BY id DESC LIMIT 1", (target_uid,)) as cur:
+        async with db.execute("SELECT id, status FROM tickets WHERE user_id=? ORDER BY id DESC LIMIT 1", (target_uid,)) as cur:
             tkt = await cur.fetchone()
         
-        if tkt: tkt_id = tkt[0]
+        if tkt: 
+            tkt_id = tkt[0]
+            # Восстанавливаем статус, если он был закрыт, чтобы юзер снова мог писать
+            await db.execute("UPDATE tickets SET status='claimed', claimed_by=? WHERE id=?", (admin_uid, tkt_id))
         else:
             await db.execute("INSERT INTO tickets (user_id, status, claimed_by) VALUES (?, 'claimed', ?)", (target_uid, admin_uid))
             async with db.execute("SELECT last_insert_rowid()") as cur: tkt_id = (await cur.fetchone())[0]
@@ -1282,7 +1293,7 @@ async def api_admin_close_ticket(target_uid: int, init_data: str = Header(None, 
         async with db.execute("SELECT id FROM tickets WHERE user_id=? ORDER BY id DESC LIMIT 1", (target_uid,)) as cur: tkt = await cur.fetchone()
         if tkt:
             await db.execute("UPDATE tickets SET status='closed' WHERE id=?", (tkt[0],))
-            await db.execute("INSERT INTO support_messages (ticket_id, user_id, text, direction) VALUES (?,?,?, 'system')", (tkt[0], target_uid, "✅ Чат завершен администратором."))
+            await db.execute("INSERT INTO support_messages (ticket_id, user_id, text, direction) VALUES (?,?,?, 'system')", (tkt[0], target_uid, "✅ Чат закрыт администратором."))
             await db.commit()
     return {"success": True}
 
