@@ -1399,35 +1399,29 @@ async function postPromoStory() {
 
     const btnText = document.getElementById('spc-desc-text');
     const origText = btnText.innerText;
-    btnText.innerText = currentLang === 'ru' ? "Рисуем вашу карточку..." : "Designing your card...";
+    btnText.innerText = currentLang === 'ru' ? "Открываем сторис..." : "Opening stories...";
 
     try {
-        const r = await authFetch('/api/story/generate');
-        if (!r.ok) {
-            const errData = await r.json().catch(()=>({}));
-            throw new Error(errData.detail || "Server error");
-        }
-        
-        const data = await r.json();
-        const storyUrl = data.story_url;
+        // 👇 ВСТАВЬТЕ ВАШУ ПРЯМУЮ ССЫЛКУ НА КАРТИНКУ ВМЕСТО ЭТОЙ 👇
+        const storyUrl = "https://ваша-ссылка-на-картинку.jpg"; 
+
         const refUrl = gameData?.referral_url || `https://t.me/PhotoFlipBot`;
 
+        // Байтерский текст и виджет
         const shareParams = {
             text: currentLang === 'ru' 
-                ? "Моя камера теперь печатает деньги. 📸💸\nЗалетай по ссылке и узнай цену своих фото:" 
-                : "My camera is printing money. 📸💸\nCheck how much your photos cost here:",
+                ? "Просто продал фотку, которую сделал по пути в магазин 🤯 Оказывается, за это платят. Жми на кнопку, загрузи любую картинку из галереи и чекни, сколько она стоит 👇" 
+                : "Just sold a photo I took on my way to the store 🤯 Turns out people pay for this. Click the button, upload any pic from your gallery and see how much it's worth 👇",
             widget_link: {
                 url: refUrl,
-                name: currentLang === 'ru' ? "Узнать цену моих фото 🤑" : "Value my photos 🤑"
+                name: currentLang === 'ru' ? "Оценить мои фото 📸💸" : "Value my photos 📸💸"
             }
         };
 
         // Открываем редактор Telegram
         tg.shareToStory(storyUrl, shareParams);
 
-        // ИМИТАЦИЯ ПРОВЕРКИ:
-        // Telegram API не говорит нам, выложил человек сторис или нет. 
-        // Поэтому мы делаем вид, что 8 секунд сканируем его профиль.
+        // Имитация проверки: ждем 8 секунд и выдаем бонус
         if (gameData?.player?.has_claimed_story !== 1) {
             btnText.innerText = currentLang === 'ru' ? "⏳ Проверка публикации (8 сек)..." : "⏳ Verifying publication...";
             
@@ -1440,7 +1434,10 @@ async function postPromoStory() {
                 } else {
                     btnText.innerText = origText;
                 }
-            }, 8000); // Ждем 8 секунд для реалистичности
+            }, 8000); 
+        } else {
+            // Если бонус уже был получен ранее, просто возвращаем текст кнопки
+            setTimeout(() => { btnText.innerText = origText; }, 2000);
         }
 
     } catch(e) {
