@@ -780,18 +780,45 @@ async def api_generate_story(init_data: str = Header(None, alias="X-Telegram-Ini
     out_filename = f"story_{uid}.jpg"
     out_filepath = stories_dir / out_filename
     
-    ensure_story_template()
-    
     try:
-        img = Image.open(TEMPLATE_PATH).convert("RGB")
+        # Создаем картинку сразу в памяти (безопасный метод)
+        width, height = 1080, 1920
+        img = Image.new("RGB", (width, height), "#030205")
         draw = ImageDraw.Draw(img)
         
+        # Рисуем градиентные свечения
+        draw.ellipse([(-200, 200, 700, 1100)], fill="#2e1065")
+        draw.ellipse([(400, 1000, 1300, 1900)], fill="#0f172a")
+        draw.ellipse([(200, 600, 900, 1300)], fill="#022c22")
+        
+        # Безопасный блюр (игнорим ошибку на старых версиях Pillow)
+        try:
+            img = img.filter(ImageFilter.GaussianBlur(80))
+            draw = ImageDraw.Draw(img)
+        except:
+            pass
+        
+        # Безопасное скругление углов интерфейса
+        try:
+            draw.rounded_rectangle([60, 360, 1020, 1380], radius=50, outline="#1e293b", width=4)
+            draw.rounded_rectangle([72, 372, 1008, 1368], radius=38, fill="#07060a", outline="#3b82f6", width=2)
+        except AttributeError:
+            draw.rectangle([60, 360, 1020, 1380], outline="#1e293b", width=4)
+            draw.rectangle([72, 372, 1008, 1368], fill="#07060a", outline="#3b82f6", width=2)
+        
+        draw.line([(150, 435), (930, 435)], fill="#1e293b", width=3)
+        draw.line([(150, 1170), (930, 1170)], fill="#1e293b", width=3)
+        draw.line([(72, 650), (1008, 650)], fill="#22c55e", width=2)
+        
+        # Безопасная загрузка шрифта (если скачался битым - берет стандартный)
         def get_font(size):
             if os.path.exists(FONT_PATH):
-                return ImageFont.truetype(FONT_PATH, size)
+                try:
+                    return ImageFont.truetype(FONT_PATH, size)
+                except Exception:
+                    pass
             return ImageFont.load_default()
         
-        f_title = get_font(44)
         f_huge = get_font(120)
         f_medium = get_font(52)
         f_small = get_font(34)
@@ -804,28 +831,23 @@ async def api_generate_story(init_data: str = Header(None, alias="X-Telegram-Ini
         sold = p.get("photos_sold", 0)
         vip_lvl = vip_level(p.get("referrals_count", 0))
         
-        # Рендерим информацию о пользователе
         draw.text((150, 490), "PHOTOFLIP MOBILE PLATFORM", fill="#3b82f6", font=f_small)
         draw.text((150, 550), username, fill="#ffffff", font=f_medium)
         
-        # Блок ИИ-оценки баланса
         val_to_show = earned if earned > 0 else 185.50
         draw.text((150, 690), "ESTIMATED VALUATION:", fill="#94a3b8", font=f_small)
         draw.text((150, 760), f"${val_to_show:.2f}", fill="#22c55e", font=f_huge)
         
-        # Статистика игрока
-        draw.text((150, 940), f"⭐ VIP Status: Level {vip_lvl}", fill="#f59e0b", font=f_medium)
-        draw.text((150, 1020), f"📸 Photos Sold: {sold}", fill="#e2e8f0", font=f_medium)
-        draw.text((150, 1100), f"🤝 Active Invitees: {p.get('referrals_count', 0)}", fill="#e2e8f0", font=f_medium)
-        
-        # Рекламный призыв
+        draw.text((150, 940), f"VIP Status: Level {vip_lvl}", fill="#f59e0b", font=f_medium)
+        draw.text((150, 1020), f"Photos Sold: {sold}", fill="#e2e8f0", font=f_medium)
+        draw.text((150, 1100), f"Active Invitees: {p.get('referrals_count', 0)}", fill="#e2e8f0", font=f_medium)
         draw.text((150, 1200), "Scan & value your photos instantly.", fill="#64748b", font=f_small)
         
         img.save(out_filepath, "JPEG", quality=90)
         
     except Exception as e:
-        logger.error(f"Story generation drawing crash: {e}")
-        raise HTTPException(500, f"Error rendering story: {str(e)}")
+        logger.error(f"Story generation crash: {e}")
+        raise HTTPException(500, f"Render Error: {str(e)}")
         
     return {"story_url": f"{WEBAPP_URL}/uploads/stories/{out_filename}"}
 
