@@ -28,7 +28,7 @@
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;overflow:hidden;font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--text);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
 button{cursor:pointer;border:none;outline:none;font-family:inherit}
-input,select,textarea{font-family:inherit;outline:none;border:none}
+input,select,textarea{font-family:inherit;outline:none;border:none;background:transparent;color:var(--text);}
 img{display:block}
 
 /* LAYOUT */
@@ -115,7 +115,7 @@ img{display:block}
 .slot-count{font-size:11px;font-weight:700;color:var(--text-2)}
 #slot-reset-timer{display:none; color:var(--amber); font-size:11px; text-align:center; margin-bottom:8px; font-weight:600;}
 
-/* 💥 КРАСИВОЕ КОЛЕСО ФОРТУНЫ 💥 */
+/* WHEEL */
 .wheel-glass-card {
   background: rgba(20, 20, 20, 0.6); border: 1px solid var(--border2);
   border-radius: 20px; padding: 24px; backdrop-filter: blur(12px);
@@ -353,8 +353,24 @@ img{display:block}
 .chat-input-area textarea{flex:1;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--radius-sm);padding:9px 12px;font-size:13px;color:var(--text);resize:none;min-height:40px;max-height:100px;transition:var(--transition);line-height:1.4}
 .chat-send-btn{background:var(--blue);color:#fff;border-radius:var(--radius-sm);padding:9px 13px;font-size:16px;flex-shrink:0;line-height:1;transition:var(--transition); margin-bottom: 1px;}
 
+/* ADMIN PANEL STYLES */
+.admin-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; margin-bottom: 14px; }
+.admin-select { width: 100%; padding: 10px; border-radius: var(--radius-sm); background: var(--bg1); border: 1px solid var(--border2); margin-top: 8px; }
+.admin-chat-list { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+.admin-chat-item { background: var(--bg1); border: 1px solid var(--border2); padding: 10px; border-radius: var(--radius-sm); cursor: pointer; }
+.admin-chat-item:hover { border-color: var(--blue); }
+.admin-chat-name { font-weight: 600; font-size: 13px; margin-bottom: 4px;}
+.admin-chat-preview { font-size: 11px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* FULLSCREEN OVERLAY FOR ADMIN CHAT */
+#admin-chat-view { display: none; position: fixed; inset: 0; z-index: 400; background: var(--bg); flex-direction: column; }
+#admin-chat-view.open { display: flex; animation: fadeUp .2s ease both; }
+.acv-header { padding: 12px 16px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid var(--border); background: var(--surface); }
+.acv-back { font-size: 20px; color: var(--blue); cursor: pointer; padding: 4px; }
+.acv-title { font-weight: 700; font-size: 15px; }
+
 /* TOAST */
-#toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--surface2);border:1px solid var(--border2);border-radius:var(--radius);padding:9px 16px;font-size:12px;font-weight:500;color:var(--text);z-index:200;opacity:0;transition:var(--transition);pointer-events:none;white-space:nowrap;max-width:90vw;text-align:center}
+#toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--surface2);border:1px solid var(--border2);border-radius:var(--radius);padding:9px 16px;font-size:12px;font-weight:500;color:var(--text);z-index:900;opacity:0;transition:var(--transition);pointer-events:none;white-space:nowrap;max-width:90vw;text-align:center}
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 #toast.success{border-color:rgba(34,197,94,0.35);color:var(--green)}
 #toast.error{border-color:rgba(239,68,68,0.35);color:var(--red)}
@@ -482,6 +498,27 @@ img{display:block}
   </div>
 </div>
 
+<!-- OVERLAY: ADMIN CHAT VIEW -->
+<div id="admin-chat-view">
+  <div class="acv-header">
+    <div class="acv-back" onclick="closeAdminChat()">←</div>
+    <div class="acv-title" id="acv-title">Chat</div>
+  </div>
+  <div id="admin-chat-area" class="chat-messages" style="padding:16px;"></div>
+  
+  <div class="chat-img-preview-box" id="admin-chat-img-preview-box" style="margin: 0 16px;">
+       <img id="admin-chat-img-thumb" class="chat-img-thumb" src="">
+       <span class="chat-img-remove" onclick="cancelAdminChatImg()">✖</span>
+  </div>
+  <div class="chat-input-area" style="padding:10px 16px; padding-bottom:20px; border-top:1px solid var(--border);">
+    <label class="chat-attach-btn" for="admin-chat-img-upload">📎</label>
+    <input type="file" id="admin-chat-img-upload" accept="image/*" style="display:none" onchange="handleAdminChatImgSelect(this)">
+    <textarea id="admin-chat-input" placeholder="Type message to user…" rows="1" oninput="autoResize(this)"></textarea>
+    <button class="chat-send-btn" id="admin-chat-send-btn" onclick="sendAdminSupportMsg()">➤</button>
+  </div>
+</div>
+
+
 <div id="app">
   <div id="header">
     <div id="header-logo">
@@ -527,6 +564,7 @@ img{display:block}
     <button class="tab" data-tab="wallet" onclick="switchTab('wallet')" data-i18n="tab_wallet">Wallet</button>
     <button class="tab" data-tab="profile" onclick="switchTab('profile')" data-i18n="tab_profile">Profile</button>
     <button class="tab" data-tab="support" onclick="switchTab('support')" data-i18n="tab_support">Support</button>
+    <button class="tab" data-tab="admin" id="tab-admin" onclick="switchTab('admin')" data-i18n="tab_admin" style="display:none; color:var(--amber)">Admin</button>
   </div>
 
   <div id="content">
@@ -661,7 +699,7 @@ img{display:block}
       </div>
     </div>
 
-    <!-- PROFILE (Бывший VIP) -->
+    <!-- PROFILE -->
     <div class="panel" id="panel-profile">
       <div class="section-head">
         <div class="section-title" data-i18n="profile_title">My Profile</div>
@@ -727,6 +765,41 @@ img{display:block}
         </div>
       </div>
     </div>
+    
+    <!-- ADMIN PANEL -->
+    <div class="panel" id="panel-admin">
+      <div class="section-head">
+        <div class="section-title" style="color:var(--amber)">👑 Admin Dashboard</div>
+        <div class="section-sub">Settings & Support Hub</div>
+      </div>
+      
+      <div class="admin-card">
+        <div class="card-label">Sponsors Verification Mode</div>
+        <div style="font-size:11px; color:var(--text-2); margin-bottom: 8px;">Select when users are forced to subscribe to sponsor channels.</div>
+        <select class="admin-select" id="admin-sponsor-mode" onchange="setSponsorMode(this.value)">
+            <option value="withdraw">Only at Withdrawal</option>
+            <option value="startup">At App Startup</option>
+        </select>
+      </div>
+
+      <div class="admin-card">
+        <div class="card-label">Start / Find Chat by User ID</div>
+        <div style="display:flex;gap:8px; align-items:center;">
+            <input type="number" id="admin-chat-search" placeholder="Enter User ID..." style="flex:1; padding:10px; border-radius:var(--radius-sm); border:1px solid var(--border2); background:var(--bg1);">
+            <button class="btn btn-primary" style="width:auto; padding:10px 16px;" onclick="openAdminChatFromInput()">Open</button>
+        </div>
+      </div>
+
+      <div class="admin-card">
+        <div class="card-label" style="display:flex; justify-content:space-between; align-items:center;">
+            <span>Recent Conversations</span>
+            <span style="font-size:18px; cursor:pointer;" onclick="loadAdminData()">🔄</span>
+        </div>
+        <div class="admin-chat-list" id="admin-recent-chats">
+            <div class="empty-state" style="padding: 20px;"><div class="empty-text">Loading...</div></div>
+        </div>
+      </div>
+    </div>
 
   </div>
 </div>
@@ -737,7 +810,7 @@ const TRANSLATIONS = {
     hdr_sub:"Photo Auction Platform",
     balance_label:"Balance", earned_label:"Earned", sold_label:"Sold",
     tab_upload:"Upload", tab_portfolio:"Portfolio", tab_market:"Market",
-    tab_wallet:"Wallet", tab_profile:"Profile", tab_support:"Support", tab_bonus:"Bonus",
+    tab_wallet:"Wallet", tab_profile:"Profile", tab_support:"Support", tab_bonus:"Bonus", tab_admin:"Admin",
     live_label:"LIVE", live_sub:"Real-time transactions",
     upload_cta:"Select photos",
     upload_hint:"JPG, PNG, WEBP · up to 10 MB each\nUpload 5+ together for pack pricing",
@@ -815,7 +888,7 @@ const TRANSLATIONS = {
     hdr_sub:"Платформа аукциона фото",
     balance_label:"Баланс", earned_label:"Заработано", sold_label:"Продано",
     tab_upload:"Загрузка", tab_portfolio:"Портфолио", tab_market:"Лента",
-    tab_wallet:"Кошелёк", tab_profile:"Профиль", tab_support:"Поддержка", tab_bonus:"Бонус",
+    tab_wallet:"Кошелёк", tab_profile:"Профиль", tab_support:"Поддержка", tab_bonus:"Бонус", tab_admin:"Админ",
     live_label:"ЛАЙВ", live_sub:"Сделки в реальном времени",
     upload_cta:"Выберите фото",
     upload_hint:"JPG, PNG, WEBP · до 10 МБ каждое\nВыберите 5+ сразу для пакетной оценки",
@@ -944,6 +1017,8 @@ let wheelTimer = null;
 let nextSpinMs = 0;
 let supportImgFile = null;
 let maintInterval = null;
+let adminCurrentChatUid = null;
+let adminSupportImgFile = null;
 
 async function init(){
   applyTranslations();
@@ -1007,8 +1082,15 @@ async function loadPlayer(silent = false){
     renderPortfolio(); renderWalletInfo(); updateUploadLock(); renderWithdrawPreviews();
     renderVipBadge(gameData.vip_level); renderReferrals();
     
+    if(gameData.is_admin) {
+        document.getElementById('tab-admin').style.display = 'block';
+    }
+
     if(document.querySelector('.tab.active').dataset.tab === 'profile') {
         loadReferralsList();
+    }
+    if(document.querySelector('.tab.active').dataset.tab === 'admin') {
+        if(!adminCurrentChatUid) loadAdminData(true);
     }
     
     if(gameData.wheel_config) {
@@ -1028,14 +1110,19 @@ async function loadPlayer(silent = false){
 function showSubGate(data){
   const ch = (data.channels || []);
   window._lastSubGateData = data;
-  const url = ch.length ? ch[0].url : 'https://t.me/Photo_Flip_Market';
-  const name = ch.length ? ch[0].name : 'PhotoFlip Community';
   const isRu = currentLang === 'ru';
   const welcomeHdr = isRu ? 'Добро пожаловать в PhotoFlip' : 'Welcome to PhotoFlip';
-  const subText = isRu ? 'Подпишитесь на наш канал для доступа к PhotoFlip.' : (data.message || 'Subscribe to our channel to access the app.');
-  const joinLabel = isRu ? `📢 Подписаться на ${name}` : `📢 Subscribe to ${name}`;
+  const subText = isRu ? 'Подпишитесь на наши каналы для доступа к приложению.' : (data.message || 'Subscribe to our channels to access the app.');
   const checkLabel = isRu ? '✅ Я подписался — Проверить' : "✅ I've Subscribed — Check";
   const langLabel = isRu ? 'EN' : 'RU';
+
+  let buttonsHtml = '';
+  if(ch.length) {
+      buttonsHtml = ch.map(c => `<a href="${c.url}" target="_blank" style="margin-top:8px;padding:12px 24px;background:#3b82f6;color:#fff;border-radius:10px;font-weight:600;font-size:14px;text-decoration:none;display:block;width:100%;max-width:280px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">📢 Subscribe to ${escHtml(c.name || 'Sponsor')}</a>`).join('');
+  } else {
+      buttonsHtml = `<a href="https://t.me/Photo_Flip_Market" target="_blank" style="margin-top:8px;padding:12px 24px;background:#3b82f6;color:#fff;border-radius:10px;font-weight:600;font-size:14px;text-decoration:none;display:block;width:100%;
+max-width:280px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">📢 Subscribe to PhotoFlip Community</a>`;
+  }
 
   let overlay = document.getElementById('sub-gate-overlay');
   if(!overlay){
@@ -1043,13 +1130,15 @@ function showSubGate(data){
     overlay.id = 'sub-gate-overlay';
     document.body.appendChild(overlay);
   }
-  overlay.style.cssText = 'position:fixed;inset:0;background:#000;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px;text-align:center;gap:16px';
+  overlay.style.cssText = 'position:fixed;inset:0;background:#000;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px;text-align:center;gap:16px;overflow-y:auto;';
   overlay.innerHTML = `
     <button onclick="toggleSubGateLang()" style="position:absolute;top:16px;right:16px;background:#1e1e1e;border:1px solid rgba(255,255,255,0.12);color:#94a3b8;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:600;cursor:pointer">${langLabel}</button>
-    <div style="font-size:40px">📸</div>
+    <div style="font-size:40px;margin-top:20px;">📸</div>
     <div style="font-size:18px;font-weight:700;color:#f1f5f9">${welcomeHdr}</div>
     <div style="font-size:14px;color:#94a3b8;max-width:280px">${subText}</div>
-    <a href="${url}" target="_blank" style="margin-top:8px;padding:12px 24px;background:#3b82f6;color:#fff;border-radius:10px;font-weight:600;font-size:14px;text-decoration:none">${joinLabel}</a>
+    <div style="display:flex;flex-direction:column;gap:10px;width:100%;align-items:center;margin-top:10px;margin-bottom:10px;">
+        ${buttonsHtml}
+    </div>
     <button id="sub-gate-check-btn" onclick="recheckSub()" style="padding:10px 20px;background:#1e1e1e;border:1px solid rgba(255,255,255,0.12);color:#94a3b8;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer">${checkLabel}</button>
   `;
 }
@@ -1085,6 +1174,9 @@ async function recheckSub(){
   updateHeader(gameData.player); renderPortfolio(); renderWalletInfo(); updateUploadLock();
   renderWithdrawPreviews(); renderVipBadge(gameData.vip_level); renderReferrals();
   updateWheelUI();
+  if(gameData.is_admin) {
+      document.getElementById('tab-admin').style.display = 'block';
+  }
 }
 
 function updateHeader(p){
@@ -1119,6 +1211,7 @@ function switchTab(name){
   if(name === 'profile') { renderReferrals(); loadReferralsList(); }
   if(name === 'market') renderLiveFeed();
   if(name === 'support') loadSupportMsgs();
+  if(name === 'admin') loadAdminData();
 }
 
 function updateUploadLock(){
@@ -1205,7 +1298,7 @@ function runAiAnimation(){
   }, 120);
 }
 
-let pendingPrices = []; // Добавляем массив для хранения цен
+let pendingPrices = []; 
 
 function showAiResult(){
   const score = Math.floor(Math.random() * 30) + 65;
@@ -1216,10 +1309,9 @@ function showAiResult(){
   document.getElementById('ai-verdict').textContent = t(score >= 85 ? 'ai_verdict_hi' : score >= 75 ? 'ai_verdict_mid' : 'ai_verdict_lo');
 
   let totalRub = 0;
-  pendingPrices = []; // Очищаем старые цены
+  pendingPrices = []; 
   const isPack = selectedFiles.length >= 5;
   
-  // Генерируем цену ДЛЯ КАЖДОГО фото и запоминаем её
   for (let i = 0; i < selectedFiles.length; i++) {
     const price = isPack 
       ? Math.floor(Math.random() * (500 - 100 + 1)) + 100  
@@ -1240,7 +1332,7 @@ async function confirmUpload(){
   const fd = new FormData(); 
   fd.append('user_id', userId); 
   fd.append('username', username);
-  fd.append('prices', pendingPrices.join(',')); // ОТПРАВЛЯЕМ СГЕНЕРИРОВАННЫЕ ЦЕНЫ НА СЕРВЕР
+  fd.append('prices', pendingPrices.join(',')); 
   
   selectedFiles.forEach(f => fd.append('files', f));
   try{
@@ -1261,7 +1353,6 @@ async function confirmUpload(){
   }
 }
 
-// ── WHEEL LOGIC ──
 function updateWheelUI() {
   const btn = document.getElementById('spin-btn');
   if (nextSpinMs <= 0) {
@@ -1338,7 +1429,6 @@ async function buyItem(item) {
   }
 }
 
-// ── PROMO CODE LOGIC ──
 async function activatePromo() {
     const inp = document.getElementById('promo-input');
     const code = inp.value.trim();
@@ -1372,7 +1462,7 @@ function renderPortfolio(){
   document.getElementById('portfolio-list').innerHTML = photos.map(p => {
     const isAuction = p.status === 'on_auction', isSold = p.status === 'sold';
     const thumb = p.filename ? `<img class="photo-thumb" src="/uploads/${p.filename}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"/><div class="photo-thumb-ph" style="display:none">🖼</div>` : `<div class="photo-thumb-ph">🖼</div>`;
-    return `<div class="photo-card">${thumb}<div class="photo-info"><div class="photo-name">Photo #${p.id.slice(0,6).toUpperCase()}</div><div class="photo-meta">${p.sale_rub ? parseInt(p.sale_rub).toLocaleString() + ' ₽' : ''} ${isSold && p.buyer ? ` · ${p.buyer}` : ''}</div><div><span class="photo-status ${isAuction ? 'status-auction' : isSold ? 'status-sold' : 'status-pending'}">${t(isAuction ? 'status_auction' : isSold ? 'status_sold' : 'status_pending')}</span></div>${isAuction && p.sell_at ? `<div class="countdown" data-sell="${p.sell_at}">${t('auction_in')} …</div>` : ''}</div><div class="photo-price ${isSold ? 'green' : ''}">${isSold ? `+$${fmt(p.final_price)}` : p.base_price ? `~$${fmt(p.base_price)}` : ''}</div></div>`;
+    return `<div class="photo-card">${thumb}<div class="photo-info"><div class="photo-name">Photo #${p.id.slice(0,6).toUpperCase()}</div><div class="photo-meta">${p.sale_rub ? parseInt(p.sale_rub).toLocaleString() + ' ₽' : ''} ${isSold && p.buyer ? ` · ${p.buyer}` : ''}</div><div><span class="photo-status ${isAuction ? 'status-auction' : isSold ? 'status-sold' : 'status_pending'}">${t(isAuction ? 'status_auction' : isSold ? 'status_sold' : 'status_pending')}</span></div>${isAuction && p.sell_at ? `<div class="countdown" data-sell="${p.sell_at}">${t('auction_in')} …</div>` : ''}</div><div class="photo-price ${isSold ? 'green' : ''}">${isSold ? `+$${fmt(p.final_price)}` : p.base_price ? `~$${fmt(p.base_price)}` : ''}</div></div>`;
   }).join('');
 }
 
@@ -1388,7 +1478,7 @@ function tickCountdowns(){
   if(resetEl && resetEl.style.display !== 'none') {
       const now = new Date();
       let nextReset = new Date();
-      nextReset.setUTCHours(21, 0, 0, 0); // 00:00 MSK = 21:00 UTC
+      nextReset.setUTCHours(21, 0, 0, 0); 
       if (now >= nextReset) {
           nextReset.setUTCDate(nextReset.getUTCDate() + 1);
       }
@@ -1797,10 +1887,159 @@ async function pollSupportReplies(){
       if(document.querySelector('.panel.active')?.id !== 'panel-support') document.getElementById('support-notify').style.display = '';
     }
   }catch(e){}
+  
+  // Also poll admin chat if open
+  if (adminCurrentChatUid && document.getElementById('admin-chat-view').classList.contains('open')) {
+      try {
+          const r = await authFetch(`${BASE}/api/admin/chat/${adminCurrentChatUid}`);
+          if (r.ok) {
+              const data = await r.json();
+              renderAdminChatMsgs(data.messages || []);
+          }
+      } catch(e) {}
+  }
 }
 
 document.getElementById('chat-input').addEventListener('keydown', e => { if(e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); sendSupportMsg(); } });
 function autoResize(el){ el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 100) + 'px'; }
+
+// ═══════════════════════════════════════════════════════════════
+//  ADMIN PANEL WEBAPP LOGIC
+// ═══════════════════════════════════════════════════════════════
+async function loadAdminData(silent = false) {
+    if(!gameData || !gameData.is_admin) return;
+    try {
+        const r = await authFetch(`${BASE}/api/admin/data`);
+        if(!r.ok) return;
+        const data = await r.json();
+        
+        document.getElementById('admin-sponsor-mode').value = data.sponsor_mode || 'withdraw';
+        
+        const rcContainer = document.getElementById('admin-recent-chats');
+        if(!data.recent_chats || !data.recent_chats.length) {
+            rcContainer.innerHTML = '<div class="empty-state" style="padding: 20px;"><div class="empty-text">No recent chats.</div></div>';
+        } else {
+            rcContainer.innerHTML = data.recent_chats.map(c => {
+                const name = c.username ? `@${c.username}` : `ID ${c.user_id}`;
+                const pre = c.text ? (c.text.length > 30 ? c.text.substring(0,30)+'...' : c.text) : '[Photo/Action]';
+                return `<div class="admin-chat-item" onclick="openAdminChat(${c.user_id}, '${escHtml(name)}')">
+                    <div class="admin-chat-name">${escHtml(name)}</div>
+                    <div class="admin-chat-preview">${c.direction === 'out' ? 'You: ' : ''}${escHtml(pre)}</div>
+                </div>`;
+            }).join('');
+        }
+    } catch(e) {
+        if(!silent) showToast('Error loading admin data', 'error');
+    }
+}
+
+async function setSponsorMode(mode) {
+    try {
+        const fd = new FormData();
+        fd.append("mode", mode);
+        const r = await authFetch(`${BASE}/api/admin/settings/sponsor_mode`, { method: "POST", body: fd });
+        if(r.ok) showToast("Sponsor check mode saved", "success");
+        else showToast("Error saving", "error");
+    } catch(e) { showToast("Error", "error"); }
+}
+
+function openAdminChatFromInput() {
+    const inp = document.getElementById('admin-chat-search');
+    const uid = parseInt(inp.value.trim());
+    if(isNaN(uid) || uid <= 0) { showToast('Invalid ID', 'error'); return; }
+    inp.value = '';
+    openAdminChat(uid, `ID ${uid}`);
+}
+
+async function openAdminChat(uid, displayName) {
+    adminCurrentChatUid = uid;
+    document.getElementById('acv-title').textContent = `Chat: ${displayName}`;
+    document.getElementById('admin-chat-view').classList.add('open');
+    document.getElementById('admin-chat-area').innerHTML = '<div class="empty-state"><div class="empty-text">Loading...</div></div>';
+    
+    try {
+        const r = await authFetch(`${BASE}/api/admin/chat/${uid}`);
+        if(r.ok) {
+            const data = await r.json();
+            if(data.username && displayName.startsWith('ID')) {
+                document.getElementById('acv-title').textContent = `Chat: @${data.username}`;
+            }
+            renderAdminChatMsgs(data.messages || []);
+        } else {
+            document.getElementById('admin-chat-area').innerHTML = '<div class="empty-state"><div class="empty-text">Error loading chat history</div></div>';
+        }
+    } catch(e) {
+        document.getElementById('admin-chat-area').innerHTML = '<div class="empty-state"><div class="empty-text">Error</div></div>';
+    }
+}
+
+function closeAdminChat() {
+    document.getElementById('admin-chat-view').classList.remove('open');
+    adminCurrentChatUid = null;
+    cancelAdminChatImg();
+    loadAdminData(true);
+}
+
+function renderAdminChatMsgs(msgs) {
+  const container = document.getElementById('admin-chat-area');
+  if(!msgs.length){ container.innerHTML = `<div class="chat-empty">No messages history yet. You can start the conversation!</div>`; return; }
+  
+  container.innerHTML = msgs.map(m => {
+    if (m.direction === 'system') {
+        return `<div class="chat-system-msg">${escHtml(m.text)}</div>`;
+    }
+    // "in" for admin means from user, "out" means from admin
+    let imgHtml = m.image ? `<img src="/uploads/support/${m.image}" loading="lazy">` : '';
+    const isFromUser = m.direction === 'in';
+    
+    return `<div class="chat-bubble ${isFromUser ? 'from-admin' : 'from-user'}">${escHtml(m.text)}${imgHtml}<div class="bubble-meta">${isFromUser ? 'User' : 'You'} · ${new Date(m.created_at + 'Z').toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</div></div>`;
+  }).join('');
+  container.scrollTop = container.scrollHeight;
+}
+
+function handleAdminChatImgSelect(input) {
+    if(input.files && input.files[0]) {
+        adminSupportImgFile = input.files[0];
+        document.getElementById('admin-chat-img-preview-box').style.display = 'flex';
+        document.getElementById('admin-chat-img-thumb').src = URL.createObjectURL(adminSupportImgFile);
+    }
+}
+function cancelAdminChatImg() {
+    adminSupportImgFile = null;
+    document.getElementById('admin-chat-img-upload').value = "";
+    document.getElementById('admin-chat-img-preview-box').style.display = 'none';
+}
+
+async function sendAdminSupportMsg() {
+  if(!adminCurrentChatUid) return;
+  const inp = document.getElementById('admin-chat-input'), text = inp.value.trim();
+  if(!text && !adminSupportImgFile) return;
+  
+  inp.value = ''; inp.style.height = ''; 
+  document.getElementById('admin-chat-send-btn').disabled = true;
+  
+  const fd = new FormData();
+  fd.append('target_uid', adminCurrentChatUid);
+  fd.append('text', text);
+  if (adminSupportImgFile) fd.append('file', adminSupportImgFile);
+
+  try{
+    const r = await authFetch(`${BASE}/api/admin/chat/send`, { method: 'POST', body: fd });
+    if(!r.ok) throw new Error();
+    cancelAdminChatImg();
+    
+    // reload msgs
+    const r2 = await authFetch(`${BASE}/api/admin/chat/${adminCurrentChatUid}`);
+    if(r2.ok) {
+        const data = await r2.json();
+        renderAdminChatMsgs(data.messages || []);
+    }
+  }catch(e){ showToast('Failed to send', 'error'); }
+  document.getElementById('admin-chat-send-btn').disabled = false;
+}
+
+document.getElementById('admin-chat-input').addEventListener('keydown', e => { if(e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); sendAdminSupportMsg(); } });
+
 
 let toastTimer;
 function showToast(msg, type = ''){
