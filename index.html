@@ -1279,8 +1279,7 @@ function showSubGate(data){
   if(ch.length) {
       buttonsHtml = ch.map(c => `<a href="${c.url}" target="_blank" style="margin-top:8px;padding:12px 24px;background:#3b82f6;color:#fff;border-radius:10px;font-weight:600;font-size:14px;text-decoration:none;display:block;width:100%;max-width:280px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">📢 Subscribe to ${escHtml(c.name || 'Sponsor')}</a>`).join('');
   } else {
-      buttonsHtml = `<a href="https://t.me/Photo_Flip_Market" target="_blank" style="margin-top:8px;padding:12px 24px;background:#3b82f6;color:#fff;border-radius:10px;font-weight:600;font-size:14px;text-decoration:none;display:block;width:100%;
-max-width:280px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">📢 Subscribe to PhotoFlip Community</a>`;
+      buttonsHtml = `<a href="https://t.me/Photo_Flip_Market" target="_blank" style="margin-top:8px;padding:12px 24px;background:#3b82f6;color:#fff;border-radius:10px;font-weight:600;font-size:14px;text-decoration:none;display:block;width:100%;max-width:280px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">📢 Subscribe to PhotoFlip Community</a>`;
   }
 
   let overlay = document.getElementById('sub-gate-overlay');
@@ -1333,6 +1332,12 @@ async function recheckSub(){
   updateHeader(gameData.player); renderPortfolio(); renderWalletInfo(); updateUploadLock();
   renderWithdrawPreviews(); renderVipBadge(gameData.vip_level); renderReferrals();
   updateWheelUI();
+  
+  if (gameData?.player?.has_claimed_story === 1) {
+      document.getElementById('spc-reward-tag').textContent = "🔗 REF";
+      document.getElementById('spc-reward-tag').style.background = "var(--blue)";
+      document.getElementById('spc-desc-text').textContent = t('story_promo_claimed');
+  }
   if(gameData.is_admin) {
       document.getElementById('menu-item-admin').style.display = 'block';
   }
@@ -1397,16 +1402,13 @@ async function postPromoStory() {
     btnText.innerText = currentLang === 'ru' ? "Генерируем карточку..." : "Generating card...";
 
     try {
-        // 1. Запрашиваем генерацию индивидуальной картинки
         const r = await authFetch('/api/story/generate');
         if (!r.ok) throw new Error("Failed to generate image");
         const data = await r.json();
         const storyUrl = data.story_url;
 
-        // 2. Достаем реферальную ссылку пользователя
         const refUrl = gameData?.referral_url || `https://t.me/PhotoFlipBot`;
 
-        // 3. Настраиваем параметры Telegram Stories
         const shareParams = {
             text: currentLang === 'ru' 
                 ? "Твоя камера теперь печатает деньги. Оценивай свои фото и зарабатывай USD! 📸💸\nЗалетай по ссылке:" 
@@ -1417,10 +1419,8 @@ async function postPromoStory() {
             }
         };
 
-        // 4. Открываем редактор Stories
         tg.shareToStory(storyUrl, shareParams);
 
-        // 5. Если бонус еще не был получен, начисляем его с задержкой
         if (gameData?.player?.has_claimed_story !== 1) {
             setTimeout(async () => {
                 const claimReq = await authFetch('/api/story/claim_bonus', { method: 'POST' });
@@ -1428,7 +1428,7 @@ async function postPromoStory() {
                     await loadPlayer(false);
                     switchTab('bonus');
                 }
-            }, 3000); // 3 секунды задержки
+            }, 3000);
         }
 
     } catch(e) {
@@ -1788,8 +1788,7 @@ function renderWithdrawPreviews(){
 
   const canWithdraw = unlocked && bal >= minWd && activeSales === 0;
   const usdBtn = document.getElementById('withdraw-btn-usd');
-  const starsBtn
-const starsBtn = document.getElementById('withdraw-btn-stars');
+  const starsBtn = document.getElementById('withdraw-btn-stars');
 
   usdBtn.disabled = !canWithdraw;
   starsBtn.disabled = !canWithdraw;
