@@ -119,6 +119,40 @@ img{display:block}
 .slot-count{font-size:11px;font-weight:700;color:var(--text-2)}
 #slot-reset-timer{display:none; color:var(--amber); font-size:11px; text-align:center; margin-bottom:8px; font-weight:600;}
 
+/* STORIES DYNAMIC DESIGN PROMO CARD */
+.story-promo-card {
+  background: linear-gradient(135deg, rgba(99,102,241,0.15) 0%, rgba(139,92,246,0.15) 100%);
+  border: 1px solid rgba(139,92,246,0.4);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+  box-shadow: 0 4px 20px rgba(139,92,246,0.15);
+  transition: transform 0.2s ease;
+}
+.story-promo-card:active { transform: scale(0.98); }
+.story-promo-card::after {
+  content: ''; position: absolute; top: 0; left: -150%; width: 50%; height: 100%;
+  background: linear-gradient(to right, transparent, rgba(255,255,255,0.3), transparent);
+  transform: skewX(-25deg); animation: promoShine 5s infinite;
+}
+@keyframes promoShine { 0% { left: -150%; } 20% { left: 200%; } 100% { left: 200%; } }
+.spc-content { z-index: 2; flex: 1; }
+.spc-title { font-size: 15px; font-weight: 800; color: #fff; margin-bottom: 4px; display: flex; align-items: center; gap: 6px; }
+.spc-tag { background: var(--green); color: #000; font-size: 10px; font-weight: 800; padding: 2px 6px; border-radius: 6px; text-transform: uppercase; letter-spacing: 0.5px;}
+.spc-text { font-size: 11px; color: var(--text-2); line-height: 1.4; max-width: 90%; }
+.spc-icon {
+  font-size: 32px; z-index: 2;
+  background: linear-gradient(135deg, #a855f7, #ec4899);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 4px 6px rgba(236, 72, 153, 0.3));
+}
+
 /* WHEEL */
 .wheel-glass-card {
   background: rgba(20, 20, 20, 0.6); border: 1px solid var(--border2);
@@ -575,6 +609,19 @@ img{display:block}
     
     <!-- UPLOAD -->
     <div class="panel active" id="panel-upload">
+      
+      <!-- STORIES DYNAMIC CARD -->
+      <div class="story-promo-card" id="story-promo-card" onclick="postPromoStory()">
+        <div class="spc-content">
+          <div class="spc-title">
+            <span id="spc-title-text" data-i18n="story_promo_title">Share a Story</span>
+            <span class="spc-tag" id="spc-reward-tag">+$15 & 1 SPIN</span>
+          </div>
+          <div class="spc-text" id="spc-desc-text" data-i18n="story_promo_text">Post your personalized progress story to your profile and get $15 + 1 Free Spin!</div>
+        </div>
+        <div class="spc-icon" id="spc-icon-visual">📸</div>
+      </div>
+
       <div id="slot-indicator">
         <div class="slot-label" data-i18n="slots_label">Slots</div>
         <div class="slot-bar-wrap"><div class="slot-bar-bg"><div class="slot-bar-fill" id="slot-bar-fill" style="width:0%"></div></div></div>
@@ -947,7 +994,11 @@ const TRANSLATIONS = {
     adm_maint_title: "Maintenance Mode", adm_maint_save: "Save Maintenance",
     adm_bulk_title: "Bulk Actions & Cleanup", adm_bulk_rs: "Reset All Slots", adm_bulk_rw: "Reset All Wheels", adm_bulk_d30: "Del Photos > 30d", adm_bulk_d7: "Del Photos > 7d", adm_bulk_sell: "⚡ Sell All Active Photos", adm_bulk_wheel: "🎡 Edit Global Wheel",
     adm_chat_close: "🔒 Close", adm_chat_wipe: "🗑 Wipe", adm_chat_you: "You:",
-    toast_maint_saved: "Maintenance settings saved!", toast_bc_start: "Broadcast started successfully!", toast_promo_ok: "Promo code added!"
+    toast_maint_saved: "Maintenance settings saved!", toast_bc_start: "Broadcast started successfully!", toast_promo_ok: "Promo code added!",
+    
+    story_promo_title: "Share a Story",
+    story_promo_text: "Post your personalized progress story to your profile and get $15 + 1 Free Spin!",
+    story_promo_claimed: "Bonus Claimed ✓ (Share again for referrals)"
   },
   ru:{
     hdr_sub:"Платформа аукциона фото",
@@ -1037,7 +1088,11 @@ const TRANSLATIONS = {
     adm_maint_title: "Технические работы", adm_maint_save: "Сохранить настройки",
     adm_bulk_title: "Массовые действия и Очистка", adm_bulk_rs: "Сброс слотов всем", adm_bulk_rw: "Сброс колеса всем", adm_bulk_d30: "Удалить фото > 30д", adm_bulk_d7: "Удалить фото > 7д", adm_bulk_sell: "⚡ Продать все на аукционе", adm_bulk_wheel: "🎡 Глобальная рулетка",
     adm_chat_close: "🔒 Закрыть", adm_chat_wipe: "🗑 Удалить", adm_chat_you: "Вы:",
-    toast_maint_saved: "Настройки тех. работ сохранены!", toast_bc_start: "Рассылка успешно начата!", toast_promo_ok: "Промокод добавлен!"
+    toast_maint_saved: "Настройки тех. работ сохранены!", toast_bc_start: "Рассылка успешно начата!", toast_promo_ok: "Промокод добавлен!",
+    
+    story_promo_title: "Выложить сторис",
+    story_promo_text: "Опубликуй свою статистику в сторис и моментально получи $15 + 1 Бесплатный Спин!",
+    story_promo_claimed: "Бонус получен ✓ (Делись еще для рефералов)"
   }
 };
 
@@ -1049,7 +1104,6 @@ function applyTranslations(){
   document.querySelectorAll('[data-i18n-placeholder]').forEach(el => { el.placeholder = t(el.getAttribute('data-i18n-placeholder')); });
   document.getElementById('lang-toggle').textContent = currentLang === 'en' ? 'RU' : 'EN';
   
-  // Update wheel if present
   if(typeof updateWheelUI === 'function') updateWheelUI();
   
   if(document.querySelector('.panel.active')?.id === 'panel-admin') {
@@ -1062,8 +1116,17 @@ function toggleLang(){
   applyTranslations();
   renderPortfolio(); renderWalletInfo(); renderReferrals(); loadReferralsList(); renderLiveFeed();
   updateUploadLock(); renderWithdrawPreviews();
-  if(gameData?.player) gameData.player.lang = currentLang;
-  if(gameData?.player) updateHeader(gameData.player);
+  
+  if (gameData?.player) {
+      if (gameData.player.has_claimed_story === 1) {
+          document.getElementById('spc-desc-text').textContent = t('story_promo_claimed');
+      } else {
+          document.getElementById('spc-desc-text').textContent = t('story_promo_text');
+      }
+      gameData.player.lang = currentLang;
+      updateHeader(gameData.player);
+  }
+
   if(userId){
     authFetch(`/api/player/${userId}/lang`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ lang: currentLang }) }).catch(() => {});
   }
@@ -1162,6 +1225,18 @@ async function loadPlayer(silent = false){
     }
     
     gameData = data;
+    
+    // Check Story Bonus Status
+    if (gameData.player.has_claimed_story === 1) {
+        document.getElementById('spc-reward-tag').textContent = "🔗 REF";
+        document.getElementById('spc-reward-tag').style.background = "var(--blue)";
+        document.getElementById('spc-desc-text').textContent = t('story_promo_claimed');
+    } else {
+        document.getElementById('spc-reward-tag').textContent = "+$15 & 1 SPIN";
+        document.getElementById('spc-reward-tag').style.background = "var(--green)";
+        document.getElementById('spc-desc-text').textContent = t('story_promo_text');
+    }
+
     updateHeader(gameData.player);
     renderPortfolio(); renderWalletInfo(); updateUploadLock(); renderWithdrawPreviews();
     renderVipBadge(gameData.vip_level); renderReferrals();
@@ -1306,6 +1381,63 @@ function switchTab(name){
   if(name === 'market') renderLiveFeed();
   if(name === 'support') loadSupportMsgs();
   if(name === 'admin') admLoadDashboard();
+}
+
+// -----------------------------------------------------
+// TELEGRAM STORIES GENERATION & PUBLISH
+// -----------------------------------------------------
+async function postPromoStory() {
+    if (!tg || !tg.shareToStory) {
+        showToast(currentLang === 'ru' ? "Обновите Telegram, чтобы выкладывать Stories" : "Update Telegram to post Stories", "error");
+        return;
+    }
+
+    const btnText = document.getElementById('spc-desc-text');
+    const origText = btnText.innerText;
+    btnText.innerText = currentLang === 'ru' ? "Генерируем карточку..." : "Generating card...";
+
+    try {
+        // 1. Запрашиваем генерацию индивидуальной картинки
+        const r = await authFetch('/api/story/generate');
+        if (!r.ok) throw new Error("Failed to generate image");
+        const data = await r.json();
+        const storyUrl = data.story_url;
+
+        // 2. Достаем реферальную ссылку пользователя
+        const refUrl = gameData?.referral_url || `https://t.me/PhotoFlipBot`;
+
+        // 3. Настраиваем параметры Telegram Stories
+        const shareParams = {
+            text: currentLang === 'ru' 
+                ? "Твоя камера теперь печатает деньги. Оценивай свои фото и зарабатывай USD! 📸💸\nЗалетай по ссылке:" 
+                : "Your camera is now printing money. Value your photos and earn USD! 📸💸\nJoin via my link:",
+            widget_link: {
+                url: refUrl,
+                name: currentLang === 'ru' ? "Узнать цену моих фото 🤑" : "Value my photos 🤑"
+            }
+        };
+
+        // 4. Открываем редактор Stories
+        tg.shareToStory(storyUrl, shareParams);
+
+        // 5. Если бонус еще не был получен, начисляем его с задержкой
+        if (gameData?.player?.has_claimed_story !== 1) {
+            setTimeout(async () => {
+                const claimReq = await authFetch('/api/story/claim_bonus', { method: 'POST' });
+                if (claimReq.ok) {
+                    await loadPlayer(false);
+                    switchTab('bonus');
+                }
+            }, 3000); // 3 секунды задержки
+        }
+
+    } catch(e) {
+        showToast(t('toast_err'), "error");
+    } finally {
+        if (gameData?.player?.has_claimed_story !== 1) {
+            btnText.innerText = origText;
+        }
+    }
 }
 
 // -----------------------------------------------------
@@ -1656,7 +1788,8 @@ function renderWithdrawPreviews(){
 
   const canWithdraw = unlocked && bal >= minWd && activeSales === 0;
   const usdBtn = document.getElementById('withdraw-btn-usd');
-  const starsBtn = document.getElementById('withdraw-btn-stars');
+  const starsBtn
+const starsBtn = document.getElementById('withdraw-btn-stars');
 
   usdBtn.disabled = !canWithdraw;
   starsBtn.disabled = !canWithdraw;
@@ -1884,8 +2017,7 @@ function handleChatImgSelect(input) {
     if(input.files && input.files[0]) {
         supportImgFile = input.files[0];
         document.getElementById('chat-img-preview-box').style.display = 'flex';
-        document.getElementById('chat-img-thumb').src = URL.createObjectURL(supportImgFile
-);
+        document.getElementById('chat-img-thumb').src = URL.createObjectURL(supportImgFile);
     }
 }
 
@@ -2140,7 +2272,7 @@ async function admUpdateSponsorMode(mode) {
     showToast('Mode saved', 'success');
 }
 
-// -- SPONSORS & PROMO (Proper HTML forms) --
+// -- SPONSORS & PROMO --
 async function admSubmitPromo() {
     const code = document.getElementById('adm-promo-code').value.trim() || "AUTO";
     const type = document.getElementById('adm-promo-type').value;
@@ -2228,7 +2360,6 @@ function renderAdminChatMsgs(msgs) {
     let imgHtml = m.image ? `<img src="/uploads/support/${m.image}">` : '';
     const isFromAdmin = m.direction === 'out';
     
-    // Explicit small buttons inline for mobile friendliness instead of hover
     let actions = `<div style="display:flex; gap:8px; justify-content:flex-end; margin-top:6px;">
         ${isFromAdmin && m.text ? `<span style="font-size:12px; cursor:pointer; color:var(--text-2);" onclick="admEditMsg(${m.id}, '${escHtml(m.text).replace(/'/g,"\\'")}')">✏️ Edit</span>` : ''}
         <span style="font-size:12px; cursor:pointer; color:var(--red);" onclick="admDelMsg(${m.id})">❌ Del</span>
@@ -2243,7 +2374,6 @@ function renderAdminChatMsgs(msgs) {
   container.scrollTop = container.scrollHeight;
 }
 
-// Action Handlers
 async function admEditMsg(msgId, oldText) {
     const nt = prompt("Edit message:", oldText);
     if(nt !== null && nt !== oldText) {
@@ -2269,7 +2399,6 @@ async function admDeleteTicket() {
     closeAdminChat();
 }
 
-// Sending
 function handleAdminChatImgSelect(input) {
     if(input.files && input.files[0]) {
         adminSupportImgFile = input.files[0];
