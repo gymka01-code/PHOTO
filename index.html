@@ -735,6 +735,7 @@ img{display:block}
     <!-- PROFILE -->
     <div class="panel" id="panel-profile">
       <div class="section-head"><div class="section-title" data-i18n="profile_title">My Profile</div><div class="section-sub" id="ref-count-sub">0 referrals</div></div>
+      <!-- Было: -->
       <div class="ref-link-card">
         <div class="card-label" data-i18n="ref_link_label">Your Referral Link</div>
         <div class="ref-url-row">
@@ -742,6 +743,14 @@ img{display:block}
           <button class="ref-copy-btn" onclick="copyRefLink()" data-i18n="ref_copy">Copy</button>
           <button class="ref-share-btn" data-i18n="ref_share" onclick="shareRefLink()">📤 Share</button>
         </div>
+        
+        <!-- === ДОБАВЛЯЕМ ЭТОТ БЛОК НИЖЕ === -->
+        <div style="background:var(--green-dim); border:1px solid rgba(34,197,94,0.3); border-radius:var(--radius-sm); padding:10px; margin-top:12px; text-align:center;">
+            <span style="font-size:16px;">💸</span> <strong style="color:var(--green); font-size:13px;" data-i18n="ref_passive_title">Пассивный доход 5%</strong>
+            <div style="font-size:11px; color:var(--text-2); margin-top:4px;" data-i18n="ref_passive_desc">Получай 5% от каждой продажи твоих друзей НАВСЕГДА!</div>
+        </div>
+        <!-- ================================ -->
+
         <div style="font-size:10px; color:var(--amber); margin-top:8px; line-height:1.4; text-align:center;" data-i18n="ref_hint">⚠️ Referral is counted as active only after their first photo sale.</div>
       </div>
       <div class="promo-card">
