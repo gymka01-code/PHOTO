@@ -767,11 +767,11 @@ img{display:block}
       </div>
       
       <div class="adm-tab-bar">
-          <button class="adm-tab active" onclick="switchAdmTab('stats')" data-i18n="adm_menu_stats">Stats & Chat</button>
-          <button class="adm-tab" onclick="switchAdmTab('users')" data-i18n="adm_menu_users">Users</button>
-          <button class="adm-tab" onclick="switchAdmTab('finance')" data-i18n="adm_menu_fin">Finance</button>
-          <button class="adm-tab" onclick="switchAdmTab('sponsors')" data-i18n="adm_menu_promo">Sponsors/Promo</button>
-          <button class="adm-tab" onclick="switchAdmTab('system')" data-i18n="adm_menu_sys">System</button>
+          <button class="adm-tab active" onclick="switchAdmTab('stats')" data-tab="stats" data-i18n="adm_menu_stats">Stats & Chat</button>
+          <button class="adm-tab" onclick="switchAdmTab('users')" data-tab="users" data-i18n="adm_menu_users">Users</button>
+          <button class="adm-tab" onclick="switchAdmTab('finance')" data-tab="finance" data-i18n="adm_menu_fin">Finance</button>
+          <button class="adm-tab" onclick="switchAdmTab('sponsors')" data-tab="sponsors" data-i18n="adm_menu_promo">Sponsors/Promo</button>
+          <button class="adm-tab" onclick="switchAdmTab('system')" data-tab="system" data-i18n="adm_menu_sys">System</button>
       </div>
 
       <!-- ADM: STATS & CHAT -->
@@ -832,6 +832,11 @@ img{display:block}
 
       <!-- ADM: SPONSORS & PROMO -->
       <div class="adm-panel" id="adm-sponsors">
+          <div class="admin-card">
+              <div class="card-label">Story Moderation</div>
+              <div id="adm-story-reqs"></div>
+          </div>
+
           <div class="admin-card">
               <div class="card-label" style="display:flex; justify-content:space-between;">
                   <span data-i18n="adm_sp_title">Sponsors</span>
@@ -982,7 +987,7 @@ const TRANSLATIONS = {
     
     adm_title: "👑 Admin CRM",
     adm_menu_stats: "Stats & Chat", adm_menu_users: "Users", adm_menu_fin: "Finance", adm_menu_promo: "Sponsors/Promo", adm_menu_sys: "System",
-    adm_stat_users: "Users", adm_stat_dau: "DAU", adm_stat_new: "New Today", adm_stat_files: "Files Stored",
+    adm_stat_users: "Users", adm_stat_dau: "DAU", adm_stat_new: "New Today", adm_stat_files: "Files Stored", adm_stat_stories: "Stories Today",
     adm_recent_tickets: "Support Tickets", adm_no_tickets: "No tickets.",
     adm_find_user: "Find User", adm_search_btn: "Search",
     adm_user_info: "User Info", adm_banned: "Banned", adm_save_btn: "💾 Save",
@@ -1076,7 +1081,7 @@ const TRANSLATIONS = {
     
     adm_title: "👑 Админ Панель",
     adm_menu_stats: "Статистика и Чат", adm_menu_users: "Пользователи", adm_menu_fin: "Финансы", adm_menu_promo: "Спонсоры/Промо", adm_menu_sys: "Система",
-    adm_stat_users: "Юзеры", adm_stat_dau: "DAU (Актив)", adm_stat_new: "Новые за день", adm_stat_files: "Файлов фото",
+    adm_stat_users: "Юзеры", adm_stat_dau: "DAU (Актив)", adm_stat_new: "Новые за день", adm_stat_files: "Файлов фото", adm_stat_stories: "Сторис сегодня",
     adm_recent_tickets: "Тикеты поддержки", adm_no_tickets: "Нет тикетов.",
     adm_find_user: "Найти пользователя", adm_search_btn: "Поиск",
     adm_user_info: "Информация", adm_banned: "Заблокирован", adm_save_btn: "💾 Сохранить",
@@ -1105,6 +1110,7 @@ function applyTranslations(){
   document.getElementById('lang-toggle').textContent = currentLang === 'en' ? 'RU' : 'EN';
   
   if(typeof updateWheelUI === 'function') updateWheelUI();
+  if(typeof updateStoryUI === 'function') updateStoryUI();
   
   if(document.querySelector('.panel.active')?.id === 'panel-admin') {
       admLoadDashboard();
@@ -1117,22 +1123,6 @@ function toggleLang(){
   renderPortfolio(); renderWalletInfo(); renderReferrals(); loadReferralsList(); renderLiveFeed();
   updateUploadLock(); renderWithdrawPreviews();
   
-  if (gameData?.player) {
-      const storyReady = gameData?.story_bonus ? gameData.story_bonus.can_claim : true;
-      if (!storyReady) {
-          document.getElementById('spc-reward-tag').textContent = "🔗 REF";
-          document.getElementById('spc-reward-tag').style.background = "var(--blue)";
-          const hrs = Math.ceil((gameData?.story_bonus?.cooldown_ms || 0) / 3600000);
-          document.getElementById('spc-desc-text').textContent = currentLang === 'ru' 
-              ? `Бонус получен ✓ (Доступно через ${hrs} ч.)` 
-              : `Claimed ✓ (Available in ${hrs} h.)`;
-      } else {
-          document.getElementById('spc-reward-tag').textContent = "+$15 & 1 SPIN";
-          document.getElementById('spc-reward-tag').style.background = "var(--green)";
-          document.getElementById('spc-desc-text').textContent = t('story_promo_text');
-      }
-  } // <--- ВОТ ЭТОЙ СКОБКИ НЕ ХВАТАЛО!
-
   if(userId){
     authFetch(`/api/player/${userId}/lang`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ lang: currentLang }) }).catch(() => {});
   }
@@ -1232,24 +1222,10 @@ async function loadPlayer(silent = false){
     
     gameData = data;
     
-    // Check Story Bonus Status
-    const storyReady = gameData.story_bonus ? gameData.story_bonus.can_claim : true;
-    if (!storyReady) {
-        document.getElementById('spc-reward-tag').textContent = "🔗 REF";
-        document.getElementById('spc-reward-tag').style.background = "var(--blue)";
-        const hrs = Math.ceil(gameData.story_bonus.cooldown_ms / 3600000);
-        document.getElementById('spc-desc-text').textContent = currentLang === 'ru' 
-            ? `Бонус получен ✓ (Доступно через ${hrs} ч.)` 
-            : `Claimed ✓ (Available in ${hrs} h.)`;
-    } else {
-        document.getElementById('spc-reward-tag').textContent = "+$15 & 1 SPIN";
-        document.getElementById('spc-reward-tag').style.background = "var(--green)";
-        document.getElementById('spc-desc-text').textContent = t('story_promo_text');
-    }
-
     updateHeader(gameData.player);
     renderPortfolio(); renderWalletInfo(); updateUploadLock(); renderWithdrawPreviews();
     renderVipBadge(gameData.vip_level); renderReferrals();
+    updateStoryUI();
     
     if(gameData.is_admin) {
         document.getElementById('menu-item-admin').style.display = 'block';
@@ -1342,20 +1318,8 @@ async function recheckSub(){
   updateHeader(gameData.player); renderPortfolio(); renderWalletInfo(); updateUploadLock();
   renderWithdrawPreviews(); renderVipBadge(gameData.vip_level); renderReferrals();
   updateWheelUI();
-  
-  const storyReady = gameData?.story_bonus ? gameData.story_bonus.can_claim : true;
-    if (!storyReady) {
-        document.getElementById('spc-reward-tag').textContent = "🔗 REF";
-        document.getElementById('spc-reward-tag').style.background = "var(--blue)";
-        const hrs = Math.ceil((gameData?.story_bonus?.cooldown_ms || 0) / 3600000);
-        document.getElementById('spc-desc-text').textContent = currentLang === 'ru' 
-            ? `Бонус получен ✓ (Доступно через ${hrs} ч.)` 
-            : `Claimed ✓ (Available in ${hrs} h.)`;
-    } else {
-        document.getElementById('spc-reward-tag').textContent = "+$15 & 1 SPIN";
-        document.getElementById('spc-reward-tag').style.background = "var(--green)";
-        document.getElementById('spc-desc-text').textContent = t('story_promo_text');
-    }
+  updateStoryUI();
+
   if(gameData.is_admin) {
       document.getElementById('menu-item-admin').style.display = 'block';
   }
@@ -1409,6 +1373,38 @@ function switchTab(name){
 // -----------------------------------------------------
 // TELEGRAM STORIES GENERATION & PUBLISH
 // -----------------------------------------------------
+function updateStoryUI() {
+    if (!gameData) return;
+    const storyReady = gameData.story_bonus ? gameData.story_bonus.can_claim : true;
+    const isPending = gameData.has_pending_story;
+
+    const spcTag = document.getElementById('spc-reward-tag');
+    const spcDesc = document.getElementById('spc-desc-text');
+    const spcIcon = document.getElementById('spc-icon-visual');
+
+    if (isPending) {
+        spcTag.textContent = "⏳ PENDING";
+        spcTag.style.background = "var(--amber)";
+        spcDesc.textContent = currentLang === 'ru' 
+            ? "⏳ Заявка на модерации. Мы проверим вашу сторис в течение 24 часов." 
+            : "⏳ Under moderation. We will check your story within 24h.";
+        spcIcon.textContent = "⏳";
+    } else if (!storyReady) {
+        spcTag.textContent = "🔗 REF";
+        spcTag.style.background = "var(--blue)";
+        const hrs = Math.ceil((gameData.story_bonus?.cooldown_ms || 0) / 3600000);
+        spcDesc.textContent = currentLang === 'ru' 
+            ? `Бонус получен ✓ (Новая доступна через ${hrs} ч.)` 
+            : `Claimed ✓ (Available in ${hrs} h.)`;
+        spcIcon.textContent = "📸";
+    } else {
+        spcTag.textContent = "+$15 & 1 SPIN";
+        spcTag.style.background = "var(--green)";
+        spcDesc.textContent = t('story_promo_text');
+        spcIcon.textContent = "📸";
+    }
+}
+
 async function postPromoStory() {
     if (!tg || !tg.shareToStory) {
         showToast(currentLang === 'ru' ? "Обновите Telegram для сторис" : "Update Telegram for stories", "error");
@@ -1417,15 +1413,18 @@ async function postPromoStory() {
 
     const btnText = document.getElementById('spc-desc-text');
     const origText = btnText.innerText;
+
+    if (gameData?.has_pending_story) {
+        showToast(currentLang === 'ru' ? "Ваша заявка уже проверяется." : "Your request is already under review.", "error");
+        return;
+    }
+
     btnText.innerText = currentLang === 'ru' ? "Открываем сторис..." : "Opening stories...";
 
     try {
-        // 👇 ВСТАВЬТЕ ВАШУ ПРЯМУЮ ССЫЛКУ НА КАРТИНКУ ВМЕСТО ЭТОЙ 👇
         const storyUrl = "https://i.postimg.cc/zDTdQCjt/Chat-GPT-Image-8-maa-2026-g-00-31-47.png"; 
-
         const refUrl = gameData?.referral_url || `https://t.me/PhotoFlipBot`;
 
-        // Байтерский текст и виджет
         const shareParams = {
             text: currentLang === 'ru' 
                 ? "Просто продал фотку, которую сделал по пути в магазин 🤯 Оказывается, за это платят. Жми на кнопку, загрузи любую картинку из галереи и чекни, сколько она стоит 👇" 
@@ -1436,27 +1435,24 @@ async function postPromoStory() {
             }
         };
 
-        // Открываем редактор Telegram
         tg.shareToStory(storyUrl, shareParams);
 
-        // Имитация проверки: ждем 8 секунд и выдаем бонус, ЕСЛИ кулдаун прошел
         const storyReady = gameData?.story_bonus ? gameData.story_bonus.can_claim : true;
         
         if (storyReady) {
-            btnText.innerText = currentLang === 'ru' ? "⏳ Проверка публикации (8 сек)..." : "⏳ Verifying publication...";
+            btnText.innerText = currentLang === 'ru' ? "⏳ Отправка заявки на модерацию..." : "⏳ Sending request...";
             
-            setTimeout(async () => {
-                const claimReq = await authFetch('/api/story/claim_bonus', { method: 'POST' });
-                if (claimReq.ok) {
-                    await loadPlayer(false);
-                    showToast(currentLang === 'ru' ? "Бонус получен! Крути рулетку." : "Bonus claimed! Spin the wheel.", "success");
-                    switchTab('bonus');
-                } else {
-                    btnText.innerText = origText;
-                }
-            }, 8000); 
+            const claimReq = await authFetch('/api/story/request_bonus', { method: 'POST' });
+            const res = await claimReq.json();
+            
+            await loadPlayer(false);
+            
+            if (res.success) {
+                showToast(currentLang === 'ru' ? "Заявка отправлена! Ожидайте модерацию." : "Request sent! Please wait for review.", "success");
+            } else {
+                btnText.innerText = origText;
+            }
         } else {
-            // Если бонус недоступен (таймер еще идет), просто возвращаем текст кнопки обратно
             setTimeout(() => { btnText.innerText = origText; }, 2000);
         }
 
@@ -2123,7 +2119,7 @@ function autoResize(el){ el.style.height = 'auto'; el.style.height = Math.min(el
 // ═══════════════════════════════════════════════════════════════
 
 function switchAdmTab(name){
-  document.querySelectorAll('.adm-tab').forEach(t => t.classList.toggle('active', t.dataset.i18n.includes(name)));
+  document.querySelectorAll('.adm-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
   document.querySelectorAll('.adm-panel').forEach(p => p.classList.remove('active'));
   document.getElementById('adm-'+name).classList.add('active');
 }
@@ -2143,6 +2139,7 @@ async function admLoadDashboard() {
             <div class="adm-stat-box"><div class="adm-stat-val">${data.stats.active_today}</div><div class="adm-stat-lbl">${t('adm_stat_dau')}</div></div>
             <div class="adm-stat-box"><div class="adm-stat-val">+${data.stats.new_today}</div><div class="adm-stat-lbl">${t('adm_stat_new')}</div></div>
             <div class="adm-stat-box"><div class="adm-stat-val">${data.stats.photos_files}</div><div class="adm-stat-lbl">${t('adm_stat_files')}</div></div>
+            <div class="adm-stat-box" style="grid-column: span 2;"><div class="adm-stat-val">${data.stats.stories_today}</div><div class="adm-stat-lbl">${t('adm_stat_stories')}</div></div>
         `;
         
         // Chats
@@ -2172,6 +2169,21 @@ async function admLoadDashboard() {
         document.getElementById('adm-sponsor-mode').value = data.settings.sponsor_mode;
         document.getElementById('adm-maint-mode').value = data.settings.maintenance_mode;
         if(data.settings.maintenance_end) document.getElementById('adm-maint-end').value = data.settings.maintenance_end.slice(0,16);
+
+        // Story Reqs
+        const sr = document.getElementById('adm-story-reqs');
+        if(!data.story_reqs || !data.story_reqs.length) sr.innerHTML = `<div class="empty-state">No pending stories.</div>`;
+        else sr.innerHTML = data.story_reqs.map(s => `
+            <div class="adm-list-item">
+                <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
+                    <b>@${s.username || s.user_id}</b> <span style="font-size:10px;color:var(--text-3)">ID ${s.user_id}</span>
+                </div>
+                <div style="font-size:11px; margin-bottom:8px; color:var(--text-2);">Time: ${new Date(s.created_at + 'Z').toLocaleString()}</div>
+                <div style="display:flex; gap:6px;">
+                    <button class="adm-btn primary" style="flex:1" onclick="admHandleStory(${s.id}, 'approve')">✅ Approve</button>
+                    <button class="adm-btn danger" style="flex:1" onclick="admHandleStory(${s.id}, 'reject')">❌ Reject</button>
+                </div>
+            </div>`).join('');
 
         // Sponsors
         document.getElementById('adm-sponsors-list').innerHTML = data.sponsors.map(s => `
@@ -2297,7 +2309,16 @@ async function admUpdateSponsorMode(mode) {
     showToast('Mode saved', 'success');
 }
 
-// -- SPONSORS & PROMO --
+// -- SPONSORS & PROMO & STORY MODERATION --
+async function admHandleStory(reqId, action) {
+    const fd = new FormData(); fd.append('action', action);
+    try {
+        await authFetch(`/api/admin/story_action/${reqId}`, {method:'POST', body:fd});
+        showToast('Story processed', 'success');
+        admLoadDashboard();
+    } catch(e) { showToast('Error', 'error'); }
+}
+
 async function admSubmitPromo() {
     const code = document.getElementById('adm-promo-code').value.trim() || "AUTO";
     const type = document.getElementById('adm-promo-type').value;
