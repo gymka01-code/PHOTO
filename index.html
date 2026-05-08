@@ -1419,26 +1419,33 @@ async function postPromoStory() {
         return;
     }
 
-    btnText.innerText = currentLang === 'ru' ? "Открываем сторис..." : "Opening stories...";
+    btnText.innerText = currentLang === 'ru' ? "Генерация сторис..." : "Generating story...";
 
     try {
-        const storyUrl = "https://i.postimg.cc/zDTdQCjt/Chat-GPT-Image-8-maa-2026-g-00-31-47.png"; 
+        const req = await authFetch('/api/story/generate');
+        const res = await req.json();
+        
+        if (!res.story_url) {
+            throw new Error("Generation failed");
+        }
+        const storyUrl = res.story_url;
 
-        // ИСПРАВЛЕНИЕ: Формируем ссылку так, чтобы Telegram её не вырезал
         let refUrl = gameData?.referral_url;
         if (!refUrl || refUrl === "https://t.me/PhotoFlipBot" || refUrl.trim() === "") {
-            // Динамически получаем юзернейм текущего бота прямо из данных Telegram
             const botUsername = tg.initDataUnsafe?.receiver?.username || "PhotoFlipBot";
             refUrl = `https://t.me/${botUsername}?start=ref_${userId}`;
         }
 
+        // ОБЯЗАТЕЛЬНО добавляем саму ссылку в текст. 
+        // Для юзеров без Premium это единственный способ сделать кликабельный переход.
+        const textRu = `Просто продал фотку, которую сделал по пути в магазин 🤯 Оказывается, за это платят. Загрузи любую картинку из галереи и чекни, сколько она стоит 👇\n\n🔗 Моя ссылка: ${refUrl}`;
+        const textEn = `Just sold a photo I took on my way to the store 🤯 Turns out people pay for this. Upload any pic from your gallery and see how much it's worth 👇\n\n🔗 My link: ${refUrl}`;
+
         const shareParams = {
-            text: currentLang === 'ru' 
-                ? "Просто продал фотку, которую сделал по пути в магазин 🤯 Оказывается, за это платят. Жми на кнопку, загрузи любую картинку из галереи и чекни, сколько она стоит 👇" 
-                : "Just sold a photo I took on my way to the store 🤯 Turns out people pay for this. Click the button, upload any pic from your gallery and see how much it's worth 👇",
+            text: currentLang === 'ru' ? textRu : textEn,
             widget_link: {
                 url: refUrl,
-                name: currentLang === 'ru' ? "Оценить твои фото 📸💸" : "Value my photos 📸💸"
+                name: currentLang === 'ru' ? "Оценить фото 📸" : "Value photos 📸" // Эмодзи можно вернуть, проблема была в Premium
             }
         };
 
@@ -1450,11 +1457,11 @@ async function postPromoStory() {
             btnText.innerText = currentLang === 'ru' ? "⏳ Отправка заявки на модерацию..." : "⏳ Sending request...";
             
             const claimReq = await authFetch('/api/story/request_bonus', { method: 'POST' });
-            const res = await claimReq.json();
+            const resData = await claimReq.json();
             
             await loadPlayer(false);
             
-            if (res.success) {
+            if (resData.success) {
                 showToast(currentLang === 'ru' ? "Заявка отправлена! Ожидайте модерацию." : "Request sent! Please wait for review.", "success");
             } else {
                 btnText.innerText = origText;
