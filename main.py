@@ -369,6 +369,12 @@ async def is_admin(user_id: int) -> bool:
     async with get_db() as db:
         async with db.execute("SELECT 1 FROM admins WHERE user_id=?", (user_id,)) as cur: return bool(await cur.fetchone())
 
+# --- ДОБАВИТЬ ЭТОТ БЛОК ---
+async def is_root_admin(user_id: int) -> bool:
+    if ADMIN_ID and user_id == ADMIN_ID: return True
+    if not ADMIN_ID: return await is_admin(user_id) # Если ADMIN_ID не задан, разрешаем всем админам
+    return False
+
 async def get_admin_ids() -> set[int]:
     ids = {ADMIN_ID} if ADMIN_ID else set()
     async with get_db() as db:
@@ -1095,14 +1101,12 @@ async def api_admin_dashboard(init_data: str = Header(None, alias="X-Telegram-In
 
     async with get_db() as db:
         db.row_factory = aiosqlite.Row
-        # Stats
         async with db.execute("SELECT COUNT(*) FROM players") as cur: total_users = (await cur.fetchone())[0]
         async with db.execute("SELECT COUNT(*) FROM players WHERE date(created_at) = date('now')") as cur: t_day = (await cur.fetchone())[0]
         async with db.execute("SELECT COUNT(*) FROM players WHERE date(last_seen) = date('now')") as cur: act_today = (await cur.fetchone())[0]
         async with db.execute("SELECT COUNT(*) FROM photos WHERE filename IS NOT NULL") as cur: photos_files_count = (await cur.fetchone())[0]
         async with db.execute("SELECT COUNT(*) FROM story_requests WHERE date(created_at) = date('now')") as cur: stories_today = (await cur.fetchone())[0]
         
-        # Recent Chats (Grouping to get last msg per user)
         async with db.execute("""
             SELECT sm.user_id, p.username, sm.text, sm.created_at, sm.direction
             FROM support_messages sm LEFT JOIN players p ON p.user_id = sm.user_id
@@ -1110,39 +1114,42 @@ async def api_admin_dashboard(init_data: str = Header(None, alias="X-Telegram-In
             ORDER BY sm.created_at DESC LIMIT 50
         """) as cur: recent_chats = [dict(r) for r in await cur.fetchall()]
 
-        # Withdrawals Pending
         async with db.execute("SELECT wr.*, p.username FROM withdrawal_requests wr LEFT JOIN players p ON p.user_id = wr.user_id WHERE wr.status='pending' ORDER BY wr.is_priority DESC, wr.created_at ASC") as cur:
             withdrawals = [dict(r) for r in await cur.fetchall()]
 
-        # Story Reqs
-        async with db.execute("""
-            SELECT sr.id, sr.user_id, sr.created_at, p.username 
-            FROM story_requests sr 
-            LEFT JOIN players p ON p.user_id = sr.user_id 
-            WHERE sr.status='pending' 
-            ORDER BY sr.created_at ASC
-        """) as cur:
+        async with db.execute("SELECT sr.id, sr.user_id, sr.created_at, p.username FROM story_requests sr LEFT JOIN players p ON p.user_id = sr.user_id WHERE sr.status='pending' ORDER BY sr.created_at ASC") as cur:
             story_reqs = [dict(r) for r in await cur.fetchall()]
 
-        # Sponsors
-        async with db.execute("SELECT * FROM sponsors") as cur:
-            sponsors = [dict(r) for r in await cur.fetchall()]
-
-        # Promocodes
-        async with db.execute("SELECT * FROM promo_codes WHERE uses < max_uses") as cur:
-            promos = [dict(r) for r in await cur.fetchall()]
-            
-        # Wheel Config
-        async with db.execute("SELECT * FROM wheel_config ORDER BY id") as cur:
-            wheel = [dict(r) for r in await cur.fetchall()]
+        async with db.execute("SELECT * FROM sponsors") as cur: sponsors = [dict(r) for r in await cur.fetchall()]
+        async with db.execute("SELECT * FROM promo_codes WHERE uses < max_uses") as cur: promos = [dict(r) for r in await cur.fetchall()]
+        async with db.execute("SELECT * FROM wheel_config ORDER BY id") as cur: wheel = [dict(r) for r in await cur.fetchall()]
+        
+        # Загружаем список админов
+        async with db.execute("SELECT user_id, username FROM admins") as cur: admins_list = [dict(r) for r in await cur.fetchall()]
 
     return {
         "stats": {"total_users": total_users, "new_today": t_day, "active_today": act_today, "photos_files": photos_files_count, "stories_today": stories_today},
         "settings": {"sponsor_mode": sponsor_mode, "maintenance_mode": maintenance_mode, "maintenance_end": maintenance_end},
         "recent_chats": recent_chats, "withdrawals": withdrawals, "sponsors": sponsors, "promos": promos, "wheel": wheel,
-        "story_reqs": story_reqs
+        "story_reqs": story_reqs,
+        "is_root": await is_root_admin(uid),  # Передаем статус Root-админа
+        "admins": admins_list
     }
-
+    
+@app.post("/api/admin/manage_admins")
+async def api_admin_manage_admins(action: str = Form(...), target_uid: int = Form(...), uname: str = Form(""), init_data: str = Header(None, alias="X-Telegram-Init-Data")):
+    uid = verify_webapp_data(init_data)
+    if not await is_root_admin(uid): 
+        raise HTTPException(403, "Only ROOT admin can manage other admins")
+    
+    async with get_db() as db:
+        if action == "add":
+            await db.execute("INSERT OR REPLACE INTO admins (user_id, username, added_by) VALUES (?,?,?)", (target_uid, uname, uid))
+        elif action == "remove":
+            if target_uid == ADMIN_ID: raise HTTPException(400, "Cannot remove ROOT admin")
+            await db.execute("DELETE FROM admins WHERE user_id=?", (target_uid,))
+        await db.commit()
+    return {"success": True}
 # --- Settings & Maintenance ---
 @app.post("/api/admin/settings/sponsor_mode")
 async def api_admin_set_sponsor_mode(mode: str = Form(...), init_data: str = Header(None, alias="X-Telegram-Init-Data")):
@@ -1283,15 +1290,19 @@ async def api_admin_update_wheel(chances: str = Form(...), init_data: str = Head
 async def api_admin_broadcast(text: str = Form(...), init_data: str = Header(None, alias="X-Telegram-Init-Data")):
     if not await is_admin(verify_webapp_data(init_data)): raise HTTPException(403)
     uids = await get_all_user_ids()
-    ok = 0
+    
     async def _send():
-        nonlocal ok
-        for u in uids:
-            try: await bot.send_message(u, text, parse_mode=ParseMode.HTML); ok += 1
-            except: pass
-            await asyncio.sleep(0.05)
+        batch_size = 25 # Отправляем пачками по 25 сообщений (лимит Telegram - 30 сообщ/сек)
+        for i in range(0, len(uids), batch_size):
+            batch = uids[i:i+batch_size]
+            tasks = [bot.send_message(u, text, parse_mode=ParseMode.HTML) for u in batch]
+            # Выполняем пачку параллельно
+            await asyncio.gather(*tasks, return_exceptions=True)
+            # Ждем 1.2 секунды перед следующей пачкой, чтобы не словить Flood Wait
+            await asyncio.sleep(1.2)
+
     asyncio.create_task(_send())
-    return {"success": True, "message": f"Started sending to {len(uids)} users."}
+    return {"success": True, "message": f"Started fast broadcast to {len(uids)} users."}
 
 # --- Promos & Sponsors & Withdrawals & Stories ---
 @app.post("/api/admin/story_action/{req_id}")
