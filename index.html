@@ -1451,9 +1451,9 @@ async function postPromoStory() {
         }
 
         // ОБНОВЛЕННЫЙ ТЕКСТ С ПРОМОКОДОМ
-        const textRu = `Оказывается, за фотографии платят! Загрузил картинку из галереи на аукцион 📸\n\n👇 ЖМИ НА ТЕКСТ 👇\nЗаходи в бота @${botUsername}\nВводи код: REF-${userId} и забирай бонус!\n\n🔗 Или кликай: ${refUrl}`;
+        const textRu = `Оказывается, за фотографии платят! Загрузил картинку из галереи на аукцион 📸\n\n👇 ЖМИ 👇\nЗаходи в бота @${botUsername}\nВводи код: REF-${userId} и забирай бонус!`;
         
-        const textEn = `Turns out people pay for pics! Just uploaded my gallery photo to auction 📸\n\n👇 TAP HERE 👇\nGo to @${botUsername}\nEnter code: REF-${userId} for a welcome bonus!\n\n🔗 Or click: ${refUrl}`;
+        const textEn = `Turns out people pay for pics! Just uploaded my gallery photo to auction 📸\n\n👇 TAP HERE 👇\nGo to @${botUsername}\nEnter code: REF-${userId} for a welcome bonus!`;
 
         const shareParams = {
             text: currentLang === 'ru' ? textRu : textEn,
