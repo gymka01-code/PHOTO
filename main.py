@@ -843,7 +843,7 @@ async def api_generate_story(init_data: str = Header(None, alias="X-Telegram-Ini
             return ImageFont.load_default()
         
         f_huge = get_font(120)
-f_medium = get_font(50)
+        f_medium = get_font(50)
         f_small = get_font(34)
         
         username = p.get("username") or f"user_{uid}"
