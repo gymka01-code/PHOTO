@@ -1,0 +1,2495 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
+<title>PhotoFlip</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+/* ═══════════════════════════════════════════════
+   DESIGN TOKENS — PHOTOFLIP
+═══════════════════════════════════════════════ */
+:root{
+  --bg:#000000; --bg1:#0a0a0a; --bg2:#111111; --bg3:#1a1a1a;
+  --surface:#141414; --surface2:#1e1e1e; --surface3:#252525;
+  --border:rgba(255,255,255,0.07); --border2:rgba(255,255,255,0.12); --border3:rgba(255,255,255,0.18);
+  --blue:#3b82f6; --blue-dim:rgba(59,130,246,0.12); --blue-glow:rgba(59,130,246,0.30); --blue-dark:#1d4ed8;
+  --slate:#64748b; --slate-light:#94a3b8; --slate-dim:rgba(100,116,139,0.15);
+  --green:#22c55e; --green-dim:rgba(34,197,94,0.12);
+  --red:#ef4444; --red-dim:rgba(239,68,68,0.12);
+  --amber:#f59e0b; --amber-dim:rgba(245,158,11,0.12);
+  --text:#f1f5f9; --text-2:#94a3b8; --text-3:#475569;
+  --radius:10px; --radius-sm:7px; --radius-lg:16px;
+  --transition:0.2s cubic-bezier(.4,0,.2,1)
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden;font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--text);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+button{cursor:pointer;border:none;outline:none;font-family:inherit}
+input,select,textarea{font-family:inherit;outline:none;border:none;background:transparent;color:var(--text);}
+img{display:block}
+
+/* LAYOUT */
+#app{height:100vh;display:flex;flex-direction:column;max-width:480px;margin:0 auto;position:relative;overflow:hidden}
+
+/* HEADER & ЛОГОТИП */
+#header{padding:12px 16px 10px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border);flex-shrink:0;position:relative;z-index:10;background:var(--bg)}
+#header-logo {
+  width: 34px; height: 34px; border-radius: 10px;
+  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  box-shadow: 0 0 16px rgba(99, 102, 241, 0.4), inset 0 0 0 1px rgba(255, 255, 255, 0.2);
+  position: relative; overflow: hidden;
+}
+#header-logo svg { width: 20px; height: 20px; color: #ffffff; animation: slowSpin 8s linear infinite; }
+@keyframes slowSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+#header-logo::after {
+  content: ''; position: absolute; top: 0; left: -100%; width: 50%; height: 100%;
+  background: linear-gradient(to right, transparent, rgba(255,255,255,0.4), transparent);
+  transform: skewX(-25deg); animation: shine 4s infinite;
+}
+@keyframes shine { 0% { left: -100%; } 20% { left: 200%; } 100% { left: 200%; } }
+
+#header-info{flex:1;min-width:0}
+#header-title{font-size:15px;font-weight:700;letter-spacing:-0.02em;color:var(--text);line-height:1.1}
+#header-sub{font-size:10px;color:var(--text-3);letter-spacing:0.04em;margin-top:1px}
+#lang-toggle{background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:4px 10px;font-size:11px;font-weight:600;color:var(--text-2);letter-spacing:0.04em;transition:var(--transition);margin-right:4px;}
+#lang-toggle:active{transform:scale(.95)}
+
+/* MAIN BURGER MENU */
+.main-burger-btn { background:var(--blue-dim); border:1px solid rgba(59,130,246,0.3); color:var(--blue); padding:4px 10px; border-radius:6px; font-size:14px; cursor:pointer; }
+.main-menu-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:900; backdrop-filter:blur(4px); }
+.main-menu-overlay.open { display:block; animation:fadeIn .2s ease both; }
+.main-menu-card { position:absolute; top:60px; right:16px; background:var(--surface); border:1px solid var(--border2); border-radius:var(--radius); box-shadow:0 10px 30px rgba(0,0,0,0.8); width:200px; display:flex; flex-direction:column; overflow:hidden; }
+.main-menu-item { padding:14px 16px; font-size:13px; font-weight:600; color:var(--text); border-bottom:1px solid var(--border2); cursor:pointer; transition:var(--transition); }
+.main-menu-item:last-child { border-bottom:none; }
+.main-menu-item:hover, .main-menu-item:active { background:var(--surface2); color:var(--blue); }
+
+/* STATS BAR */
+#stats-bar{display:flex;align-items:center;padding:10px 16px;gap:0;border-bottom:1px solid var(--border);flex-shrink:0;background:var(--bg)}
+.stat-item{flex:1;text-align:center;position:relative}
+.stat-item+.stat-item::before{content:'';position:absolute;left:0;top:50%;transform:translateY(-50%);height:24px;width:1px;background:var(--border2)}
+.stat-label{font-size:9px;color:var(--text-3);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:2px;font-weight:500}
+.stat-value{font-size:17px;font-weight:700;color:var(--text);letter-spacing:-0.02em;line-height:1}
+.stat-value.green{color:var(--green)}
+#vip-pill{display:flex;align-items:center;gap:5px;flex-shrink:0;margin-left:12px;background:var(--blue-dim);border:1px solid rgba(59,130,246,0.3);border-radius:20px;padding:4px 10px}
+#vip-pill .vip-dot{width:6px;height:6px;border-radius:50%;background:var(--blue);box-shadow:0 0 6px var(--blue-glow)}
+#vip-pill .vip-text{font-size:10px;font-weight:700;letter-spacing:0.04em;color:var(--blue)}
+
+/* SCROLL AREA */
+#content{flex:1;overflow-y:auto;overflow-x:hidden;padding:16px 16px 90px;scrollbar-width:thin;scrollbar-color:var(--surface2) transparent}
+#content::-webkit-scrollbar{width:3px}
+#content::-webkit-scrollbar-thumb{background:var(--surface2);border-radius:2px}
+
+/* PANELS */
+.panel{display:none;animation:fadeUp .25s ease both}
+.panel.active{display:block}
+@keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+@keyframes fadeIn{from{opacity:0;}to{opacity:1;}}
+
+/* SECTION HEADERS */
+.section-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.section-title{font-size:16px;font-weight:700;letter-spacing:-0.02em;color:var(--text)}
+.section-sub{font-size:11px;color:var(--text-3);font-weight:500}
+
+/* CARDS */
+.card-label{font-size:10px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:var(--text-3);margin-bottom:6px}
+
+/* UPLOAD */
+#upload-drop-zone{border:2px dashed var(--border2);border-radius:var(--radius-lg);padding:32px 20px;text-align:center;cursor:pointer;transition:var(--transition);background:var(--bg1);margin-bottom:12px;position:relative;overflow:hidden}
+#upload-drop-zone.drag{border-color:var(--blue)}
+.dz-icon{font-size:36px;margin-bottom:10px;display:block;line-height:1}
+.dz-title{font-size:14px;font-weight:600;color:var(--text);margin-bottom:4px}
+.dz-hint{font-size:12px;color:var(--text-3);line-height:1.5; white-space:pre-wrap;}
+#upload-previews{display:none;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.preview-thumb{width:72px;height:72px;object-fit:cover;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--bg2);flex-shrink:0}
+.preview-thumb-wrap{position:relative;flex-shrink:0}
+.preview-remove{position:absolute;top:-6px;right:-6px;width:18px;height:18px;background:var(--red);border-radius:50%;font-size:10px;color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;border:2px solid var(--bg);font-weight:700}
+#file-input{display:none}
+
+#slot-indicator{display:flex;align-items:center;justify-content:space-between;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:8px}
+.slot-label{font-size:11px;color:var(--text-3);font-weight:500}
+.slot-bar-wrap{flex:1;margin:0 12px}
+.slot-bar-bg{height:4px;border-radius:2px;background:var(--bg2)}
+.slot-bar-fill{height:100%;border-radius:2px;background:var(--blue);transition:width .4s ease}
+.slot-bar-fill.warn{background:var(--amber)}
+.slot-bar-fill.full{background:var(--red)}
+.slot-count{font-size:11px;font-weight:700;color:var(--text-2)}
+#slot-reset-timer{display:none; color:var(--amber); font-size:11px; text-align:center; margin-bottom:8px; font-weight:600;}
+
+/* STORIES DYNAMIC DESIGN PROMO CARD */
+.story-promo-card {
+  background: linear-gradient(135deg, rgba(99,102,241,0.15) 0%, rgba(139,92,246,0.15) 100%);
+  border: 1px solid rgba(139,92,246,0.4);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+  box-shadow: 0 4px 20px rgba(139,92,246,0.15);
+  transition: transform 0.2s ease;
+}
+.story-promo-card:active { transform: scale(0.98); }
+.story-promo-card::after {
+  content: ''; position: absolute; top: 0; left: -150%; width: 50%; height: 100%;
+  background: linear-gradient(to right, transparent, rgba(255,255,255,0.3), transparent);
+  transform: skewX(-25deg); animation: promoShine 5s infinite;
+}
+@keyframes promoShine { 0% { left: -150%; } 20% { left: 200%; } 100% { left: 200%; } }
+.spc-content { z-index: 2; flex: 1; }
+.spc-title { font-size: 15px; font-weight: 800; color: #fff; margin-bottom: 4px; display: flex; align-items: center; gap: 6px; }
+.spc-tag { background: var(--green); color: #000; font-size: 10px; font-weight: 800; padding: 2px 6px; border-radius: 6px; text-transform: uppercase; letter-spacing: 0.5px;}
+.spc-text { font-size: 11px; color: var(--text-2); line-height: 1.4; max-width: 90%; }
+.spc-icon {
+  font-size: 32px; z-index: 2;
+  background: linear-gradient(135deg, #a855f7, #ec4899);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 4px 6px rgba(236, 72, 153, 0.3));
+}
+
+/* WHEEL */
+.wheel-glass-card {
+  background: rgba(20, 20, 20, 0.6); border: 1px solid var(--border2);
+  border-radius: 20px; padding: 24px; backdrop-filter: blur(12px);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.5); margin-bottom: 20px;
+  display: flex; flex-direction: column; align-items: center;
+}
+.wheel-container { position: relative; width: 240px; height: 240px; margin: 10px auto 24px; }
+.wheel-border {
+  position: absolute; inset: 0; border-radius: 50%; padding: 6px;
+  background: linear-gradient(135deg, #3b82f6, #8b5cf6, #ec4899);
+  box-shadow: 0 0 20px rgba(139, 92, 246, 0.4), inset 0 0 20px rgba(0,0,0,0.8);
+}
+.wheel {
+  width: 100%; height: 100%; border-radius: 50%; position: relative; overflow: hidden;
+  box-shadow: inset 0 0 20px rgba(0,0,0,0.8);
+  background: conic-gradient(
+    #1e3a8a 0deg 72deg,
+    #111111 72deg 144deg,
+    #4c1d95 144deg 216deg,
+    #b45309 216deg 288deg,
+    #064e3b 288deg 360deg
+  );
+}
+.wheel-slice {
+  position: absolute; top: 0; left: 50%; width: 80px; height: 50%; margin-left: -40px;
+  transform-origin: bottom center; display: flex; justify-content: center; padding-top: 18px;
+  font-weight: 800; font-size: 13px; text-shadow: 0 2px 4px #000; color: #fff; z-index: 2;
+}
+.wheel-divider {
+  position: absolute; top: 0; left: 50%; width: 2px; height: 50%;
+  background: rgba(255,255,255,0.15); transform-origin: bottom center; z-index: 3;
+}
+.wheel-center-glass {
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  width: 50px; height: 50px; border-radius: 50%;
+  background: radial-gradient(circle at 30% 30%, #444, #000);
+  border: 2px solid rgba(255,255,255,0.2); box-shadow: 0 5px 15px rgba(0,0,0,0.8); z-index: 10;
+}
+.wheel-pointer {
+  position: absolute; top: -18px; left: 50%; transform: translateX(-50%);
+  color: #f1f5f9; font-size: 32px; z-index: 20; filter: drop-shadow(0 4px 6px rgba(0,0,0,0.6));
+}
+.buy-panel { display: flex; gap: 10px; margin-top: 10px; width: 100%;}
+.buy-panel .btn { flex: 1; font-size: 11px; padding: 10px; }
+
+/* BUTTONS */
+.btn{width:100%;padding:12px;border-radius:var(--radius);font-size:13px;font-weight:600;letter-spacing:0.02em;transition:var(--transition); display:flex; justify-content:center; align-items:center; gap: 6px;}
+.btn-primary{background:var(--blue);color:#fff;box-shadow:0 2px 16px var(--blue-glow)}
+.btn-primary:active{transform:scale(.98);filter:brightness(.9)}
+.btn-primary:disabled{opacity:.35;pointer-events:none;box-shadow:none}
+.btn-secondary{background:var(--surface2);border:1px solid var(--border2);color:var(--text-2)}
+.btn-stars{background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;box-shadow:0 2px 16px rgba(99,102,241,0.35)}
+.btn-stars:disabled{opacity:.35;pointer-events:none;box-shadow:none}
+
+/* WITHDRAW CONFIRM MODAL */
+#wd-modal{display:none;position:fixed;inset:0;z-index:500;background:rgba(0,0,0,0.85);backdrop-filter:blur(8px);align-items:center;justify-content:center;padding:20px;opacity:0;transition:opacity 0.2s ease;}
+#wd-modal.open{display:flex;opacity:1;}
+.wd-modal-card{background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius-lg);padding:20px;max-width:360px;width:100%;}
+.wd-modal-title{font-size:16px;font-weight:700;color:var(--text);margin-bottom:12px;}
+.wd-modal-text{font-size:13px;color:var(--text-2);margin-bottom:12px;line-height:1.5;}
+.wd-modal-upsell{background:var(--blue-dim);border:1px solid rgba(59,130,246,0.25);border-radius:var(--radius-sm);padding:10px;font-size:12px;color:var(--blue);margin-bottom:12px;font-weight:500;line-height:1.4;}
+.wd-modal-footer{background:var(--surface2);border-radius:var(--radius-sm);padding:10px;font-size:11px;color:var(--text-3);margin-bottom:16px;line-height:1.4;}
+.wd-modal-actions{display:flex;gap:10px;}
+
+/* SUB MODAL */
+#sub-modal{display:none;position:fixed;inset:0;z-index:500;background:rgba(0,0,0,0.85);backdrop-filter:blur(8px);align-items:center;justify-content:center;padding:20px;opacity:0;transition:opacity 0.2s ease;}
+#sub-modal.open{display:flex;opacity:1;}
+.sub-modal-card{background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius-lg);padding:20px;max-width:360px;width:100%; max-height:80vh; display:flex; flex-direction:column;}
+.sub-modal-title{font-size:16px;font-weight:700;color:var(--text);margin-bottom:8px; flex-shrink:0;}
+.sub-modal-text{font-size:13px;color:var(--text-2);margin-bottom:16px;line-height:1.5; flex-shrink:0;}
+.sub-channel-list{display:flex;flex-direction:column;gap:8px;margin-bottom:16px; overflow-y:auto;}
+.sub-channel-item{background:var(--bg1);border:1px solid var(--border2);border-radius:var(--radius-sm);padding:10px;display:flex;flex-direction:column;align-items:flex-start;gap:6px;}
+.sub-channel-top{display:flex;justify-content:space-between;width:100%;align-items:center;}
+.sub-channel-name{font-size:13px;font-weight:600;color:var(--text);}
+.sub-channel-btn{background:var(--blue-dim);color:var(--blue);border:1px solid rgba(59,130,246,0.3);border-radius:6px;padding:6px 12px;font-size:11px;font-weight:600;text-decoration:none; flex-shrink:0;}
+.sub-modal-actions{display:flex;flex-direction:column;gap:10px; flex-shrink:0;}
+
+/* VIP INFO MODAL */
+#vip-modal{display:none;position:fixed;inset:0;z-index:500;background:rgba(0,0,0,0.85);backdrop-filter:blur(8px);align-items:center;justify-content:center;padding:20px;opacity:0;transition:opacity 0.2s ease;}
+#vip-modal.open{display:flex;opacity:1;}
+.vip-modal-card{background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius-lg);padding:20px;max-width:360px;width:100%; max-height:80vh; display:flex; flex-direction:column;}
+.vip-modal-title{font-size:16px;font-weight:700;color:var(--text);margin-bottom:16px; flex-shrink:0; text-align:center;}
+.vip-modal-scroll{overflow-y:auto; padding-right:4px; display:flex; flex-direction:column; gap:6px;}
+
+/* AI MODAL */
+#ai-modal{display:none;position:fixed;inset:0;z-index:100;background:rgba(0,0,0,0.88);backdrop-filter:blur(16px);align-items:center;justify-content:center;padding:20px}
+#ai-modal.open{display:flex;animation:fadeIn .25s ease both}
+#ai-card{background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius-lg);padding:24px 20px;max-width:360px;width:100%;text-align:center;position:relative}
+.ai-thumbs-row{display:flex;gap:6px;justify-content:center;margin-bottom:16px;flex-wrap:wrap}
+.ai-thumb-img{width:72px;height:72px;object-fit:cover;border-radius:var(--radius-sm);border:1px solid var(--border2)}
+#ai-title{font-size:16px;font-weight:700;color:var(--text);margin-bottom:4px;letter-spacing:-0.02em}
+#ai-sub{font-size:12px;color:var(--text-2);margin-bottom:16px}
+.progress-wrap{background:var(--bg2);border-radius:4px;height:3px;overflow:hidden;margin-bottom:6px}
+.progress-bar{height:100%;border-radius:4px;width:0%;background:var(--blue);transition:width .12s linear}
+.progress-text{font-size:10px;color:var(--text-3);letter-spacing:0.06em;margin-bottom:16px}
+.ai-result{display:none;animation:fadeUp .3s ease both}
+.score-ring{width:72px;height:72px;margin:0 auto 12px;position:relative;display:flex;align-items:center;justify-content:center}
+.score-ring svg{position:absolute;inset:0;transform:rotate(-90deg)}
+.score-ring circle{fill:none;stroke-width:4;transition:stroke-dashoffset 1s cubic-bezier(.4,0,.2,1)}
+.score-ring .track{stroke:var(--surface3)}
+.score-ring .fill{stroke:var(--blue)}
+.score-val{font-size:22px;font-weight:700;color:var(--text);letter-spacing:-0.03em}
+.score-badges{display:flex;gap:5px;flex-wrap:wrap;justify-content:center;margin-bottom:14px}
+.badge{font-size:10px;padding:3px 8px;border-radius:20px;background:var(--surface3);border:1px solid var(--border2);color:var(--text-2);font-weight:500}
+.ai-price-box{background:var(--bg1);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:14px;text-align:left}
+.aipb-row{display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--text-2);margin-bottom:3px}
+.aipb-row:last-child{margin-bottom:0;font-weight:600;color:var(--text)}
+.aipb-row span{color:var(--blue);font-weight:600}
+
+/* PORTFOLIO */
+#portfolio-list{display:flex;flex-direction:column;gap:8px}
+.photo-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;display:flex;gap:10px;padding:10px;align-items:center;}
+.photo-thumb{width:60px;height:60px;object-fit:cover;border-radius:var(--radius-sm);flex-shrink:0;background:var(--bg2)}
+.photo-thumb-ph{width:60px;height:60px;border-radius:var(--radius-sm);background:var(--bg2);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
+.photo-info{flex:1;min-width:0}
+.photo-name{font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:3px;color:var(--text)}
+.photo-meta{font-size:10px;color:var(--text-3);margin-bottom:4px}
+.photo-status{display:inline-flex;align-items:center;gap:3px;font-size:9px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;padding:2px 7px;border-radius:20px}
+.status-auction{background:var(--blue-dim);color:var(--blue)}
+.status-sold{background:var(--green-dim);color:var(--green)}
+.status-pending{background:var(--amber-dim);color:var(--amber)}
+.photo-price{font-size:15px;font-weight:700;color:var(--text);margin-left:auto;flex-shrink:0;letter-spacing:-0.02em}
+.photo-price.green{color:var(--green)}
+.countdown{font-size:9px;color:var(--blue);margin-top:2px;font-weight:500}
+
+/* LIVE FEED */
+.live-feed-header{display:flex;align-items:center;gap:8px;margin-bottom:14px}
+.live-dot{width:8px;height:8px;border-radius:50%;background:var(--green);animation:pulse 1.8s ease infinite}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(34,197,94,0.5)}50%{box-shadow:0 0 0 6px rgba(34,197,94,0)}}
+.live-label{font-size:12px;font-weight:600;color:var(--green);letter-spacing:0.04em;text-transform:uppercase}
+.live-feed-list{display:flex;flex-direction:column;gap:6px}
+.feed-item{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;display:flex;align-items:center;justify-content:space-between;animation:feedSlide .4s ease both}
+@keyframes feedSlide{from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:translateX(0)}}
+.feed-left{display:flex;flex-direction:column;gap:2px}
+.feed-user{font-size:12px;font-weight:600;color:var(--text);font-family:monospace}
+.feed-action{font-size:11px;color:var(--text-3)}
+.feed-amount{font-size:13px;font-weight:700;color:var(--green);letter-spacing:-0.01em}
+.feed-time{font-size:10px;color:var(--text-3)}
+
+/* WALLET */
+.referral-unlock-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin:14px 0}
+.ruc-title{font-size:13px;font-weight:600;color:var(--text);margin-bottom:8px}
+.ruc-progress-row{display:flex;align-items:center;gap:10px}
+.ruc-bar-bg{flex:1;height:6px;border-radius:3px;background:var(--bg2)}
+.ruc-bar-fill{height:100%;border-radius:3px;background:var(--blue);transition:width .5s ease}
+.ruc-count{font-size:12px;font-weight:700;color:var(--blue);white-space:nowrap}
+.ruc-hint{font-size:11px;color:var(--text-3);margin-top:8px;line-height:1.5}
+
+.withdraw-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-top:14px}
+.withdraw-box.locked-state{opacity:.55;pointer-events:none}
+.withdraw-title{font-size:15px;font-weight:700;color:var(--text);margin-bottom:4px;letter-spacing:-0.02em}
+.withdraw-sub{font-size:12px;color:var(--text-2);margin-bottom:12px;line-height:1.5}
+.withdraw-tabs{display:flex;gap:6px;margin-bottom:12px}
+.wtab{flex:1;padding:8px;border-radius:var(--radius-sm);font-size:11px;font-weight:600;letter-spacing:0.02em;background:var(--bg2);border:1px solid var(--border2);color:var(--text-2);transition:var(--transition)}
+.wtab.active{background:var(--blue-dim);border-color:rgba(59,130,246,0.35);color:var(--blue)}
+.withdraw-amount-display{font-size:30px;font-weight:700;color:var(--text);letter-spacing:-0.03em;margin-bottom:8px;text-align:center}
+.withdraw-rate-note{font-size:11px;color:var(--text-3);text-align:center;margin-top:8px}
+
+.wallet-info-banner{background:rgba(59,130,246,0.1);border:1px solid rgba(59,130,246,0.25);border-radius:var(--radius-sm);padding:14px;font-size:12px;color:var(--text-2);line-height:1.5;margin-bottom:14px;}
+.wallet-info-banner strong{color:var(--text);}
+
+/* PROFILE / REFERRALS */
+.ref-link-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:12px}
+.ref-url-row{display:flex;align-items:center;gap:8px;margin-top:8px;background:var(--bg1);border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px 10px}
+.ref-url-text{flex:1;font-size:11px;color:var(--text-2);word-break:break-all;font-family:monospace;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.ref-copy-btn{background:var(--blue-dim);border:1px solid rgba(59,130,246,0.3);color:var(--blue);border-radius:5px;padding:4px 10px;font-size:11px;font-weight:600;flex-shrink:0}
+.ref-share-btn{background:linear-gradient(135deg,#22c55e22,#16a34a22);border:1px solid rgba(34,197,94,0.35);color:#22c55e;border-radius:5px;padding:4px 10px;font-size:11px;font-weight:600;flex-shrink:0;cursor:pointer;white-space:nowrap}
+.vip-progress-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:12px; cursor:pointer; transition:var(--transition);}
+.vip-progress-card:active{transform:scale(0.98);}
+.vip-header-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.vip-level-big{font-size:24px;font-weight:700;color:var(--blue);letter-spacing:-0.03em}
+.vip-track{height:6px;background:var(--bg2);border-radius:3px;margin-bottom:10px;position:relative}
+.vip-track-fill{height:100%;border-radius:3px;background:var(--blue);transition:width .6s ease;box-shadow:0 0 8px var(--blue-glow)}
+.vip-milestones{display:flex;justify-content:space-between;margin-top:-20px}
+.vip-dot-wrap{display:flex;flex-direction:column;align-items:center;gap:3px}
+.vip-dot{width:12px;height:12px;border-radius:50%;background:var(--bg2);border:2px solid var(--border2);transition:var(--transition)}
+.vip-dot.reached{background:var(--blue);border-color:var(--blue);box-shadow:0 0 6px var(--blue-glow)}
+.vip-dot.current{background:var(--blue);border-color:#fff;box-shadow:0 0 10px var(--blue-glow);transform:scale(1.2)}
+.vip-dot-lbl{font-size:8px;color:var(--text-3);font-weight:600;letter-spacing:0.04em}
+.vip-dot-lbl.active{color:var(--blue)}
+.vip-next-hint{font-size:11px;color:var(--text-3);text-align:center;margin-top:10px}
+
+/* VIP ACCORDION */
+.vip-tier-row { background: var(--bg1); border: 1px solid var(--border); border-radius: var(--radius-sm); display: flex; flex-direction: column; overflow: hidden; transition: var(--transition); cursor: pointer; }
+.vip-tier-row.unlocked { border-color: rgba(59,130,246,0.2); background: var(--blue-dim); }
+.vip-tier-row.current-tier { border-color: var(--blue); box-shadow: 0 0 0 1px var(--blue); }
+.vtc-header { padding: 10px 12px; display: flex; align-items: center; gap: 10px; }
+.vtc-icon { font-size: 18px; flex-shrink: 0; }
+.vtc-info { flex: 1; min-width: 0; }
+.vtc-name { font-size: 12px; font-weight: 600; color: var(--text); }
+.vtc-chevron { font-size: 14px; color: var(--text-3); transition: transform 0.2s ease; }
+.vip-tier-row.open .vtc-chevron { transform: rotate(180deg); }
+.vtc-status { font-size: 10px; font-weight: 700; flex-shrink: 0; padding-right: 8px;}
+.vtc-status.done { color: var(--green); }
+.vtc-status.active { color: var(--blue); }
+.vtc-status.locked { color: var(--text-3); }
+.vtc-details { max-height: 0; overflow: hidden; transition: max-height 0.3s ease; background: var(--surface2); padding: 0 12px; font-size: 11px; color: var(--text-2); line-height: 1.6; }
+.vip-tier-row.open .vtc-details { max-height: 150px; padding: 10px 12px; border-top: 1px solid var(--border2); }
+.vtc-det-row { display: flex; justify-content: space-between; margin-bottom: 4px; }
+.vtc-det-row span:last-child { font-weight: 600; color: var(--text); }
+
+/* REFERRALS LIST */
+.referrals-list-container { margin-top: 10px; }
+.ref-list-item { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-sm); padding:10px 12px; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center; }
+.ref-list-name { font-size:13px; font-weight:600; color:var(--text); margin-bottom: 2px; }
+.ref-list-date { font-size:10px; color:var(--text-3); }
+.ref-list-status { font-size:10px; padding:3px 8px; border-radius:6px; font-weight:600; }
+.ref-status-active { background:var(--green-dim); color:var(--green); border:1px solid rgba(34,197,94,0.2); }
+.ref-status-new { background:var(--amber-dim); color:var(--amber); border:1px solid rgba(245,158,11,0.2); }
+
+/* PROMO CODE */
+.promo-card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:14px; margin-bottom:12px; }
+.promo-input-row { display:flex; gap:8px; align-items:center; }
+.promo-input-row input { flex:1; background:var(--bg1); border:1px solid var(--border); border-radius:var(--radius-sm); padding:10px 12px; font-size:12px; color:var(--text); transition:var(--transition); width:100%; box-sizing:border-box;}
+.promo-input-row input:focus { border-color:var(--blue); }
+
+/* SUPPORT CHAT & IMAGES */
+#support-chat{display:flex;flex-direction:column;height:calc(100vh - 220px);min-height:300px}
+.chat-messages{flex:1;overflow-y:auto;padding:4px 0 10px;display:flex;flex-direction:column;gap:7px;scrollbar-width:thin;scrollbar-color:var(--surface2) transparent}
+.chat-bubble{max-width:82%;padding:9px 12px;border-radius:10px;font-size:13px;line-height:1.5;word-break:break-word;position:relative;}
+.chat-bubble.from-user{align-self:flex-end;background:var(--blue);color:#fff;border-bottom-right-radius:3px}
+.chat-bubble.from-admin{align-self:flex-start;background:var(--surface2);border:1px solid var(--border2);color:var(--text);border-bottom-left-radius:3px}
+.chat-bubble img {max-width: 100%; border-radius: 6px; margin-top: 6px; display: block;}
+.bubble-meta{font-size:9px;color:rgba(255,255,255,0.55);margin-top:3px;text-align:right}
+.chat-bubble.from-admin .bubble-meta{color:var(--text-3);text-align:left}
+.chat-system-msg { align-self: center; text-align: center; font-size: 11px; color: var(--text-3); margin: 8px 0; max-width: 90%; line-height: 1.4; background: var(--bg1); padding: 4px 12px; border-radius: 12px;}
+.chat-empty{text-align:center;padding:40px 20px;color:var(--text-3);font-size:13px}
+.chat-img-preview-box { display: none; align-items: center; justify-content: space-between; background: var(--surface2); padding: 8px 12px; border-radius: var(--radius-sm); margin-bottom: 8px; border: 1px solid var(--border2); }
+.chat-img-thumb { height: 40px; border-radius: 4px; object-fit: cover; }
+.chat-img-remove { color: var(--red); font-weight: bold; cursor: pointer; font-size: 16px; padding: 0 8px; }
+.chat-input-area{display:flex;gap:8px;align-items:flex-end;padding-top:10px;border-top:1px solid var(--border);margin-top:auto}
+.chat-attach-btn { display: flex; align-items: center; justify-content: center; padding: 0 5px; font-size: 18px; color: var(--text-2); cursor: pointer; transition: var(--transition); margin-bottom: 8px;}
+.chat-attach-btn:hover { color: var(--blue); }
+.chat-input-area textarea{flex:1;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--radius-sm);padding:9px 12px;font-size:13px;color:var(--text);resize:none;min-height:40px;max-height:100px;transition:var(--transition);line-height:1.4}
+.chat-send-btn{background:var(--blue);color:#fff;border-radius:var(--radius-sm);padding:9px 13px;font-size:16px;flex-shrink:0;line-height:1;transition:var(--transition); margin-bottom: 1px;}
+
+/* TOAST */
+#toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--surface2);border:1px solid var(--border2);border-radius:var(--radius);padding:9px 16px;font-size:12px;font-weight:500;color:var(--text);z-index:900;opacity:0;transition:var(--transition);pointer-events:none;white-space:nowrap;max-width:90vw;text-align:center}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+#toast.success{border-color:rgba(34,197,94,0.35);color:var(--green)}
+#toast.error{border-color:rgba(239,68,68,0.35);color:var(--red)}
+
+/* EMPTY STATE */
+.empty-state{text-align:center;padding:44px 20px;color:var(--text-3)}
+.empty-icon{font-size:36px;margin-bottom:10px}
+.empty-text{font-size:13px;line-height:1.6}
+
+/* SOLD FLASH */
+#sold-flash{position:fixed;inset:0;z-index:300;display:flex;align-items:center;justify-content:center;pointer-events:none;opacity:0}
+#sold-flash.animate{animation:soldFlash 2s ease forwards}
+@keyframes soldFlash{0%{opacity:0}8%{opacity:1}80%{opacity:1}100%{opacity:0}}
+.sold-burst{background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius-lg);padding:24px 32px;text-align:center;box-shadow:0 0 40px rgba(59,130,246,0.25),0 20px 60px rgba(0,0,0,0.6)}
+.sold-burst .sb-icon{font-size:36px;margin-bottom:8px}
+.sold-burst .sb-label{font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-3);margin-bottom:4px}
+.sold-burst .sb-amount{font-size:36px;font-weight:700;color:var(--green);letter-spacing:-0.03em;line-height:1}
+.sold-burst .sb-rub{font-size:13px;color:var(--text-3);margin-top:4px}
+
+/* MISC */
+.inline-spinner{display:inline-block;width:12px;height:12px;border:2px solid rgba(255,255,255,.2);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite;vertical-align:middle;margin-right:5px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.notice{background:var(--blue-dim);border:1px solid rgba(59,130,246,0.2);border-radius:var(--radius-sm);padding:10px 12px;font-size:11px;color:var(--slate-light);line-height:1.6;margin-bottom:12px}
+
+/* BAN & MAINTENANCE OVERLAYS */
+#ban-overlay, #maintenance-overlay { display:none; position:fixed; inset:0; background:var(--bg); z-index:99999; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:32px; }
+#ban-overlay.active, #maintenance-overlay.active { display:flex; }
+.ban-icon, .maint-icon { font-size:60px; margin-bottom:20px; }
+.maint-icon { animation: bounce 2s infinite; }
+@keyframes bounce { 0%, 20%, 50%, 80%, 100% {transform: translateY(0);} 40% {transform: translateY(-20px);} 60% {transform: translateY(-10px);} }
+.ban-title { font-size:20px; font-weight:700; color:var(--red); margin-bottom:10px; }
+.maint-title { font-size:20px; font-weight:700; color:var(--amber); margin-bottom:10px; }
+.ban-desc, .maint-desc { font-size:14px; color:var(--text-2); line-height:1.6; margin-bottom:30px; max-width:280px; }
+.ban-btn { background:var(--surface2); border:1px solid var(--border2); color:var(--text); padding:12px 24px; border-radius:var(--radius); font-weight:600; font-size:14px; cursor:pointer; }
+.maint-timer { font-size:26px; font-weight:700; color:var(--text); background:var(--surface2); padding:10px 20px; border-radius:var(--radius); border:1px solid var(--border2); font-variant-numeric: tabular-nums; box-shadow: 0 4px 20px rgba(0,0,0,0.5); margin-top: 10px; }
+
+/* ═══════════════════════════════════════════════
+   ADMIN UI EXTENDED
+═══════════════════════════════════════════════ */
+.adm-tab-bar { display:flex; gap:6px; overflow-x:auto; padding-bottom:10px; margin-bottom:16px; scrollbar-width:none; border-bottom:1px solid var(--border); }
+.adm-tab-bar::-webkit-scrollbar { display:none; }
+.adm-tab { padding:6px 12px; background:var(--surface); border:1px solid var(--border); border-radius:20px; font-size:12px; font-weight:600; color:var(--text-2); white-space:nowrap;}
+.adm-tab.active { background:var(--amber-dim); color:var(--amber); border-color:rgba(245,158,11,0.4); }
+.adm-panel { display:none; }
+.adm-panel.active { display:block; animation:fadeUp .2s ease; }
+.admin-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; margin-bottom: 14px; }
+.adm-input, .adm-select { padding: 10px; border-radius: var(--radius-sm); background: var(--bg1); border: 1px solid var(--border2); margin-top: 6px; font-size:13px; color:var(--text); box-sizing:border-box; width:100%;}
+.adm-input:focus, .adm-select:focus { border-color:var(--amber); }
+.adm-btn { background:var(--surface2); border:1px solid var(--border2); color:var(--text); padding:8px 14px; border-radius:var(--radius-sm); font-size:12px; font-weight:600; cursor:pointer; text-align:center;}
+.adm-btn.primary { background:var(--amber); color:#000; border:none; }
+.adm-btn.danger { background:rgba(239,68,68,0.15); color:var(--red); border-color:rgba(239,68,68,0.3); }
+.adm-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:10px;}
+.adm-list-item { background:var(--bg1); border:1px solid var(--border2); padding:10px; border-radius:var(--radius-sm); margin-bottom:8px;}
+.adm-stat-box { background:var(--surface2); padding:12px; border-radius:var(--radius-sm); text-align:center; border:1px solid var(--border2);}
+.adm-stat-val { font-size:20px; font-weight:bold; color:var(--amber);}
+.adm-stat-lbl { font-size:10px; color:var(--text-3); text-transform:uppercase; margin-top:4px;}
+
+/* ADMIN CHAT OVERLAY */
+#admin-chat-view { display: none; position: fixed; inset: 0; z-index: 400; background: var(--bg); flex-direction: column; }
+#admin-chat-view.open { display: flex; animation: fadeUp .2s ease both; }
+.acv-header { padding: 12px 16px; display: flex; align-items: center; justify-content:space-between; border-bottom: 1px solid var(--border); background: var(--surface); }
+.adm-msg-actions { display:flex; gap:8px; justify-content:flex-end; margin-top:6px; }
+.adm-msg-btn-inline { font-size:12px; cursor:pointer; font-weight:600; padding:4px 8px; border-radius:4px; background:var(--surface); border:1px solid var(--border2); }
+.adm-msg-btn-inline.edit { color:var(--text-2); }
+.adm-msg-btn-inline.del { color:var(--red); border-color:rgba(239,68,68,0.2); }
+</style>
+</head>
+<body>
+
+<div id="ban-overlay">
+  <div class="ban-icon">🚫</div>
+  <div class="ban-title" data-i18n="ban_title">Account Suspended</div>
+  <div class="ban-desc" data-i18n="ban_desc">Your account has been blocked for violation of terms. If you believe this is a mistake, close this app and send a message directly to the bot to contact support.</div>
+  <button class="ban-btn" onclick="tg.close()">Close App</button>
+</div>
+
+<div id="maintenance-overlay">
+  <div class="maint-icon">🛠</div>
+  <div class="maint-title" data-i18n="maint_title">Maintenance Break</div>
+  <div class="maint-desc" data-i18n="maint_desc">We are currently updating the platform. Please check back later!</div>
+  <div class="maint-timer" id="maint-timer-display" style="display:none;">00:00:00</div>
+</div>
+
+<!-- WD CONFIRM MODAL -->
+<div id="wd-modal">
+  <div class="wd-modal-card">
+    <div class="wd-modal-title" data-i18n="wd_modal_title">Withdrawal Request</div>
+    <div class="wd-modal-text" data-i18n="wd_modal_p1">Funds from auction sales are currently clearing.</div>
+    <div class="wd-modal-text" data-i18n="wd_modal_p2">Within 1-7 business days, our support team will contact you to request your payment details. Processing is done in order of queue and VIP priority.</div>
+    <div class="wd-modal-upsell" data-i18n="wd_modal_upsell">💡 Tip: Increase your VIP status to speed up the withdrawal process.</div>
+    <div class="wd-modal-footer" data-i18n="wd_modal_footer">⏱ The final transfer takes 1-7 business days from the moment payment details are provided.</div>
+    <div class="wd-modal-actions">
+      <button class="btn btn-secondary" onclick="closeWithdrawModal()" data-i18n="wd_btn_cancel">Cancel</button>
+      <button class="btn btn-primary" id="wd-btn-confirm" onclick="confirmWithdraw()" data-i18n="wd_btn_confirm">Confirm Request</button>
+    </div>
+  </div>
+</div>
+
+<!-- SUB MODAL -->
+<div id="sub-modal">
+  <div class="sub-modal-card">
+    <div class="sub-modal-title" data-i18n="sub_modal_title">Partner Channels</div>
+    <div class="sub-modal-text" data-i18n="sub_modal_text">To proceed with the withdrawal, you must be subscribed to our partner channels. We will strictly verify your subscription.</div>
+    <div class="sub-channel-list" id="sub-channel-list"></div>
+    <div class="sub-modal-actions">
+      <button class="btn btn-primary" id="sub-btn-check" onclick="checkWithdrawSubs()" data-i18n="sub_btn_check">Check Subscriptions</button>
+      <button class="btn btn-secondary" onclick="closeSubModal()" data-i18n="wd_btn_cancel">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- VIP INFO MODAL -->
+<div id="vip-modal">
+  <div class="vip-modal-card">
+    <div class="vip-modal-title" data-i18n="vip_modal_title">VIP Programme Details</div>
+    <div class="vip-modal-scroll">
+        <div class="vip-tier-list" id="vip-modal-tier-cards"></div>
+    </div>
+    <div style="margin-top: 16px;">
+        <button class="btn btn-secondary" onclick="closeVipModal()">Close</button>
+    </div>
+  </div>
+</div>
+
+<div id="sold-flash">
+  <div class="sold-burst">
+    <div class="sb-icon">✅</div>
+    <div class="sb-label" data-i18n="sold_label_flash">Photo Sold</div>
+    <div class="sb-amount" id="sold-amount">+$0.00</div>
+    <div class="sb-rub" id="sold-rub"></div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<div id="ai-modal">
+  <div id="ai-card">
+    <div class="ai-thumbs-row" id="ai-thumbs-row"></div>
+    <div id="ai-title" data-i18n="ai_title">Analyzing Photos</div>
+    <div id="ai-sub" data-i18n="ai_sub">Running AI valuation…</div>
+    <div class="progress-wrap"><div class="progress-bar" id="ai-bar"></div></div>
+    <div class="progress-text" id="ai-pct">0%</div>
+    <div class="ai-result" id="ai-result">
+      <div class="score-ring">
+        <svg viewBox="0 0 80 80"><circle class="track" cx="40" cy="40" r="34" stroke-dasharray="213.6" stroke-dashoffset="0"/><circle class="fill" id="score-circle" cx="40" cy="40" r="34" stroke-dasharray="213.6" stroke-dashoffset="213.6"/></svg>
+        <div class="score-val" id="score-val">0</div>
+      </div>
+      <div class="score-badges" id="score-badges"></div>
+      <p style="font-size:12px;color:var(--text-2);margin-bottom:14px;line-height:1.6" id="ai-verdict"></p>
+      <div class="ai-price-box" id="ai-price-box"></div>
+      <button class="btn btn-primary" id="ai-confirm" onclick="confirmUpload()">
+        <span id="ai-confirm-text" data-i18n="ai_list">List on Auction</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- MAIN BURGER MENU OVERLAY -->
+<div id="main-menu-overlay" class="main-menu-overlay" onclick="toggleMainMenu()">
+    <div class="main-menu-card" onclick="event.stopPropagation()">
+        <div class="main-menu-item" onclick="switchTab('upload')" data-i18n="tab_upload">📸 Upload</div>
+        <div class="main-menu-item" onclick="switchTab('bonus')" data-i18n="tab_bonus">🎁 Bonus</div>
+        <div class="main-menu-item" onclick="switchTab('portfolio')" data-i18n="tab_portfolio">📂 Portfolio</div>
+        <div class="main-menu-item" onclick="switchTab('market')" data-i18n="tab_market">🌍 Market</div>
+        <div class="main-menu-item" onclick="switchTab('wallet')" data-i18n="tab_wallet">💰 Wallet</div>
+        <div class="main-menu-item" onclick="switchTab('profile')" data-i18n="tab_profile">👤 Profile</div>
+        <div class="main-menu-item" onclick="switchTab('support')" data-i18n="tab_support">💬 Support</div>
+        <div class="main-menu-item" id="menu-item-admin" style="display:none; color:var(--amber)" onclick="switchTab('admin')" data-i18n="tab_admin">👑 Admin Panel</div>
+    </div>
+</div>
+
+<!-- ADMIN CHAT OVERLAY -->
+<div id="admin-chat-view">
+  <div class="acv-header">
+    <div style="display:flex; align-items:center; gap:10px;">
+        <div style="font-size: 20px; color: var(--amber); cursor: pointer;" onclick="closeAdminChat()">←</div>
+        <div style="font-weight: 700; font-size: 15px;" id="acv-title">Chat</div>
+    </div>
+    <div style="display:flex; gap:6px;">
+        <button class="adm-btn" onclick="admCloseTicket()" data-i18n="adm_chat_close">🔒 Close</button>
+        <button class="adm-btn danger" onclick="admDeleteTicket()" data-i18n="adm_chat_wipe">🗑 Wipe</button>
+    </div>
+  </div>
+  <div id="admin-chat-area" class="chat-messages" style="padding:16px;"></div>
+  
+  <div style="display:none; align-items:center; justify-content:space-between; background:var(--surface2); padding:8px; margin:0 16px; border-radius:var(--radius-sm);" id="admin-chat-img-preview-box">
+       <img id="admin-chat-img-thumb" style="height:40px; border-radius:4px;" src="">
+       <span style="color:var(--red); cursor:pointer; padding:0 8px;" onclick="cancelAdminChatImg()">✖</span>
+  </div>
+  <div class="chat-input-area" style="padding:10px 16px; padding-bottom:20px;">
+    <label style="cursor:pointer; padding:0 5px; font-size:18px;" for="admin-chat-img-upload">📎</label>
+    <input type="file" id="admin-chat-img-upload" accept="image/*" style="display:none" onchange="handleAdminChatImgSelect(this)">
+    <textarea id="admin-chat-input" placeholder="Type message to user…" rows="1" style="flex:1;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;padding:9px 12px;color:#fff;resize:none;"></textarea>
+    <button style="background:var(--amber);color:#000;border:none;border-radius:8px;padding:9px 14px;font-weight:bold;" id="admin-chat-send-btn" onclick="sendAdminSupportMsg()">➤</button>
+  </div>
+</div>
+
+<div id="app">
+  <div id="header">
+    <div id="header-logo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><path d="M14.31 8l5.74 9.94M9.69 8h11.48M7.38 12l5.74-9.94M9.69 16L3.95 6.06M14.31 16H2.83m13.79-4l-5.74 9.94"></path></svg></div>
+    <div id="header-info"><div id="header-title">PhotoFlip</div><div id="header-sub" data-i18n="hdr_sub">Photo Auction Platform</div></div>
+    <div id="support-notify" style="display:none;margin-right:8px"><div style="width:8px;height:8px;border-radius:50%;background:var(--red);box-shadow:0 0 6px var(--red)"></div></div>
+    <button id="lang-toggle" onclick="toggleLang()">RU</button>
+    <div class="main-burger-btn" onclick="toggleMainMenu()">☰ Меню</div>
+  </div>
+
+  <div id="stats-bar">
+    <div class="stat-item"><div class="stat-label" data-i18n="balance_label">Balance</div><div class="stat-value green" id="balance-val">$0.00</div></div>
+    <div class="stat-item"><div class="stat-label" data-i18n="earned_label">Earned</div><div class="stat-value" id="earned-val">$0.00</div></div>
+    <div class="stat-item"><div class="stat-label" data-i18n="sold_label">Sold</div><div class="stat-value" id="sold-val">0</div></div>
+    <div id="vip-pill"><div class="vip-dot"></div><div class="vip-text" id="vip-level-text">VIP 0</div></div>
+  </div>
+
+  <div id="content">
+    
+    <!-- UPLOAD -->
+    <div class="panel active" id="panel-upload">
+      
+      <!-- STORIES DYNAMIC CARD -->
+      <div class="story-promo-card" id="story-promo-card" onclick="postPromoStory()">
+        <div class="spc-content">
+          <div class="spc-title">
+            <span id="spc-title-text" data-i18n="story_promo_title">Share a Story</span>
+            <span class="spc-tag" id="spc-reward-tag">+$15 & 1 SPIN</span>
+          </div>
+          <div class="spc-text" id="spc-desc-text" data-i18n="story_promo_text">Post your personalized progress story to your profile and get $15 + 1 Free Spin!</div>
+        </div>
+        <div class="spc-icon" id="spc-icon-visual">📸</div>
+      </div>
+
+      <div id="slot-indicator">
+        <div class="slot-label" data-i18n="slots_label">Slots</div>
+        <div class="slot-bar-wrap"><div class="slot-bar-bg"><div class="slot-bar-fill" id="slot-bar-fill" style="width:0%"></div></div></div>
+        <div class="slot-count" id="slot-count">0 / 5</div>
+      </div>
+      <div id="slot-reset-timer"></div>
+      
+      <div style="margin-bottom: 12px;"><button class="btn btn-stars" onclick="buyItem('slots')" data-i18n="buy_slots">+1 Slot 7d ($40)</button></div>
+
+      <div id="upload-drop-zone" onclick="document.getElementById('file-input').click()">
+        <span class="dz-icon">🖼</span>
+        <div class="dz-title" data-i18n="upload_cta">Select photos</div>
+        <div class="dz-hint" data-i18n="upload_hint">JPG, PNG, WEBP · up to 10 MB each<br/>Upload 5+ photos together for pack pricing</div>
+      </div>
+      <input type="file" id="file-input" accept="image/*" multiple/>
+      <div id="upload-previews"></div>
+      <div class="notice" id="pack-notice" style="display:none" data-i18n="pack_notice">📦 Pack mode active (5+ photos). Pack pricing applied.</div>
+      <button class="btn btn-primary" id="upload-btn" onclick="startUpload()" data-i18n="upload_btn">Analyse &amp; List</button>
+    </div>
+
+    <!-- BONUS -->
+    <div class="panel" id="panel-bonus">
+      <div class="section-head"><div class="section-title" data-i18n="wheel_title">Wheel of Fortune</div><div class="section-sub" data-i18n="wheel_sub">Win cash & extra slots</div></div>
+      <div class="wheel-glass-card">
+          <div class="wheel-container">
+            <div class="wheel-pointer">▼</div>
+            <div class="wheel-border">
+                <div class="wheel" id="wheel-bg">
+                    <div class="wheel-slice" style="transform: rotate(36deg);"><span id="w-l0">$5.00</span></div>
+                    <div class="wheel-divider" style="transform: rotate(72deg);"></div>
+                    <div class="wheel-slice" style="transform: rotate(108deg);"><span id="w-l1">LOSE</span></div>
+                    <div class="wheel-divider" style="transform: rotate(144deg);"></div>
+                    <div class="wheel-slice" style="transform: rotate(180deg);"><span id="w-l2">$20.00</span></div>
+                    <div class="wheel-divider" style="transform: rotate(216deg);"></div>
+                    <div class="wheel-slice" style="transform: rotate(252deg);"><span id="w-l3">+2 SLOTS</span></div>
+                    <div class="wheel-divider" style="transform: rotate(288deg);"></div>
+                    <div class="wheel-slice" style="transform: rotate(324deg); color:#fbbf24; text-shadow: 0 0 8px rgba(251,191,36,0.8);"><span id="w-l4">JACKPOT</span></div>
+                    <div class="wheel-divider" style="transform: rotate(0deg);"></div>
+                </div>
+                <div class="wheel-center-glass"></div>
+            </div>
+          </div>
+          <button class="btn btn-primary" id="spin-btn" onclick="spinWheel()" style="margin-bottom: 12px; width: 100%" data-i18n="btn_spin">Spin (Free)</button>
+          <div class="buy-panel">
+            <button class="btn btn-stars" onclick="buyItem('spin')" data-i18n="buy_spin">Buy Spin ($10)</button>
+            <button class="btn btn-stars" onclick="buyItem('slots')" data-i18n="buy_slots">+1 Slot 7d ($40)</button>
+          </div>
+      </div>
+    </div>
+
+    <!-- PORTFOLIO -->
+    <div class="panel" id="panel-portfolio">
+      <div class="section-head"><div class="section-title" data-i18n="portfolio_title">My Portfolio</div><div class="section-sub" id="portfolio-count">0 items</div></div>
+      <div id="portfolio-list"></div>
+    </div>
+
+    <!-- MARKET -->
+    <div class="panel" id="panel-market">
+      <div class="live-feed-header"><div class="live-dot"></div><div class="live-label" data-i18n="live_label">LIVE</div><div style="font-size:11px;color:var(--text-3);margin-left:auto" data-i18n="live_sub">Real-time transactions</div></div>
+      <div class="live-feed-list" id="live-feed-list"></div>
+    </div>
+
+    <!-- WALLET -->
+    <div class="panel" id="panel-wallet">
+      <div class="section-head"><div class="section-title" data-i18n="wallet_title">Wallet</div><div class="section-sub" id="wallet-progress">0/3 referrals</div></div>
+      <div class="wallet-info-banner" id="wallet-info-banner">
+        ℹ️ <strong data-i18n="wallet_info_title">Withdrawal Info:</strong> <span data-i18n="wallet_info_text">Minimum withdrawal: $100.</span>
+      </div>
+      <div class="wallet-info-banner" id="active-sales-warning" style="display:none;background:rgba(245,158,11,0.1);border-color:rgba(245,158,11,0.35);color:var(--amber)">
+        ⏳ <strong id="active-sales-warning-text"></strong>
+      </div>
+      <div class="referral-unlock-card">
+        <div class="ruc-title" data-i18n="ruc_title">Withdrawal Unlock</div>
+        <div class="ruc-progress-row"><div class="ruc-bar-bg"><div class="ruc-bar-fill" id="ruc-bar-fill" style="width:0%"></div></div><div class="ruc-count" id="ruc-count">0/3</div></div>
+        <div class="ruc-hint" id="ruc-hint" data-i18n="ruc_hint">Invite 3 friends (active after photo sale) to unlock withdrawal.</div>
+      </div>
+      <div class="withdraw-box locked-state" id="withdraw-box">
+        <div class="withdraw-title" data-i18n="withdraw_title">Withdraw Earnings</div>
+        <div class="withdraw-sub" id="withdraw-sub" data-i18n="withdraw_sub">Invite 3 friends...</div>
+        <div class="withdraw-tabs" id="withdraw-tabs">
+          <button class="wtab active" onclick="selectWithdrawTab('usd')" id="wtab-usd" data-i18n="wtab_usd">💵 USD</button>
+          <button class="wtab" onclick="selectWithdrawTab('stars')" id="wtab-stars" data-i18n="wtab_stars">⭐ Stars</button>
+        </div>
+        <div id="withdraw-usd-panel">
+          <div class="withdraw-amount-display" id="withdraw-usd-preview">$0.00</div>
+          <button class="btn btn-primary" id="withdraw-btn-usd" onclick="initiateWithdraw('usd')" disabled data-i18n="withdraw_btn_locked">🔒 Locked</button>
+        </div>
+        <div id="withdraw-stars-panel" style="display:none">
+          <div class="withdraw-amount-display" style="color:var(--blue)" id="withdraw-stars-preview">0 ⭐</div>
+          <div class="withdraw-rate-note" data-i18n="stars_rate">100 Stars = $1.20 · Rate: 1 USD = 83 Stars</div>
+          <div style="margin-top:12px"><button class="btn btn-stars" id="withdraw-btn-stars" onclick="initiateWithdraw('stars')" disabled data-i18n="withdraw_btn_locked">🔒 Locked</button></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PROFILE -->
+    <div class="panel" id="panel-profile">
+      <div class="section-head"><div class="section-title" data-i18n="profile_title">My Profile</div><div class="section-sub" id="ref-count-sub">0 referrals</div></div>
+      <div class="ref-link-card">
+        <div class="card-label" data-i18n="ref_link_label">Your Referral Link</div>
+        <div class="ref-url-row">
+          <div class="ref-url-text" id="ref-url-display">Loading…</div>
+          <button class="ref-copy-btn" onclick="copyRefLink()" data-i18n="ref_copy">Copy</button>
+          <button class="ref-share-btn" data-i18n="ref_share" onclick="shareRefLink()">📤 Share</button>
+        </div>
+        <div style="font-size:10px; color:var(--amber); margin-top:8px; line-height:1.4; text-align:center;" data-i18n="ref_hint">⚠️ Referral is counted as active only after their first photo sale.</div>
+      </div>
+      <div class="promo-card">
+        <div class="card-label" data-i18n="promo_title">Promo Code</div>
+        <div class="promo-input-row">
+            <input type="text" id="promo-input" data-i18n-placeholder="promo_ph" placeholder="Enter code..." />
+            <button class="btn btn-primary" onclick="activatePromo()" style="width:auto; padding: 10px 16px;" data-i18n="promo_btn">Activate</button>
+        </div>
+      </div>
+      <div class="vip-progress-card" onclick="openVipModal()">
+        <div class="vip-header-row"><div style="font-size:13px;font-weight:600;color:var(--text-2)" data-i18n="vip_current_level">Current Level</div><div class="vip-level-big" id="vip-big-badge">Lv 0</div></div>
+        <div class="vip-track"><div class="vip-track-fill" id="vip-track-fill" style="width:0%"></div><div class="vip-milestones" id="vip-milestones"></div></div>
+        <div class="vip-next-hint" id="vip-next-hint"></div>
+        <div style="text-align:center; font-size:10px; color:var(--blue); margin-top:8px; font-weight:600;">Tap to view details</div>
+      </div>
+      <div class="section-head" style="margin-top:24px; margin-bottom: 10px;"><div class="section-title" data-i18n="ref_list_title">My Referrals</div></div>
+      <div id="referrals-list" class="referrals-list-container"></div>
+    </div>
+
+    <!-- SUPPORT -->
+    <div class="panel" id="panel-support">
+      <div class="section-head"><div class="section-title" data-i18n="support_title">Support Chat</div><div class="section-sub" data-i18n="support_sub">Replies within 24h</div></div>
+      <div id="support-chat">
+        <div class="chat-messages" id="chat-messages"><div class="chat-empty" data-i18n="chat_empty">No messages yet. Send us a message!</div></div>
+        <div class="chat-img-preview-box" id="chat-img-preview-box"><img id="chat-img-thumb" class="chat-img-thumb" src=""><span class="chat-img-remove" onclick="cancelChatImg()">✖</span></div>
+        <div class="chat-input-area">
+          <label class="chat-attach-btn" for="chat-img-upload">📎</label><input type="file" id="chat-img-upload" accept="image/*" style="display:none" onchange="handleChatImgSelect(this)">
+          <textarea id="chat-input" data-i18n-placeholder="chat_placeholder" placeholder="Type a message…" rows="1" oninput="autoResize(this)"></textarea>
+          <button class="chat-send-btn" id="chat-send-btn" onclick="sendSupportMsg()">➤</button>
+        </div>
+      </div>
+    </div>
+    
+    <!-- ADMIN PANEL -->
+    <div class="panel" id="panel-admin">
+      <div class="section-head">
+        <div class="section-title" style="color:var(--amber)" data-i18n="adm_title">👑 Admin CRM</div>
+      </div>
+      
+      <div class="adm-tab-bar">
+          <button class="adm-tab active" onclick="switchAdmTab('stats')" data-tab="stats" data-i18n="adm_menu_stats">Stats & Chat</button>
+          <button class="adm-tab" onclick="switchAdmTab('users')" data-tab="users" data-i18n="adm_menu_users">Users</button>
+          <button class="adm-tab" onclick="switchAdmTab('finance')" data-tab="finance" data-i18n="adm_menu_fin">Finance</button>
+          <button class="adm-tab" onclick="switchAdmTab('sponsors')" data-tab="sponsors" data-i18n="adm_menu_promo">Sponsors/Promo</button>
+          <button class="adm-tab" onclick="switchAdmTab('system')" data-tab="system" data-i18n="adm_menu_sys">System</button>
+      </div>
+
+      <!-- ADM: STATS & CHAT -->
+      <div class="adm-panel active" id="adm-stats">
+          <div class="adm-grid" id="adm-stats-grid"></div>
+          <div class="admin-card">
+            <div class="card-label" style="display:flex; justify-content:space-between;">
+                <span data-i18n="adm_recent_tickets">Support Tickets</span> <span style="cursor:pointer;" onclick="admLoadDashboard()">🔄</span>
+            </div>
+            <div id="adm-recent-chats" style="margin-top:10px; display:flex; flex-direction:column; gap:6px;"></div>
+          </div>
+      </div>
+
+      <!-- ADM: USERS -->
+      <div class="adm-panel" id="adm-users">
+          <div class="admin-card">
+              <div class="card-label" data-i18n="adm_find_user">Find User</div>
+              <div style="display:flex; gap:6px;">
+                  <input type="number" id="adm-search-uid" class="adm-input" placeholder="User ID" style="margin:0; flex:1;">
+                  <button class="adm-btn primary" onclick="admSearchUser()" data-i18n="adm_search_btn">Search</button>
+              </div>
+          </div>
+          
+          <div id="adm-user-result" style="display:none;">
+              <div class="admin-card">
+                  <div class="card-label" id="adm-u-title" data-i18n="adm_user_info">User Info</div>
+                  <div class="adm-grid">
+                      <div><div class="card-label">Balance</div><input type="number" id="adm-u-bal" class="adm-input" step="0.01"></div>
+                      <div><div class="card-label">Earned</div><input type="number" id="adm-u-earn" class="adm-input" step="0.01"></div>
+                      <div><div class="card-label">Sold Photos</div><input type="number" id="adm-u-sold" class="adm-input"></div>
+                      <div><div class="card-label">Referrals</div><input type="number" id="adm-u-refs" class="adm-input"></div>
+                  </div>
+                  <div style="margin-top:8px; display:flex; gap:6px; justify-content:space-between; align-items:center;">
+                      <label style="font-size:12px; color:var(--text-2);"><input type="checkbox" id="adm-u-ban"> <span data-i18n="adm_banned">Banned</span></label>
+                      <button class="adm-btn" onclick="admSaveUser()" data-i18n="adm_save_btn">💾 Save</button>
+                  </div>
+                  <hr style="border:0; border-top:1px solid var(--border2); margin:14px 0;">
+                  <div class="card-label" data-i18n="adm_qa_title">Quick Actions</div>
+                  <div class="adm-grid">
+                      <button class="adm-btn" onclick="admUserAction('reset_wheel')" data-i18n="adm_qa_rw">Reset Wheel</button>
+                      <button class="adm-btn" onclick="admUserAction('sell_now')" data-i18n="adm_qa_sell">Sell All Now</button>
+                      <button class="adm-btn" onclick="admUserAction('reset_slots')" data-i18n="adm_qa_rs">Reset Daily Slots</button>
+                      <button class="adm-btn" onclick="admPromptAction('add_bonus_slots', t('adm_qa_bs_p'))" data-i18n="adm_qa_bs">+ Bonus Slots</button>
+                      <button class="adm-btn primary" onclick="admOpenChatWithFoundUser()" data-i18n="adm_qa_chat" style="grid-column: span 2;">💬 Open Chat</button>
+                      <button class="adm-btn" onclick="admPromptAction('personal_wheel', t('adm_qa_pw_p'))" style="grid-column: span 2;" data-i18n="adm_qa_pw">Personal Wheel Config</button>
+                  </div>
+              </div>
+          </div>
+      </div>
+
+      <!-- ADM: FINANCE -->
+      <div class="adm-panel" id="adm-finance">
+          <div class="admin-card">
+              <div class="card-label" data-i18n="adm_wd_title">Pending Withdrawals</div>
+              <div id="adm-withdrawals-list"></div>
+          </div>
+      </div>
+
+      <!-- ADM: SPONSORS & PROMO -->
+      <div class="adm-panel" id="adm-sponsors">
+          <div class="admin-card">
+              <div class="card-label">Story Moderation</div>
+              <div id="adm-story-reqs"></div>
+          </div>
+
+          <div class="admin-card">
+              <div class="card-label" style="display:flex; justify-content:space-between;">
+                  <span data-i18n="adm_sp_title">Sponsors</span>
+                  <button class="adm-btn" style="padding:2px 8px;" onclick="admShowAddSponsor()" data-i18n="adm_add_btn">+ Add</button>
+              </div>
+              <select class="adm-select" id="adm-sponsor-mode" onchange="admUpdateSponsorMode(this.value)" style="margin-bottom:10px;">
+                  <option value="withdraw">Check at Withdraw</option>
+                  <option value="startup">Check at Startup</option>
+              </select>
+              <div id="adm-sponsors-list"></div>
+          </div>
+          
+          <div class="admin-card">
+              <div class="card-label" data-i18n="adm_promo_add_title">Add Promo Code</div>
+              <div class="adm-grid">
+                  <input type="text" id="adm-promo-code" class="adm-input" placeholder="Code (or AUTO)">
+                  <select id="adm-promo-type" class="adm-select">
+                      <option value="usd">USD Balance</option>
+                      <option value="spin">Wheel Spin</option>
+                      <option value="slot">Extra Slots</option>
+                  </select>
+                  <input type="number" id="adm-promo-val" class="adm-input" placeholder="Value (e.g. 5)">
+                  <input type="number" id="adm-promo-limit" class="adm-input" placeholder="Max Uses">
+                  <input type="number" id="adm-promo-dur" class="adm-input" placeholder="Duration days (Slots)">
+                  <button class="adm-btn primary" onclick="admSubmitPromo()" data-i18n="adm_promo_btn">+ Create Promo</button>
+              </div>
+              <hr style="border:0; border-top:1px solid var(--border2); margin:14px 0;">
+              <div class="card-label" data-i18n="adm_promo_title">Promo Codes</div>
+              <div id="adm-promos-list"></div>
+          </div>
+      </div>
+
+      <!-- ADM: SYSTEM -->
+      <div class="adm-panel" id="adm-system">
+          <div class="admin-card">
+              <div class="card-label" data-i18n="adm_bc_title">Broadcast</div>
+              <textarea id="adm-bc-text" class="adm-input" rows="3" placeholder="HTML message to all users..."></textarea>
+              <button class="adm-btn primary" style="margin-top:6px; width:100%;" onclick="admBroadcast()" data-i18n="adm_bc_btn">Send Broadcast</button>
+          </div>
+          
+          <div class="admin-card">
+              <div class="card-label" data-i18n="adm_maint_title">Maintenance Mode</div>
+              <div style="display:flex; gap:6px;">
+                  <select id="adm-maint-mode" class="adm-select" style="margin:0; flex:1; min-width:0;">
+                      <option value="0">OFF</option>
+                      <option value="1">ON</option>
+                  </select>
+                  <input type="datetime-local" id="adm-maint-end" class="adm-input" style="margin:0; flex:1; min-width:0; box-sizing:border-box;">
+              </div>
+              <button class="adm-btn" style="margin-top:6px; width:100%;" onclick="admSaveMaintenance()" data-i18n="adm_maint_save">Save Maintenance</button>
+          </div>
+          
+          <div class="admin-card">
+              <div class="card-label" data-i18n="adm_bulk_title">Bulk Actions & Cleanup</div>
+              <div class="adm-grid">
+                  <button class="adm-btn" onclick="admPostBulk('reset_slots')" data-i18n="adm_bulk_rs">Reset All Slots</button>
+                  <button class="adm-btn" onclick="admPostBulk('last_spin')" data-i18n="adm_bulk_rw">Reset All Wheels</button>
+                  <button class="adm-btn danger" onclick="admCleanup('30d')" data-i18n="adm_bulk_d30">Del Photos > 30d</button>
+                  <button class="adm-btn danger" onclick="admCleanup('7d')" data-i18n="adm_bulk_d7">Del Photos > 7d</button>
+                  <button class="adm-btn primary" style="grid-column: span 2;" onclick="admSellAll()" data-i18n="adm_bulk_sell">⚡ Sell All Active Photos</button>
+                  <button class="adm-btn" style="grid-column: span 2;" onclick="admShowGlobalWheel()" data-i18n="adm_bulk_wheel">🎡 Edit Global Wheel</button>
+              </div>
+          </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+const TRANSLATIONS = {
+  en:{
+    hdr_sub:"Photo Auction Platform",
+    tab_upload:"📸 Upload", tab_portfolio:"📂 Portfolio", tab_market:"🌍 Market", tab_wallet:"💰 Wallet", tab_profile:"👤 Profile", tab_support:"💬 Support", tab_bonus:"🎁 Bonus", tab_admin:"👑 Admin Panel",
+    
+    balance_label:"Balance", earned_label:"Earned", sold_label:"Sold",
+    live_label:"LIVE", live_sub:"Real-time transactions",
+    upload_cta:"Select photos",
+    upload_hint:"JPG, PNG, WEBP · up to 10 MB each\nUpload 5+ together for pack pricing",
+    upload_btn:"Analyse & List",
+    slots_label:"Auction Slots",
+    slots_reset_in:"Slots update in {h}h {m}m {s}s",
+    pack_notice:"📦 Pack mode active (5+ photos). Pack pricing applied.",
+    portfolio_title:"My Portfolio", portfolio_empty:"No photos yet. Upload your first shot!",
+    wallet_title:"Wallet",
+    wheel_title:"Wheel of Fortune", wheel_sub:"Win cash & extra slots", btn_spin:"Spin (Free)",
+    buy_spin:"Buy Spin ($10)", buy_slots:"+1 Slot 7d ($40)",
+    spin_wait:"Wait {h}h {m}m", prize_win:"🎉 You won: {p}",
+    
+    wallet_info_title:"Withdrawal Info:",
+    wallet_info_text:"Minimum withdrawal: $100. Withdrawal is blocked while you have active photo sales — this prevents overloading the payout system. Wait for all your photos to sell first. VIP users enjoy priority in the queue.",
+    
+    ruc_title:"Withdrawal Unlock Progress", ruc_hint:"Invite 3 friends (active after photo sale) to unlock withdrawal.",
+    withdraw_title:"Withdraw Earnings", withdraw_sub:"Invite 3 friends via your referral link (counted after their first sale) to unlock withdrawal.",
+    withdraw_unlocked_hint:"✅ Withdrawal unlocked! Select your payout method.",
+    wtab_usd:"💵 USD", wtab_stars:"⭐ Stars",
+    withdraw_btn_locked:"🔒 Locked", withdraw_btn_usd:"Withdraw $", withdraw_btn_stars:"Withdraw Stars",
+    stars_rate:"100 Stars = $1.20 · Rate: 1 USD = 83 Stars",
+    
+    wd_modal_title:"Withdrawal Request",
+    wd_modal_p1:"Funds from auction sales are currently clearing.",
+    wd_modal_p2:"Within 1-7 business days, our support team will contact you to request your payment details. Processing is done in order of queue and VIP priority.",
+    wd_modal_upsell:"💡 Tip: Increase your VIP status to speed up the withdrawal process.",
+    wd_modal_footer:"⏱ The final transfer takes 1-7 business days from the moment payment details are provided.",
+    wd_btn_confirm:"Confirm Request", wd_btn_cancel:"Cancel",
+
+    sub_modal_title:"Partner Channels",
+    sub_modal_text:"To proceed with the withdrawal, you must be subscribed to our partner channels. We will strictly verify your subscription.",
+    sub_btn_check:"Check Subscriptions", sub_btn_join:"Join",
+
+    profile_title:"My Profile", ref_link_label:"Your Referral Link", ref_copy:"Copy", ref_share:"📤 Share",
+    promo_title:"Promo Code", promo_ph:"Enter code...", promo_btn:"Activate",
+    vip_current_level:"Current VIP Level", vip_modal_title:"VIP Programme Details",
+    vip_tier_names:["Starter","Bronze","Silver","Gold","Platinum","Diamond"],
+    vip_tier_max:["10-12h sale","9-11h sale","8-10h sale","7-9h sale","6-8h sale","5-7h sale"],
+    vip_tier_slots:["3 slots/d","6 slots/d","9 slots/d","12 slots/d","15 slots/d","18 slots/d"],
+    vip_tier_req:["0 referrals","3 referrals","10 referrals","20 referrals","30 referrals","50 referrals"],
+    vip_next_hint:"Invite {n} more friend(s) to reach Level {l}",
+    vip_max_hint:"Maximum VIP level reached!",
+    
+    label_req:"Requirement:", label_slots:"Daily Limit:", label_delay:"Sale Delay:",
+    
+    ref_list_title:"My Referrals", ref_list_empty:"No referrals yet. Invite friends!", ref_active:"Active", ref_new:"Pending sale",
+    ref_hint: "⚠️ Referral is counted as active only after their first photo sale.",
+    support_title:"Support Chat", support_sub:"Replies within 24h",
+    chat_empty:"No messages yet. Send us a message!", chat_placeholder:"Type a message…",
+    chat_you:"You", chat_support:"Support",
+    sold_label_flash:"Photo Sold",
+    status_auction:"Auction", status_sold:"Sold", status_pending:"Pending",
+    ai_title:"AI Valuation", ai_sub:"Analyzing your photos…",
+    ai_verdict_hi:"Exceptional quality. High buyer demand expected.",
+    ai_verdict_mid:"Good composition. Solid auction prospects.",
+    ai_verdict_lo:"Decent shot. Niche buyers will respond.",
+    ai_list:"List on Auction",
+    toast_listed:"{n} photo(s) listed on auction!", toast_err:"Action failed. Try again.",
+    toast_withdrawn:"✅ Your request is being processed. Payouts take from 1 to 7 business days.", toast_withdraw_err:"Withdrawal error.",
+    toast_copied:"Link copied!", toast_copy_err:"Copy failed.",
+    toast_verify_fail:"You haven't joined the channel yet.",
+    auction_in:"Sells in", err_no_file:"Select at least one photo.",
+    err_slots_full:"Not enough auction slots. Wait until tomorrow or Buy Extra Slots.",
+    err_duplicate_photo:"This photo has already been listed. Please upload a different photo.",
+    err_min_balance:"Minimum withdrawal amount is $100.",
+    err_active_sales:"Withdrawal is unavailable while you have active photo sales. This is required to avoid overloading the payout system. Wait until all your photos are sold.",
+    ref_count_sub:"referrals",
+    ban_title:"Account Suspended",
+    ban_desc:"Your account has been blocked for violation of terms. If you believe this is a mistake, close this app and send a message directly to the bot to contact support.",
+    maint_title:"Maintenance Break", maint_desc:"We are currently updating the platform. Please check back later!",
+    
+    adm_title: "👑 Admin CRM",
+    adm_menu_stats: "Stats & Chat", adm_menu_users: "Users", adm_menu_fin: "Finance", adm_menu_promo: "Sponsors/Promo", adm_menu_sys: "System",
+    adm_stat_users: "Users", adm_stat_dau: "DAU", adm_stat_new: "New Today", adm_stat_files: "Files Stored", adm_stat_stories: "Stories Today",
+    adm_recent_tickets: "Support Tickets", adm_no_tickets: "No tickets.",
+    adm_find_user: "Find User", adm_search_btn: "Search",
+    adm_user_info: "User Info", adm_banned: "Banned", adm_save_btn: "💾 Save",
+    adm_qa_title: "Quick Actions", adm_qa_rw: "Reset Wheel", adm_qa_sell: "Sell All Now", adm_qa_rs: "Reset Daily Slots", adm_qa_bs: "+ Bonus Slots", adm_qa_chat: "💬 Open Chat", adm_qa_pw: "Personal Wheel Config",
+    adm_qa_bs_p: "Add bonus slots:", adm_qa_pw_p: "Set 5 chances (or /reset):",
+    adm_wd_title: "Pending Withdrawals", adm_no_wd: "No pending requests.", adm_approve: "Approve", adm_reject: "Reject",
+    adm_sp_title: "Sponsors", adm_add_btn: "+ Add", adm_promo_title: "Promo Codes", adm_promo_add_title: "Add Promo Code", adm_promo_btn: "+ Create Promo",
+    adm_bc_title: "Broadcast", adm_bc_btn: "Send Broadcast",
+    adm_maint_title: "Maintenance Mode", adm_maint_save: "Save Maintenance",
+    adm_bulk_title: "Bulk Actions & Cleanup", adm_bulk_rs: "Reset All Slots", adm_bulk_rw: "Reset All Wheels", adm_bulk_d30: "Del Photos > 30d", adm_bulk_d7: "Del Photos > 7d", adm_bulk_sell: "⚡ Sell All Active Photos", adm_bulk_wheel: "🎡 Edit Global Wheel",
+    adm_chat_close: "🔒 Close", adm_chat_wipe: "🗑 Wipe", adm_chat_you: "You:",
+    toast_maint_saved: "Maintenance settings saved!", toast_bc_start: "Broadcast started successfully!", toast_promo_ok: "Promo code added!",
+    
+    story_promo_title: "Share a Story",
+    story_promo_text: "Post your personalized progress story to your profile and get $15 + 1 Free Spin!",
+    story_promo_claimed: "Bonus Claimed ✓ (Share again for referrals)"
+  },
+  ru:{
+    hdr_sub:"Платформа аукциона фото",
+    tab_upload:"📸 Загрузка", tab_portfolio:"📂 Портфолио", tab_market:"🌍 Лента", tab_wallet:"💰 Кошелёк", tab_profile:"👤 Профиль", tab_support:"💬 Поддержка", tab_bonus:"🎁 Бонус", tab_admin:"👑 Админ Панель",
+    
+    balance_label:"Баланс", earned_label:"Заработано", sold_label:"Продано",
+    live_label:"ЛАЙВ", live_sub:"Сделки в реальном времени",
+    upload_cta:"Выберите фото",
+    upload_hint:"JPG, PNG, WEBP · до 10 МБ каждое\nВыберите 5+ сразу для пакетной оценки",
+    upload_btn:"Анализировать и выставить",
+    slots_label:"Слоты аукциона",
+    slots_reset_in:"Слоты обновятся через {h}ч {m}м {s}с",
+    pack_notice:"📦 Пакетный режим (5+ фото). Применена повышенная оценка.",
+    portfolio_title:"Портфолио", portfolio_empty:"Фото нет. Загрузите первый снимок!",
+    wallet_title:"Кошелёк",
+    wheel_title:"Колесо Фортуны", wheel_sub:"Выигрывай $ и слоты", btn_spin:"Крутить (Бесплатно)",
+    buy_spin:"Купить Спин ($10)", buy_slots:"+1 Слот на 7д ($40)",
+    spin_wait:"Жди {h}ч {m}м", prize_win:"🎉 Твой выигрыш: {p}",
+
+    wallet_info_title:"Информация о выводе:",
+    wallet_info_text:"Минимальная сумма вывода: $100. Вывод заблокирован, пока у вас есть активные продажи фото — это нужно чтобы не перегружать систему вывода. Дождитесь продажи всех фото. VIP-пользователи имеют приоритет в очереди.",
+    
+    ruc_title:"Прогресс разблокировки вывода", ruc_hint:"Пригласите 3 друзей (засчитываются после продажи фото), чтобы разблокировать вывод.",
+    withdraw_title:"Вывод средств", withdraw_sub:"Пригласите 3 друзей по ссылке (засчитываются после их первой продажи), чтобы разблокировать вывод.",
+    withdraw_unlocked_hint:"✅ Вывод разблокирован! Выберите способ получения.",
+    wtab_usd:"💵 USD", wtab_stars:"⭐ Звёзды",
+    withdraw_btn_locked:"🔒 Заблокировано", withdraw_btn_usd:"Вывести $", withdraw_btn_stars:"Вывести ⭐",
+    stars_rate:"100 Звёзд = $1.20 · Курс: 1 USD = 83 Звезды",
+    
+    wd_modal_title:"Подтверждение заявки",
+    wd_modal_p1:"Ваши средства с продажи на аукционе находятся в процессе обработки клирингом.",
+    wd_modal_p2:"В течение 1-7 рабочих дней поддержка свяжется с вами для уточнения реквизитов. Выплаты осуществляются в порядке живой очереди и с учетом VIP-приоритета.",
+    wd_modal_upsell:"💡 Подсказка: Увеличьте ваш VIP статус, чтобы ускорить процесс вывода.",
+    wd_modal_footer:"⏱ Зачисление средств осуществляется в течение 1-7 рабочих дней с момента предоставления реквизитов.",
+    wd_btn_confirm:"Подтвердить заявку", wd_btn_cancel:"Отмена",
+
+    sub_modal_title:"Спонсорские каналы",
+    sub_modal_text:"Для оформления заявки на вывод необходимо быть подписанным на каналы спонсоров. Бот строго проверяет подписку.",
+    sub_btn_check:"Проверить подписку", sub_btn_join:"Вступить",
+
+    profile_title:"Личный кабинет", ref_link_label:"Ваша реферальная ссылка", ref_copy:"Копировать", ref_share:"📤 Поделиться",
+    promo_title:"Промокод", promo_ph:"Введите код...", promo_btn:"Активировать",
+    vip_current_level:"Текущий VIP Уровень", vip_modal_title:"Информация о VIP",
+    vip_tier_names:["Старт","Бронза","Серебро","Золото","Платина","Алмаз"],
+    vip_tier_max:["Продажа 10-12ч","Продажа 9-11ч","Продажа 8-10ч","Продажа 7-9ч","Продажа 6-8ч","Продажа 5-7ч"],
+    vip_tier_slots:["3 слота/д","6 слотов/д","9 слотов/д","12 слотов/д","15 слотов/д","18 слотов/д"],
+    vip_tier_req:["0 рефералов","3 реферала","10 рефералов","20 рефералов","30 рефералов","50 рефералов"],
+    vip_next_hint:"Пригласите ещё {n} для Уровня {l}",
+    vip_max_hint:"Максимальный VIP уровень достигнут!",
+    
+    label_req:"Требование:", label_slots:"Дневной Лимит:", label_delay:"Время продажи:",
+
+    ref_list_title:"Мои рефералы", ref_list_empty:"Пока нет рефералов. Пригласите друзей!", ref_active:"Активен", ref_new:"Ожидает продажи",
+    ref_hint: "⚠️ Реферал засчитывается как активный только после его первой продажи фото.",
+    support_title:"Чат поддержки", support_sub:"Ответ в течение 24 часов",
+    chat_empty:"Сообщений нет. Напишите нам!", chat_placeholder:"Напишите сообщение…",
+    chat_you:"Вы", chat_support:"Поддержка",
+    sold_label_flash:"Фото продано", status_auction:"Аукцион", status_sold:"Продано", status_pending:"Ожидание",
+    ai_title:"ИИ-Оценка", ai_sub:"Анализируем ваши фото…",
+    ai_verdict_hi:"Отличное качество. Ожидается высокий спрос.", ai_verdict_mid:"Хорошая композиция. Хорошие шансы на аукционе.", ai_verdict_lo:"Достойный кадр. Нишевые покупатели откликнутся.",
+    ai_list:"Выставить на аукцион",
+    toast_listed:"Фото выставлены на аукцион!", toast_err:"Ошибка. Попробуйте снова.",
+    toast_withdrawn:"✅ Заявка обработана. Выплата занимает от 1 до 7 рабочих дней.", toast_withdraw_err:"Ошибка вывода средств.",
+    toast_copied:"Ссылка скопирована!", toast_copy_err:"Ошибка копирования.",
+    toast_verify_fail:"Вы ещё не вступили во все каналы.",
+    auction_in:"Продажа через", err_no_file:"Выберите хотя бы одно фото.",
+    err_slots_full:"Нет слотов. Подождите до завтра или купите дополнительные слоты.",
+    err_duplicate_photo:"Это фото уже было выставлено на аукцион. Загрузите другое фото.",
+    err_min_balance:"Минимальная сумма вывода — $100.",
+    err_active_sales:"Вывод недоступен, пока у вас есть активные продажи фотографий. Это необходимо, чтобы не перегружать систему вывода. Дождитесь завершения всех продаж.",
+    ref_count_sub:"рефералов",
+    ban_title:"Аккаунт Заблокирован",
+    ban_desc:"Ваш аккаунт был заблокирован за нарушение правил. Если вы считаете, что это ошибка, закройте приложение и напишите сообщение прямо в бота для связи с поддержкой.",
+    maint_title:"Технические работы", maint_desc:"Платформа обновляется. Мы скоро вернемся!",
+    
+    adm_title: "👑 Админ Панель",
+    adm_menu_stats: "Статистика и Чат", adm_menu_users: "Пользователи", adm_menu_fin: "Финансы", adm_menu_promo: "Спонсоры/Промо", adm_menu_sys: "Система",
+    adm_stat_users: "Юзеры", adm_stat_dau: "DAU (Актив)", adm_stat_new: "Новые за день", adm_stat_files: "Файлов фото", adm_stat_stories: "Сторис сегодня",
+    adm_recent_tickets: "Тикеты поддержки", adm_no_tickets: "Нет тикетов.",
+    adm_find_user: "Найти пользователя", adm_search_btn: "Поиск",
+    adm_user_info: "Информация", adm_banned: "Заблокирован", adm_save_btn: "💾 Сохранить",
+    adm_qa_title: "Быстрые действия", adm_qa_rw: "Сброс Колеса", adm_qa_sell: "Продать все сейчас", adm_qa_rs: "Сброс слотов", adm_qa_bs: "+ Бонусные слоты", adm_qa_chat: "💬 Открыть Чат", adm_qa_pw: "Персональная рулетка",
+    adm_qa_bs_p: "Добавить бонусных слотов:", adm_qa_pw_p: "Установите 5 шансов (или /reset):",
+    adm_wd_title: "Заявки на вывод", adm_no_wd: "Нет активных заявок.", adm_approve: "Одобрить", adm_reject: "Отклонить",
+    adm_sp_title: "Спонсоры", adm_add_btn: "+ Добавить", adm_promo_title: "Промокоды", adm_promo_add_title: "Добавить Промокод", adm_promo_btn: "+ Создать Промо",
+    adm_bc_title: "Рассылка", adm_bc_btn: "Начать рассылку",
+    adm_maint_title: "Технические работы", adm_maint_save: "Сохранить настройки",
+    adm_bulk_title: "Массовые действия и Очистка", adm_bulk_rs: "Сброс слотов всем", adm_bulk_rw: "Сброс колеса всем", adm_bulk_d30: "Удалить фото > 30д", adm_bulk_d7: "Удалить фото > 7д", adm_bulk_sell: "⚡ Продать все на аукционе", adm_bulk_wheel: "🎡 Глобальная рулетка",
+    adm_chat_close: "🔒 Закрыть", adm_chat_wipe: "🗑 Удалить", adm_chat_you: "Вы:",
+    toast_maint_saved: "Настройки тех. работ сохранены!", toast_bc_start: "Рассылка успешно начата!", toast_promo_ok: "Промокод добавлен!",
+    
+    story_promo_title: "Выложить сторис",
+    story_promo_text: "Опубликуй свою статистику в сторис и моментально получи $15 + 1 Бесплатный Спин!",
+    story_promo_claimed: "Бонус получен ✓ (Делись еще для рефералов)"
+  }
+};
+
+let currentLang = 'en';
+function t(key){ return (TRANSLATIONS[currentLang]||{})[key] || (TRANSLATIONS['en']||{})[key] || key; }
+
+function applyTranslations(){
+  document.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = t(el.getAttribute('data-i18n')); });
+  document.querySelectorAll('[data-i18n-placeholder]').forEach(el => { el.placeholder = t(el.getAttribute('data-i18n-placeholder')); });
+  document.getElementById('lang-toggle').textContent = currentLang === 'en' ? 'RU' : 'EN';
+  
+  if(typeof updateWheelUI === 'function') updateWheelUI();
+  if(typeof updateStoryUI === 'function') updateStoryUI();
+  
+  if(document.querySelector('.panel.active')?.id === 'panel-admin') {
+      admLoadDashboard();
+  }
+}
+
+function toggleLang(){
+  currentLang = currentLang === 'en' ? 'ru' : 'en';
+  applyTranslations();
+  renderPortfolio(); renderWalletInfo(); renderReferrals(); loadReferralsList(); renderLiveFeed();
+  updateUploadLock(); renderWithdrawPreviews();
+  
+  if(userId){
+    authFetch(`/api/player/${userId}/lang`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ lang: currentLang }) }).catch(() => {});
+  }
+}
+
+const tg = window.Telegram?.WebApp;
+let userId = null, username = '';
+if(tg){
+  tg.ready(); tg.expand(); tg.setHeaderColor('#000000'); tg.setBackgroundColor('#000000');
+  const u = tg.initDataUnsafe?.user;
+  if(u){ userId = u.id; username = u.username || u.first_name || ''; }
+  
+  tg.onEvent('viewportChanged', () => { if(tg.isExpanded) loadPlayer(true); });
+}
+if(!userId) userId = 999999;
+
+// 🔒 ЗАЩИЩЕННЫЙ FETCH
+async function authFetch(url, options = {}) {
+    options.headers = options.headers || {};
+    if (tg && tg.initData) {
+        options.headers['X-Telegram-Init-Data'] = tg.initData;
+    } else {
+        options.headers['X-Telegram-Init-Data'] = "DEV_BYPASS_" + userId;
+    }
+    return fetch(url, options);
+}
+
+const BASE = '';
+let gameData = null;
+let selectedFiles = [];
+let pendingUploadResult = null;
+let withdrawTab = 'usd';
+let pendingWithdrawMethod = null;
+let supportMsgsLoaded = false, lastSupportMsgId = 0;
+let lastSoldCount = 0;
+let wheelTimer = null;
+let nextSpinMs = 0;
+let supportImgFile = null;
+let maintInterval = null;
+
+async function init(){
+  applyTranslations();
+  await loadPlayer();
+  buildLiveFeed();
+  setInterval(tickCountdowns, 1000);
+  setInterval(() => loadPlayer(true), 5000); 
+  setInterval(pollSupportReplies, 3000);
+  setInterval(tickLiveFeed, 7000);
+}
+
+function startMaintenanceTimer(endTimeIso) {
+    clearInterval(maintInterval);
+    const end = new Date(endTimeIso + (endTimeIso.includes('Z') ? '' : 'Z'));
+    function update() {
+        const diff = end - new Date();
+        if (diff <= 0) {
+            document.getElementById('maint-timer-display').textContent = currentLang === 'ru' ? "Завершаем..." : "Wrapping up...";
+            clearInterval(maintInterval); return;
+        }
+        const h = Math.floor(diff / 3600000).toString().padStart(2, '0');
+        const m = Math.floor((diff % 3600000) / 60000).toString().padStart(2, '0');
+        const s = Math.floor((diff % 60000) / 1000).toString().padStart(2, '0');
+        document.getElementById('maint-timer-display').textContent = `${h}:${m}:${s}`;
+    }
+    update();
+    maintInterval = setInterval(update, 1000);
+}
+
+async function loadPlayer(silent = false){
+  try{
+    const r = await authFetch(`/api/player/${userId}?username=${encodeURIComponent(username)}`);
+    const data = await r.json();
+    
+    if(r.status === 403) {
+        if(data.error === 'banned') {
+            document.getElementById('ban-overlay').classList.add('active');
+            return;
+        }
+        if(data.error === 'maintenance') {
+            document.getElementById('maintenance-overlay').classList.add('active');
+            if (data.end_time) {
+                document.getElementById('maint-timer-display').style.display = 'block';
+                startMaintenanceTimer(data.end_time);
+            } else {
+                document.getElementById('maint-timer-display').style.display = 'none';
+            }
+            return;
+        }
+    } else {
+        document.getElementById('maintenance-overlay').classList.remove('active');
+    }
+    
+    if(!r.ok){
+      if(data.error === 'subscription_required') showSubGate(data);
+      return;
+    }
+    
+    gameData = data;
+    
+    updateHeader(gameData.player);
+    renderPortfolio(); renderWalletInfo(); updateUploadLock(); renderWithdrawPreviews();
+    renderVipBadge(gameData.vip_level); renderReferrals();
+    updateStoryUI();
+    
+    if(gameData.is_admin) {
+        document.getElementById('menu-item-admin').style.display = 'block';
+    }
+
+    if(document.querySelector('.panel.active').id === 'panel-profile') {
+        loadReferralsList();
+    }
+    if(document.querySelector('.panel.active').id === 'panel-admin') {
+        if(!adminCurrentChatUid) admLoadDashboard();
+    }
+    
+    if(gameData.wheel_config) {
+        for(let i=0; i<5; i++) {
+            if(gameData.wheel_config[i]) document.getElementById(`w-l${i}`).textContent = gameData.wheel_config[i].label;
+        }
+    }
+    
+    if(data.wheel) {
+      if(data.wheel.can_spin) nextSpinMs = 0;
+      else nextSpinMs = data.wheel.next_spin_ms;
+      updateWheelUI();
+    }
+  }catch(e){ if(!silent) console.error(e); }
+}
+
+function showSubGate(data){
+  const ch = (data.channels || []);
+  window._lastSubGateData = data;
+  const isRu = currentLang === 'ru';
+  const welcomeHdr = isRu ? 'Добро пожаловать в PhotoFlip' : 'Welcome to PhotoFlip';
+  const subText = isRu ? 'Подпишитесь на наши каналы для доступа к приложению.' : (data.message || 'Subscribe to our channels to access the app.');
+  const checkLabel = isRu ? '✅ Я подписался — Проверить' : "✅ I've Subscribed — Check";
+  const langLabel = isRu ? 'EN' : 'RU';
+
+  let buttonsHtml = '';
+  if(ch.length) {
+      buttonsHtml = ch.map(c => `<a href="${c.url}" target="_blank" style="margin-top:8px;padding:12px 24px;background:#3b82f6;color:#fff;border-radius:10px;font-weight:600;font-size:14px;text-decoration:none;display:block;width:100%;max-width:280px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">📢 Subscribe to ${escHtml(c.name || 'Sponsor')}</a>`).join('');
+  } else {
+      buttonsHtml = `<a href="https://t.me/Photo_Flip_Market" target="_blank" style="margin-top:8px;padding:12px 24px;background:#3b82f6;color:#fff;border-radius:10px;font-weight:600;font-size:14px;text-decoration:none;display:block;width:100%;max-width:280px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">📢 Subscribe to PhotoFlip Community</a>`;
+  }
+
+  let overlay = document.getElementById('sub-gate-overlay');
+  if(!overlay){
+    overlay = document.createElement('div');
+    overlay.id = 'sub-gate-overlay';
+    document.body.appendChild(overlay);
+  }
+  overlay.style.cssText = 'position:fixed;inset:0;background:#000;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px;text-align:center;gap:16px;overflow-y:auto;';
+  overlay.innerHTML = `
+    <button onclick="toggleSubGateLang()" style="position:absolute;top:16px;right:16px;background:#1e1e1e;border:1px solid rgba(255,255,255,0.12);color:#94a3b8;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:600;cursor:pointer">${langLabel}</button>
+    <div style="font-size:40px;margin-top:20px;">📸</div>
+    <div style="font-size:18px;font-weight:700;color:#f1f5f9">${welcomeHdr}</div>
+    <div style="font-size:14px;color:#94a3b8;max-width:280px">${subText}</div>
+    <div style="display:flex;flex-direction:column;gap:10px;width:100%;align-items:center;margin-top:10px;margin-bottom:10px;">
+        ${buttonsHtml}
+    </div>
+    <button id="sub-gate-check-btn" onclick="recheckSub()" style="padding:10px 20px;background:#1e1e1e;border:1px solid rgba(255,255,255,0.12);color:#94a3b8;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer">${checkLabel}</button>
+  `;
+}
+
+function toggleSubGateLang(){
+  currentLang = currentLang === 'en' ? 'ru' : 'en';
+  applyTranslations();
+  if(window._lastSubGateData) showSubGate(window._lastSubGateData);
+}
+
+async function recheckSub(){
+  const btn = document.getElementById('sub-gate-check-btn');
+  const isRu = currentLang === 'ru';
+  if(btn) btn.textContent = isRu ? 'Проверяем…' : 'Checking…';
+
+  const r = await authFetch(`/api/player/${userId}?username=${encodeURIComponent(username)}`).catch(()=>null);
+  if(!r || !r.ok){
+    if(btn) btn.textContent = isRu ? '✅ Я подписался — Проверить' : "✅ I've Subscribed — Check";
+    if(r){
+      const d = await r.json().catch(() => ({}));
+      if(d?.error === 'subscription_required') showSubGate(d);
+      if(d?.error === 'banned') document.getElementById('ban-overlay').classList.add('active');
+    }
+    return;
+  }
+  const data = await r.json();
+  if(data.error) return;
+
+  const ov = document.getElementById('sub-gate-overlay');
+  if(ov) ov.remove();
+  window._lastSubGateData = null;
+  gameData = data;
+  updateHeader(gameData.player); renderPortfolio(); renderWalletInfo(); updateUploadLock();
+  renderWithdrawPreviews(); renderVipBadge(gameData.vip_level); renderReferrals();
+  updateWheelUI();
+  updateStoryUI();
+
+  if(gameData.is_admin) {
+      document.getElementById('menu-item-admin').style.display = 'block';
+  }
+}
+
+function updateHeader(p){
+  document.getElementById('header-sub').textContent = t('hdr_sub') + ' • ID: ' + p.user_id;
+
+  document.getElementById('balance-val').textContent = '$' + fmt(p.balance);
+  document.getElementById('earned-val').textContent  = '$' + fmt(p.total_earned);
+  document.getElementById('sold-val').textContent    = p.photos_sold || 0;
+
+  const newSold = p.photos_sold || 0;
+  if(newSold > lastSoldCount && lastSoldCount > 0){
+    const sold = (gameData?.photos || []).filter(ph => ph.status === 'sold');
+    if(sold.length){
+      const sp = sold[0];
+      document.getElementById('sold-amount').textContent = '+$' + fmt(sp.final_price || 0);
+      document.getElementById('sold-rub').textContent = sp.sale_rub ? `${parseInt(sp.sale_rub).toLocaleString()} ₽` : '';
+      const el = document.getElementById('sold-flash');
+      el.classList.remove('animate'); void el.offsetWidth; el.classList.add('animate');
+    }
+  }
+  lastSoldCount = newSold;
+  if(p.lang && p.lang !== currentLang){ currentLang = p.lang; applyTranslations(); }
+}
+
+function fmt(n){ return parseFloat(n || 0).toFixed(2); }
+function renderVipBadge(lvl){ document.getElementById('vip-level-text').textContent = `VIP ${lvl}`; }
+
+function showToast(msg, type = ''){
+  const el = document.getElementById('toast'); el.textContent = msg; el.className = 'show' + (type ? ' ' + type : '');
+  setTimeout(() => el.className = '', 3000);
+}
+function escHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function toggleMainMenu() {
+    document.getElementById('main-menu-overlay').classList.toggle('open');
+}
+
+function switchTab(name){
+  document.getElementById('main-menu-overlay').classList.remove('open');
+  document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.id === `panel-${name}`));
+  
+  if(name === 'profile') { renderReferrals(); loadReferralsList(); }
+  if(name === 'market') renderLiveFeed();
+  if(name === 'support') loadSupportMsgs();
+  if(name === 'admin') admLoadDashboard();
+}
+
+// -----------------------------------------------------
+// TELEGRAM STORIES GENERATION & PUBLISH
+// -----------------------------------------------------
+function updateStoryUI() {
+    if (!gameData) return;
+    const storyReady = gameData.story_bonus ? gameData.story_bonus.can_claim : true;
+    const isPending = gameData.has_pending_story;
+
+    const spcTag = document.getElementById('spc-reward-tag');
+    const spcDesc = document.getElementById('spc-desc-text');
+    const spcIcon = document.getElementById('spc-icon-visual');
+
+    if (isPending) {
+        spcTag.textContent = "⏳ PENDING";
+        spcTag.style.background = "var(--amber)";
+        spcDesc.textContent = currentLang === 'ru' 
+            ? "⏳ Заявка на модерации. Мы проверим вашу сторис в течение 24 часов." 
+            : "⏳ Under moderation. We will check your story within 24h.";
+        spcIcon.textContent = "⏳";
+    } else if (!storyReady) {
+        spcTag.textContent = "🔗 REF";
+        spcTag.style.background = "var(--blue)";
+        const hrs = Math.ceil((gameData.story_bonus?.cooldown_ms || 0) / 3600000);
+        spcDesc.textContent = currentLang === 'ru' 
+            ? `Бонус получен ✓ (Новая доступна через ${hrs} ч.)` 
+            : `Claimed ✓ (Available in ${hrs} h.)`;
+        spcIcon.textContent = "📸";
+    } else {
+        spcTag.textContent = "+$15 & 1 SPIN";
+        spcTag.style.background = "var(--green)";
+        spcDesc.textContent = t('story_promo_text');
+        spcIcon.textContent = "📸";
+    }
+}
+
+async function postPromoStory() {
+    if (!tg || !tg.shareToStory) {
+        showToast(currentLang === 'ru' ? "Обновите Telegram для сторис" : "Update Telegram for stories", "error");
+        return;
+    }
+
+    const btnText = document.getElementById('spc-desc-text');
+    const origText = btnText.innerText;
+
+    if (gameData?.has_pending_story) {
+        showToast(currentLang === 'ru' ? "Ваша заявка уже проверяется." : "Your request is already under review.", "error");
+        return;
+    }
+
+    btnText.innerText = currentLang === 'ru' ? "Открываем сторис..." : "Opening stories...";
+
+    try {
+        const storyUrl = "https://i.postimg.cc/zDTdQCjt/Chat-GPT-Image-8-maa-2026-g-00-31-47.png"; 
+
+        // ИСПРАВЛЕНИЕ: Формируем ссылку так, чтобы Telegram её не вырезал
+        let refUrl = gameData?.referral_url;
+        if (!refUrl || refUrl === "https://t.me/PhotoFlipBot" || refUrl.trim() === "") {
+            // Динамически получаем юзернейм текущего бота прямо из данных Telegram
+            const botUsername = tg.initDataUnsafe?.receiver?.username || "PhotoFlipBot";
+            refUrl = `https://t.me/${botUsername}?start=ref_${userId}`;
+        }
+
+        const shareParams = {
+            text: currentLang === 'ru' 
+                ? "Просто продал фотку, которую сделал по пути в магазин 🤯 Оказывается, за это платят. Жми на кнопку, загрузи любую картинку из галереи и чекни, сколько она стоит 👇" 
+                : "Just sold a photo I took on my way to the store 🤯 Turns out people pay for this. Click the button, upload any pic from your gallery and see how much it's worth 👇",
+            widget_link: {
+                url: refUrl,
+                name: currentLang === 'ru' ? "Оценить твои фото 📸💸" : "Value my photos 📸💸"
+            }
+        };
+
+        tg.shareToStory(storyUrl, shareParams);
+
+        const storyReady = gameData?.story_bonus ? gameData.story_bonus.can_claim : true;
+        
+        if (storyReady) {
+            btnText.innerText = currentLang === 'ru' ? "⏳ Отправка заявки на модерацию..." : "⏳ Sending request...";
+            
+            const claimReq = await authFetch('/api/story/request_bonus', { method: 'POST' });
+            const res = await claimReq.json();
+            
+            await loadPlayer(false);
+            
+            if (res.success) {
+                showToast(currentLang === 'ru' ? "Заявка отправлена! Ожидайте модерацию." : "Request sent! Please wait for review.", "success");
+            } else {
+                btnText.innerText = origText;
+            }
+        } else {
+            setTimeout(() => { btnText.innerText = origText; }, 2000);
+        }
+
+    } catch(e) {
+        console.error(e);
+        showToast(e.message || t('toast_err'), "error"); 
+        btnText.innerText = origText;
+    }
+}
+// -----------------------------------------------------
+// UPLOAD LOGIC
+// -----------------------------------------------------
+function updateUploadLock(){
+  const active = gameData?.active_slots || 0;
+  const slotLimit = gameData?.slot_limit || 5;
+  
+  const pct = slotLimit > 0 ? Math.min((active / slotLimit) * 100, 100) : 0;
+  const fill = document.getElementById('slot-bar-fill');
+  fill.style.width = pct + '%';
+  fill.className = 'slot-bar-fill' + (pct >= 100 ? ' full' : pct >= 80 ? ' warn' : '');
+  document.getElementById('slot-count').textContent = `${active} / ${slotLimit}`;
+
+  if(pct >= 100) {
+      document.getElementById('slot-reset-timer').style.display = 'block';
+      document.getElementById('upload-drop-zone').style.opacity = '0.5';
+      document.getElementById('upload-drop-zone').style.pointerEvents = 'none';
+      document.getElementById('upload-btn').disabled = true;
+  } else {
+      document.getElementById('slot-reset-timer').style.display = 'none';
+      document.getElementById('upload-drop-zone').style.opacity = '1';
+      document.getElementById('upload-drop-zone').style.pointerEvents = 'auto';
+      document.getElementById('upload-btn').disabled = false;
+  }
+}
+
+document.getElementById('file-input').addEventListener('change', e => {
+  const newFiles = Array.from(e.target.files || []);
+  if(!newFiles.length) return;
+  const available = (gameData?.slot_limit || 5) - (gameData?.active_slots || 0);
+  const toAdd = newFiles.slice(0, available - selectedFiles.length);
+  if(newFiles.length > toAdd.length) showToast(t('err_slots_full'), 'error');
+  selectedFiles = [...selectedFiles, ...toAdd];
+  renderFilePreviews(); e.target.value = '';
+});
+
+function renderFilePreviews(){
+  const container = document.getElementById('upload-previews'), packNotice = document.getElementById('pack-notice');
+  if(!selectedFiles.length){ container.style.display = 'none'; packNotice.style.display = 'none'; return; }
+  container.style.display = 'flex';
+  container.innerHTML = selectedFiles.map((f, i) => `<div class="preview-thumb-wrap"><img class="preview-thumb" src="${URL.createObjectURL(f)}" alt=""/><div class="preview-remove" onclick="removeFile(${i})">×</div></div>`).join('');
+  packNotice.style.display = selectedFiles.length >= 5 ? 'block' : 'none';
+}
+
+function removeFile(idx){ selectedFiles.splice(idx, 1); renderFilePreviews(); }
+
+const dz = document.getElementById('upload-drop-zone');
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('drag'));
+dz.addEventListener('drop', e => {
+  e.preventDefault(); dz.classList.remove('drag');
+  const dropped = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'));
+  const available = (gameData?.slot_limit || 5) - (gameData?.active_slots || 0);
+  const toAdd = dropped.slice(0, available - selectedFiles.length);
+  if(dropped.length > toAdd.length) showToast(t('err_slots_full'), 'error');
+  selectedFiles = [...selectedFiles, ...toAdd];
+  renderFilePreviews();
+});
+
+async function startUpload(){
+  if(!selectedFiles.length){ showToast(t('err_no_file'), 'error'); return; }
+  const active = gameData?.active_slots || 0, limit = gameData?.slot_limit || 5;
+  if(active + selectedFiles.length > limit){ showToast(t('err_slots_full'), 'error'); return; }
+  openAiModal();
+}
+
+function openAiModal(){
+  document.getElementById('ai-thumbs-row').innerHTML = selectedFiles.map(f => `<img class="ai-thumb-img" src="${URL.createObjectURL(f)}" alt=""/>`).join('');
+  document.getElementById('ai-result').style.display = 'none';
+  document.getElementById('ai-bar').style.width = '0%'; document.getElementById('ai-pct').textContent = '0%';
+  document.getElementById('ai-title').textContent = t('ai_title'); document.getElementById('ai-sub').textContent = t('ai_sub');
+  document.getElementById('ai-confirm-text').textContent = t('ai_list');
+  document.getElementById('ai-modal').classList.add('open');
+  runAiAnimation();
+}
+function closeAiModal(){ document.getElementById('ai-modal').classList.remove('open'); }
+
+function runAiAnimation(){
+  const bar = document.getElementById('ai-bar'), pctEl = document.getElementById('ai-pct');
+  let pct = 0;
+  const timer = setInterval(() => {
+    pct += Math.random() * 8 + 2;
+    if(pct >= 100){ pct = 100; clearInterval(timer); showAiResult(); }
+    bar.style.width = pct + '%'; pctEl.textContent = Math.floor(pct) + '%';
+  }, 120);
+}
+
+let pendingPrices = []; 
+function showAiResult(){
+  const score = Math.floor(Math.random() * 30) + 65;
+  document.getElementById('score-circle').style.strokeDashoffset = 213.6 - (score / 100) * 213.6;
+  document.getElementById('score-val').textContent = score;
+  const badges = score >= 85 ? ['High Demand','Top Quality','Fast Sale'] : score >= 75 ? ['Good Quality','Solid Price','Active Buyers'] : ['Decent Shot','Niche Market','Steady Interest'];
+  document.getElementById('score-badges').innerHTML = badges.map(b => `<span class="badge">${b}</span>`).join('');
+  document.getElementById('ai-verdict').textContent = t(score >= 85 ? 'ai_verdict_hi' : score >= 75 ? 'ai_verdict_mid' : 'ai_verdict_lo');
+
+  let totalRub = 0;
+  pendingPrices = []; 
+  const isPack = selectedFiles.length >= 5;
+  
+  for (let i = 0; i < selectedFiles.length; i++) {
+    const price = isPack 
+      ? Math.floor(Math.random() * (500 - 100 + 1)) + 100  
+      : Math.floor(Math.random() * (460 - 92 + 1)) + 92;   
+    pendingPrices.push(price);
+    totalRub += price;
+  }
+
+  const grossUsd = (totalRub / 92).toFixed(2), netUsd = (totalRub / 92 * 0.98).toFixed(2);
+  document.getElementById('ai-price-box').innerHTML = `<div class="aipb-row"><span>Estimated price</span><span>${totalRub.toLocaleString()} ₽</span></div><div class="aipb-row"><span>USD gross</span><span>$${grossUsd}</span></div><div class="aipb-row"><span>Fee (2%)</span><span>−$${(grossUsd - netUsd).toFixed(2)}</span></div><div class="aipb-row"><span>You receive</span><span style="color:var(--green)">$${netUsd}</span></div>`;
+  document.getElementById('ai-result').style.display = 'block';
+  pendingUploadResult = { totalRub, netUsd };
+}
+
+async function confirmUpload(){
+  const btn = document.getElementById('ai-confirm');
+  btn.disabled = true; document.getElementById('ai-confirm-text').innerHTML = '<span class="inline-spinner"></span>' + t('ai_list');
+  const fd = new FormData(); 
+  fd.append('user_id', userId); 
+  fd.append('username', username);
+  fd.append('prices', pendingPrices.join(',')); 
+  
+  selectedFiles.forEach(f => fd.append('files', f));
+  try{
+    const r = await authFetch(`/api/upload`, { method:'POST', body:fd });
+    if(!r.ok) {
+      const errData = await r.json().catch(() => ({}));
+      const detail = errData.detail || '';
+      if(detail === 'duplicate_photo') throw new Error(t('err_duplicate_photo'));
+      throw new Error(detail || t('toast_err'));
+    }
+    const data = await r.json();
+    closeAiModal(); selectedFiles = []; renderFilePreviews();
+    showToast(t('toast_listed').replace('{n}', data.photos?.length || 0), 'success');
+    await loadPlayer(false); switchTab('portfolio');
+  }catch(e){
+    showToast(e.message || t('toast_err'), 'error');
+    btn.disabled = false; document.getElementById('ai-confirm-text').textContent = t('ai_list');
+  }
+}
+
+// -----------------------------------------------------
+// BONUS WHEEL
+// -----------------------------------------------------
+function updateWheelUI() {
+  const btn = document.getElementById('spin-btn');
+  if (nextSpinMs <= 0) {
+    btn.disabled = false;
+    btn.textContent = t('btn_spin');
+    clearInterval(wheelTimer);
+  } else {
+    btn.disabled = true;
+    updateWheelTimer();
+    clearInterval(wheelTimer);
+    wheelTimer = setInterval(() => {
+      nextSpinMs -= 1000;
+      if (nextSpinMs <= 0) updateWheelUI();
+      else updateWheelTimer();
+    }, 1000);
+  }
+}
+
+function updateWheelTimer() {
+  const h = Math.floor(nextSpinMs / 3600000);
+  const m = Math.floor((nextSpinMs % 3600000) / 60000);
+  document.getElementById('spin-btn').textContent = t('spin_wait').replace('{h}', h).replace('{m}', m);
+}
+
+let wheelSpinning = false;
+async function spinWheel() {
+  if (wheelSpinning) return;
+  wheelSpinning = true;
+  try {
+    const r = await authFetch(`/api/wheel/spin`, { method:'POST' });
+    if (!r.ok) throw new Error();
+    const data = await r.json();
+    
+    const segmentAngles = [36, 108, 180, 252, 324];
+    const targetDeg = 1800 - segmentAngles[data.prize.id];
+    
+    const wheelBg = document.getElementById('wheel-bg');
+    wheelBg.style.transition = 'transform 4s cubic-bezier(0.25, 0.1, 0.25, 1)';
+    wheelBg.style.transform = `rotate(${targetDeg}deg)`;
+    
+    setTimeout(async () => {
+      showToast(t('prize_win').replace('{p}', data.prize.label), 'success');
+      wheelBg.style.transition = 'none';
+      wheelBg.style.transform = `rotate(${-segmentAngles[data.prize.id]}deg)`;
+      wheelSpinning = false;
+      await loadPlayer(false);
+    }, 4100);
+  } catch (e) {
+    wheelSpinning = false;
+    showToast(t('toast_err'), 'error');
+  }
+}
+
+async function buyItem(item) {
+  try {
+    const fd = new FormData(); fd.append('item', item);
+    const r = await authFetch(`/api/buy/item`, { method: 'POST', body: fd });
+    const data = await r.json();
+    if (!r.ok) {
+        showToast(data.detail || t('toast_err'), 'error');
+        return;
+    }
+    showToast("Purchase successful!", "success");
+    await loadPlayer(false);
+  } catch (e) { showToast(t('toast_err'), 'error'); }
+}
+
+async function activatePromo() {
+    const inp = document.getElementById('promo-input');
+    const code = inp.value.trim();
+    if(!code) return;
+    try {
+        const r = await authFetch(`/api/promo/activate`, {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({code: code})
+        });
+        const data = await r.json();
+        if(!r.ok) {
+            showToast(data.detail || t('toast_err'), 'error');
+            return;
+        }
+        showToast(data.message || "Promo code activated!", "success");
+        inp.value = "";
+        await loadPlayer(false);
+    } catch(e) { showToast(t('toast_err'), 'error'); }
+}
+
+// -----------------------------------------------------
+// PORTFOLIO & FEED
+// -----------------------------------------------------
+function renderPortfolio(){
+  const photos = gameData?.photos || [];
+  document.getElementById('portfolio-count').textContent = `${photos.length} items`;
+  if(!photos.length){ document.getElementById('portfolio-list').innerHTML = `<div class="empty-state"><div class="empty-icon">📂</div><div class="empty-text">${t('portfolio_empty')}</div></div>`; return; }
+  document.getElementById('portfolio-list').innerHTML = photos.map(p => {
+    const isAuction = p.status === 'on_auction', isSold = p.status === 'sold';
+    const thumb = p.filename ? `<img class="photo-thumb" src="/uploads/${p.filename}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"/><div class="photo-thumb-ph" style="display:none">🖼</div>` : `<div class="photo-thumb-ph">🖼</div>`;
+    return `<div class="photo-card">${thumb}<div class="photo-info"><div class="photo-name">Photo #${p.id.slice(0,6).toUpperCase()}</div><div class="photo-meta">${p.sale_rub ? parseInt(p.sale_rub).toLocaleString() + ' ₽' : ''} ${isSold && p.buyer ? ` · ${p.buyer}` : ''}</div><div><span class="photo-status ${isAuction ? 'status-auction' : isSold ? 'status-sold' : 'status_pending'}">${t(isAuction ? 'status_auction' : isSold ? 'status_sold' : 'status_pending')}</span></div>${isAuction && p.sell_at ? `<div class="countdown" data-sell="${p.sell_at}">${t('auction_in')} …</div>` : ''}</div><div class="photo-price ${isSold ? 'green' : ''}">${isSold ? `+$${fmt(p.final_price)}` : p.base_price ? `~$${fmt(p.base_price)}` : ''}</div></div>`;
+  }).join('');
+}
+
+function tickCountdowns(){
+  document.querySelectorAll('.countdown[data-sell]').forEach(el => {
+    const diff = Math.max(0, new Date(el.dataset.sell + 'Z') - Date.now());
+    if(diff <= 0){ el.textContent = 'Finalizing…'; return; }
+    const s = Math.floor(diff / 1000) % 60, m = Math.floor(diff / 60000) % 60, h = Math.floor(diff / 3600000);
+    el.textContent = `${t('auction_in')} ${h ? h + 'h ' : ''}${m}m ${s}s`;
+  });
+
+  const resetEl = document.getElementById('slot-reset-timer');
+  if(resetEl && resetEl.style.display !== 'none') {
+      const now = new Date();
+      let nextReset = new Date();
+      nextReset.setUTCHours(21, 0, 0, 0); 
+      if (now >= nextReset) nextReset.setUTCDate(nextReset.getUTCDate() + 1);
+      const diff = nextReset - now;
+      const h = Math.floor(diff / 3600000);
+      const m = Math.floor((diff % 3600000) / 60000);
+      const s = Math.floor((diff % 60000) / 1000);
+      resetEl.textContent = t('slots_reset_in').replace('{h}', h).replace('{m}', m).replace('{s}', s);
+  }
+}
+
+const FAKE_USERS = ['u***r7','a***2','m***k9','p***y4','t***3','j***8','k***5','s***1','x***z2','q***9','r***m3','b***6','c***w5','n***4','f***h1','d***7','w***l8','e***v3','g***o6','h***i2','y***t5','o***p1','z***k4','v***s9','i***b3','l***n7','R***a8','M***e2','A***i6','T***o4','PhotoNinja_7','SniperLens_3','PixelHunter_2','SnapMaster_5','ArtClipper_9','LensPro_4','FrameKing_1','ShotWizard_6','GoldenHour_8','NightShooter_3','UrbanLens_5','NatureSnap_7','MacroKing_2','ArtFlip_6','StreetPhoto_4','GalleryMod_9','AuctionAce_1','BidMaster_3','PhotoTrader_7','ClickBoss_5','VintageSnap_8','ColorPop_2','DarkroomPro_6','HighRes_4','LensFlare_9','ShutterBug_1','ExposureX_3','FocalPoint_7','RAWmaster_5','DepthChaser_2','SkilledTrader','CryptoKing','MasterPhoto','Dimon777','Alena_V','PhotoPro99','NightOwl42','LuckyStar88','TraderMax','Sergey_K','Anna_Photo','DenisFlip','KatyaBest','VolodiaT','RuslanPro','Misha_88','Tanya2024','IgorAuction','SvetaFlip','AlexPhoto','NatalyV','PavelX','OlegMaster','VikaBoss','ArtemTrade','DashaPro','KirilPhoto','ZoyaFlip','TimurK','LenaAuction','FedorPix','GalyaX','BorisTrade','ZinaPhoto','YuraBest','MilaFlip','KostikPro','NikaAuction','Andrey777','photo_ninja'];
+const FAKE_ACTIONS_EN = [(n, usd) => `sold ${n} photo${n > 1 ? 's' : ''} for $${usd}`, (n, usd) => `listed ${n} photo${n > 1 ? 's' : ''} · est. $${usd}`, (n, usd) => `received $${usd} from auction`, (n, usd) => `won auction bid · $${usd}`, (n, usd) => `uploaded ${n} photo${n > 1 ? 's' : ''} · auction live`];
+const FAKE_ACTIONS_RU = [(n, usd) => `продал ${n} фото за $${usd}`, (n, usd) => `выставил ${n} фото · оценка $${usd}`, (n, usd) => `получил $${usd} с аукциона`, (n, usd) => `выиграл торги · $${usd}`, (n, usd) => `загрузил ${n} фото на аукцион`];
+function _pickAction(n, usd){ return (currentLang === 'ru' ? FAKE_ACTIONS_RU : FAKE_ACTIONS_EN)[Math.floor(Math.random() * 5)](n, usd); }
+
+let feedItems = [];
+function buildLiveFeed(){
+  feedItems = [];
+  const shuffled = [...FAKE_USERS].sort(()=>0.5 - Math.random()).slice(0, 18);
+  for(const user of shuffled){
+    const n = Math.random() < 0.3 ? 5 : Math.ceil(Math.random() * 4), usd = (Math.random() * 45 + 3).toFixed(2);
+    feedItems.push({ user, action: _pickAction(n, usd), amount: '$' + usd, time: (Math.floor(Math.random() * 59) + 1) + 'm ago' });
+  }
+  renderLiveFeed();
+}
+
+function renderLiveFeed(){
+  const list = document.getElementById('live-feed-list');
+  if(list) list.innerHTML = feedItems.slice(0, 14).map((it, i) => `<div class="feed-item" style="animation-delay:${i * 0.04}s"><div class="feed-left"><div class="feed-user">${it.user}</div><div class="feed-action">${it.action}</div></div><div style="text-align:right"><div class="feed-amount">${it.amount}</div><div class="feed-time">${it.time}</div></div></div>`).join('');
+}
+
+function tickLiveFeed(){
+  if(!feedItems.length) return;
+  const pool = FAKE_USERS.filter(u => !new Set(feedItems.slice(0, 8).map(i => i.user)).has(u));
+  const user = (pool.length ? pool : FAKE_USERS)[Math.floor(Math.random() * (pool.length || FAKE_USERS.length))];
+  const n = Math.random() < 0.3 ? 5 : Math.ceil(Math.random() * 4), usd = (Math.random() * 50 + 5).toFixed(2);
+  feedItems.unshift({ user, action: _pickAction(n, usd), amount: '$' + usd, time: 'just now' });
+  feedItems = feedItems.slice(0, 20);
+  if(document.querySelector('.panel.active')?.id === 'panel-market') renderLiveFeed();
+}
+
+// -----------------------------------------------------
+// WALLET & WITHDRAW
+// -----------------------------------------------------
+function renderWalletInfo(){
+  const refs = gameData?.player?.referrals_count || 0, minRefs = gameData?.min_referrals_withdraw || 3, unlocked = refs >= minRefs;
+  const minWd = gameData?.min_withdrawal_usd || 100;
+  const activeSales = gameData?.active_auction_count || 0;
+  const bal = parseFloat(gameData?.player?.balance || 0);
+
+  document.getElementById('wallet-progress').textContent = `${refs}/${minRefs} ${t('ref_count_sub')}`;
+  document.getElementById('ruc-bar-fill').style.width = Math.min((refs / minRefs) * 100, 100) + '%';
+  document.getElementById('ruc-count').textContent = `${refs}/${minRefs}`;
+  const hintEl = document.getElementById('ruc-hint');
+  if(unlocked){ hintEl.textContent = t('withdraw_unlocked_hint'); hintEl.style.color = 'var(--green)'; }
+  else{ hintEl.textContent = t('ruc_hint').replace('3', minRefs); hintEl.style.color = ''; }
+
+  document.getElementById('withdraw-box').classList.toggle('locked-state', !unlocked);
+  document.getElementById('withdraw-sub').textContent = unlocked ? t('withdraw_unlocked_hint') : t('withdraw_sub');
+
+  const warnEl = document.getElementById('active-sales-warning');
+  const warnText = document.getElementById('active-sales-warning-text');
+  if (activeSales > 0) {
+    warnEl.style.display = '';
+    const ru = currentLang === 'ru';
+    warnText.textContent = ru
+      ? `У вас ${activeSales} активных продаж. Вывод будет доступен после их завершения.`
+      : `You have ${activeSales} active photo sale(s). Withdrawal unlocks after all are sold.`;
+  } else if (unlocked && bal < minWd) {
+    warnEl.style.display = '';
+    const ru = currentLang === 'ru';
+    warnText.textContent = ru
+      ? `Минимальная сумма вывода: $${minWd}. Ваш баланс: $${fmt(bal)}`
+      : `Minimum withdrawal: $${minWd}. Your balance: $${fmt(bal)}`;
+  } else {
+    warnEl.style.display = 'none';
+  }
+}
+
+function renderWithdrawPreviews(){
+  const bal = parseFloat(gameData?.player?.balance || 0);
+  const refs = gameData?.player?.referrals_count || 0;
+  const unlocked = refs >= (gameData?.min_referrals_withdraw || 3);
+  const minWd = gameData?.min_withdrawal_usd || 100;
+  const activeSales = gameData?.active_auction_count || 0;
+
+  document.getElementById('withdraw-usd-preview').textContent = '$' + fmt(bal);
+  document.getElementById('withdraw-stars-preview').textContent = (bal > 0 ? Math.floor(bal / 0.012) : 0).toLocaleString() + ' ⭐';
+
+  const canWithdraw = unlocked && bal >= minWd && activeSales === 0;
+  const usdBtn = document.getElementById('withdraw-btn-usd');
+  const starsBtn = document.getElementById('withdraw-btn-stars');
+
+  usdBtn.disabled = !canWithdraw;
+  starsBtn.disabled = !canWithdraw;
+
+  if (!unlocked) {
+    usdBtn.textContent = t('withdraw_btn_locked');
+    starsBtn.textContent = t('withdraw_btn_locked');
+  } else if (activeSales > 0) {
+    usdBtn.textContent = '⏳ ' + (currentLang === 'ru' ? 'Дождитесь продаж' : 'Wait for sales');
+    starsBtn.textContent = '⏳ ' + (currentLang === 'ru' ? 'Дождитесь продаж' : 'Wait for sales');
+  } else if (bal < minWd) {
+    usdBtn.textContent = `🔒 Min $${minWd}`;
+    starsBtn.textContent = `🔒 Min $${minWd}`;
+  } else {
+    usdBtn.textContent = t('withdraw_btn_usd') + fmt(bal);
+    starsBtn.textContent = t('withdraw_btn_stars');
+  }
+}
+
+function selectWithdrawTab(tab){
+  withdrawTab = tab;
+  document.getElementById('wtab-usd').classList.toggle('active', tab === 'usd');
+  document.getElementById('wtab-stars').classList.toggle('active', tab === 'stars');
+  document.getElementById('withdraw-usd-panel').style.display = tab === 'usd' ? '' : 'none';
+  document.getElementById('withdraw-stars-panel').style.display = tab === 'stars' ? '' : 'none';
+}
+
+async function initiateWithdraw(method) {
+  const bal = parseFloat(gameData?.player?.balance || 0);
+  const minWd = gameData?.min_withdrawal_usd || 100;
+  const activeSales = gameData?.active_auction_count || 0;
+  const refs = gameData?.player?.referrals_count || 0;
+  const minRefs = gameData?.min_referrals_withdraw || 3;
+
+  if (refs < minRefs) { showToast(t('withdraw_btn_locked'), 'error'); return; }
+  if (activeSales > 0) { showToast(t('err_active_sales'), 'error'); return; }
+  if (bal < minWd) { showToast(t('err_min_balance'), 'error'); return; }
+
+  pendingWithdrawMethod = method;
+  const btnId = method === 'usd' ? 'withdraw-btn-usd' : 'withdraw-btn-stars';
+  const btn = document.getElementById(btnId);
+  const originalText = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Checking...';
+
+  try {
+    const r = await authFetch(`/api/withdraw/check`, { method: 'POST' });
+    const data = await r.json();
+    
+    if (!data.ok && data.channels && data.channels.length > 0) {
+        renderSubModal(data.channels);
+        document.getElementById('sub-modal').classList.add('open');
+    } else {
+        document.getElementById('wd-modal').classList.add('open');
+    }
+  } catch(e) { showToast(t('toast_err'), 'error'); } 
+  finally { btn.disabled = false; btn.textContent = originalText; }
+}
+
+function renderSubModal(channels) {
+    const list = document.getElementById('sub-channel-list');
+    list.innerHTML = channels.map(ch => {
+        return `<div class="sub-channel-item"><div class="sub-channel-top"><div class="sub-channel-name">${escHtml(ch.name || 'Sponsor')}</div><a href="${escHtml(ch.url)}" target="_blank" class="sub-channel-btn">${t('sub_btn_join')}</a></div></div>`;
+    }).join('');
+}
+
+function closeSubModal() {
+    document.getElementById('sub-modal').classList.remove('open');
+    pendingWithdrawMethod = null;
+}
+
+async function checkWithdrawSubs() {
+    const btn = document.getElementById('sub-btn-check');
+    const orig = btn.textContent;
+    btn.disabled = true; btn.textContent = '...';
+
+    try {
+        const r = await authFetch(`/api/withdraw/check`, { method: 'POST' });
+        const data = await r.json();
+        
+        if (data.ok) {
+            document.getElementById('sub-modal').classList.remove('open');
+            document.getElementById('wd-modal').classList.add('open');
+        } else {
+            showToast(t('toast_verify_fail'), 'error');
+            renderSubModal(data.channels);
+        }
+    } catch(e) { showToast(t('toast_err'), 'error'); } 
+    finally { btn.disabled = false; btn.textContent = orig; }
+}
+
+function closeWithdrawModal(){
+  document.getElementById('wd-modal').classList.remove('open');
+  pendingWithdrawMethod = null;
+}
+
+async function confirmWithdraw(){
+  const method = pendingWithdrawMethod;
+  const btn = document.getElementById('wd-btn-confirm');
+  const originalText = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Processing…';
+  
+  const endpoint = method === 'usd' ? `/api/withdraw` : `/api/withdraw/stars`;
+
+  try{
+    const r = await authFetch(endpoint, { method: 'POST' });
+    const wdata = await r.json().catch(() => ({}));
+    if(!r.ok) {
+      let errMsg = wdata.detail || wdata.message || t('toast_withdraw_err');
+      try {
+        const parsed = typeof errMsg === 'string' ? JSON.parse(errMsg) : errMsg;
+        if(parsed.error === 'min_balance') errMsg = t('err_min_balance');
+        else if(parsed.error === 'active_sales') errMsg = t('err_active_sales');
+      } catch(e) {}
+      throw new Error(typeof errMsg === 'string' ? errMsg : t('toast_withdraw_err'));
+    }
+    
+    closeWithdrawModal();
+    btn.disabled = false; btn.textContent = originalText;
+    showToast(wdata.message || t('toast_withdrawn'), 'success');
+    await loadPlayer(false);
+  }catch(e){
+    closeWithdrawModal();
+    btn.disabled = false; btn.textContent = originalText;
+    showToast(e.message || t('toast_withdraw_err'), 'error');
+    renderWithdrawPreviews();
+  }
+}
+
+// -----------------------------------------------------
+// PROFILE & REFS
+// -----------------------------------------------------
+function openVipModal() { document.getElementById('vip-modal').classList.add('open'); }
+function closeVipModal() { document.getElementById('vip-modal').classList.remove('open'); }
+function toggleVipDetails(index) { document.getElementById(`vip-tier-row-${index}`).classList.toggle('open'); }
+
+let _refRetryCount = 0;
+function renderReferrals(){
+  if(!gameData) return;
+  const refs = gameData.player?.referrals_count || 0, lvl = gameData.vip_level || 0;
+  document.getElementById('ref-count-sub').textContent = refs + ' ' + t('ref_count_sub');
+
+  const refUrl = gameData.referral_url || '';
+  document.getElementById('ref-url-display').textContent = refUrl || 'Loading…';
+  if(!refUrl && _refRetryCount < 3){ _refRetryCount++; setTimeout(() => loadPlayer(true), _refRetryCount * 3000); } else if(refUrl){ _refRetryCount = 0; }
+  
+  document.getElementById('vip-big-badge').textContent = 'Lv ' + lvl;
+  const tiers = gameData.vip_tiers || []; 
+  if(!tiers.length) return;
+  
+  const maxRefs = tiers[tiers.length - 1].min; 
+  let pct = Math.min((refs / maxRefs) * 100, 100);
+  document.getElementById('vip-track-fill').style.width = pct + '%';
+
+  document.getElementById('vip-milestones').innerHTML = tiers.map((tier, i) => `<div class="vip-dot-wrap" style="position:absolute; left:${(tier.min/maxRefs)*100}%; transform:translateX(-50%)"><div class="vip-dot ${refs >= tier.min ? 'reached' : ''} ${i === lvl ? 'current' : ''}"></div><div class="vip-dot-lbl ${i === lvl ? 'active' : ''}">${i}</div></div>`).join('');
+  
+  const hint = document.getElementById('vip-next-hint');
+  if(lvl >= tiers.length - 1) hint.textContent = t('vip_max_hint');
+  else hint.textContent = t('vip_next_hint').replace('{n}', tiers[lvl + 1].min - refs).replace('{l}', lvl + 1);
+
+  const tNames = t('vip_tier_names'), tMax = t('vip_tier_max'), tSlots = t('vip_tier_slots'), tReq = t('vip_tier_req');
+  const VIP_ICONS = ['🟢','🥉','🥈','🥇','💎','👑'];
+  
+  document.getElementById('vip-modal-tier-cards').innerHTML = tiers.map((tier, i) => {
+    const unlocked = refs >= tier.min, curr = i === lvl;
+    const name = Array.isArray(tNames) ? tNames[i] : 'Level ' + i;
+    const req = Array.isArray(tReq) ? tReq[i] : `${tier.min} refs`;
+    const maxd = Array.isArray(tMax) ? tMax[i] : `${tier.max_delay/60} min`;
+    const slots = Array.isArray(tSlots) ? tSlots[i] : `${tier.slots}`;
+    
+    return `
+      <div class="vip-tier-row ${unlocked ? 'unlocked' : ''} ${curr ? 'current-tier' : ''}" id="vip-tier-row-${i}" onclick="toggleVipDetails(${i})">
+        <div class="vtc-header"><div class="vtc-icon">${VIP_ICONS[i] || '●'}</div><div class="vtc-info"><div class="vtc-name">${name} — Level ${i}</div></div><div class="vtc-status ${curr ? 'active' : unlocked ? 'done' : 'locked'}">${curr ? '● ACTIVE' : unlocked ? '✓' : '🔒'}</div><div class="vtc-chevron">▼</div></div>
+        <div class="vtc-details">
+            <div class="vtc-det-row"><span>${t('label_req')}</span><span>${req}</span></div>
+            <div class="vtc-det-row"><span>${t('label_slots')}</span><span>${slots}</span></div>
+            <div class="vtc-det-row"><span>${t('label_delay')}</span><span>${maxd}</span></div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+async function loadReferralsList() {
+    try {
+        const r = await authFetch(`/api/referrals/${userId}`);
+        if (!r.ok) return;
+        const data = await r.json();
+        renderReferralsList(data.referrals || []);
+    } catch(e) {}
+}
+
+function renderReferralsList(refs) {
+    const list = document.getElementById('referrals-list');
+    if (!refs.length) {
+        list.innerHTML = `<div class="empty-state"><div class="empty-text" data-i18n="ref_list_empty">${t('ref_list_empty')}</div></div>`;
+        return;
+    }
+    list.innerHTML = refs.map(r => {
+        const name = r.username ? `@${r.username}` : `User ${r.referred_id}`;
+        const date = new Date(r.created_at + 'Z').toLocaleDateString();
+        const statusClass = r.is_active ? 'ref-status-active' : 'ref-status-new';
+        const statusText = r.is_active ? t('ref_active') : t('ref_new');
+        return `<div class="ref-list-item"><div><div class="ref-list-name">${escHtml(name)}</div><div class="ref-list-date">${date}</div></div><div class="ref-list-status ${statusClass}">${statusText}</div></div>`;
+    }).join('');
+}
+
+async function copyRefLink(){
+  const url = gameData?.referral_url;
+  if(!url || !url.startsWith('https://t.me/')){ showToast(t('toast_copy_err'), 'error'); return; }
+  try{ await navigator.clipboard.writeText(url); showToast(t('toast_copied'), 'success'); }catch(e){ showToast(t('toast_copy_err'), 'error'); }
+}
+
+function shareRefLink(){
+  const url = gameData?.referral_url;
+  if(!url || !url.startsWith('https://t.me/')){ showToast(t('toast_copy_err'), 'error'); return; }
+  const shareText = currentLang === 'ru' ? 'Твоя камера теперь печатает деньги. Серьезно. 🖼💰\nPhotoFlip — это как биржа, только вместо акций — твои фото.\nЗалетай по моей ссылке: 🔗\nПроверим, чей лот купят быстрее? 😉' : 'Your camera is now printing money. Seriously. 🖼💰\nPhotoFlip — it\'s like a stock exchange, but instead of stocks — your photos.\nJoin via my link: 🔗\nLet\'s see whose lot sells faster? 😉';
+  const shareUrl = 'https://t.me/share/url?url=' + encodeURIComponent(url) + '&text=' + encodeURIComponent(shareText);
+  if(window.Telegram?.WebApp?.openTelegramLink) window.Telegram.WebApp.openTelegramLink(shareUrl); else window.open(shareUrl, '_blank');
+}
+
+// -----------------------------------------------------
+// USER SUPPORT CHAT 
+// -----------------------------------------------------
+function handleChatImgSelect(input) {
+    if(input.files && input.files[0]) {
+        supportImgFile = input.files[0];
+        document.getElementById('chat-img-preview-box').style.display = 'flex';
+        document.getElementById('chat-img-thumb').src = URL.createObjectURL(supportImgFile);
+    }
+}
+
+function cancelChatImg() {
+    supportImgFile = null;
+    document.getElementById('chat-img-upload').value = "";
+    document.getElementById('chat-img-preview-box').style.display = 'none';
+}
+
+async function loadSupportMsgs(){
+  try{
+    const r = await authFetch(`/api/support/messages`);
+    const msgs = (await r.json()).messages || [];
+    renderSupportMsgs(msgs);
+    if(msgs.length) lastSupportMsgId = msgs[msgs.length - 1].id;
+    supportMsgsLoaded = true; document.getElementById('support-notify').style.display = 'none';
+  }catch(e){ console.error(e); }
+}
+
+function renderSupportMsgs(msgs){
+  const container = document.getElementById('chat-messages');
+  if(!msgs.length){ container.innerHTML = `<div class="chat-empty">${t('chat_empty')}</div>`; return; }
+  
+  container.innerHTML = msgs.map(m => {
+    if (m.direction === 'system') {
+        return `<div class="chat-system-msg">${escHtml(m.text)}</div>`;
+    }
+    let imgHtml = m.image ? `<img src="/uploads/support/${m.image}" loading="lazy">` : '';
+    return `<div class="chat-bubble ${m.direction === 'in' ? 'from-user' : 'from-admin'}">${escHtml(m.text)}${imgHtml}<div class="bubble-meta">${m.direction === 'in' ? t('chat_you') : t('chat_support')} · ${new Date(m.created_at + 'Z').toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</div></div>`;
+  }).join('');
+  container.scrollTop = container.scrollHeight;
+}
+
+async function sendSupportMsg(){
+  const inp = document.getElementById('chat-input'), text = inp.value.trim();
+  if(!text && !supportImgFile) return;
+  inp.value = ''; inp.style.height = ''; document.getElementById('chat-send-btn').disabled = true;
+  
+  const fd = new FormData();
+  fd.append('text', text);
+  if (supportImgFile) fd.append('file', supportImgFile);
+
+  try{
+    const r = await authFetch(`/api/support/send`, { method: 'POST', body: fd });
+    if(!r.ok) throw new Error();
+    cancelChatImg();
+    await loadSupportMsgs();
+  }catch(e){ showToast(t('toast_err'), 'error'); }
+  document.getElementById('chat-send-btn').disabled = false;
+}
+
+async function pollSupportReplies(){
+  if(!supportMsgsLoaded) return;
+  try{
+    const msgs = (await (await authFetch(`/api/support/messages`)).json()).messages || [];
+    if(msgs.length && msgs[msgs.length - 1].id > lastSupportMsgId){
+      renderSupportMsgs(msgs); lastSupportMsgId = msgs[msgs.length - 1].id;
+      if(document.querySelector('.panel.active')?.id !== 'panel-support') document.getElementById('support-notify').style.display = '';
+    }
+  }catch(e){}
+  
+  if (adminCurrentChatUid && document.getElementById('admin-chat-view').classList.contains('open')) {
+      try {
+          const r = await authFetch(`/api/admin/chat/${adminCurrentChatUid}`);
+          if (r.ok) {
+              const data = await r.json();
+              renderAdminChatMsgs(data.messages || []);
+          }
+      } catch(e) {}
+  }
+}
+
+document.getElementById('chat-input').addEventListener('keydown', e => { if(e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); sendSupportMsg(); } });
+function autoResize(el){ el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 100) + 'px'; }
+
+// ═══════════════════════════════════════════════════════════════
+//  ADMIN PANEL WEBAPP LOGIC
+// ═══════════════════════════════════════════════════════════════
+
+function switchAdmTab(name){
+  document.querySelectorAll('.adm-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+  document.querySelectorAll('.adm-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('adm-'+name).classList.add('active');
+}
+
+let admDataCache = null;
+
+async function admLoadDashboard() {
+    try {
+        const r = await authFetch(`/api/admin/dashboard`);
+        if(!r.ok) return showToast('Access denied', 'error');
+        const data = await r.json();
+        admDataCache = data;
+        
+        // Stats
+        document.getElementById('adm-stats-grid').innerHTML = `
+            <div class="adm-stat-box"><div class="adm-stat-val">${data.stats.total_users}</div><div class="adm-stat-lbl">${t('adm_stat_users')}</div></div>
+            <div class="adm-stat-box"><div class="adm-stat-val">${data.stats.active_today}</div><div class="adm-stat-lbl">${t('adm_stat_dau')}</div></div>
+            <div class="adm-stat-box"><div class="adm-stat-val">+${data.stats.new_today}</div><div class="adm-stat-lbl">${t('adm_stat_new')}</div></div>
+            <div class="adm-stat-box"><div class="adm-stat-val">${data.stats.photos_files}</div><div class="adm-stat-lbl">${t('adm_stat_files')}</div></div>
+            <div class="adm-stat-box" style="grid-column: span 2;"><div class="adm-stat-val">${data.stats.stories_today}</div><div class="adm-stat-lbl">${t('adm_stat_stories')}</div></div>
+        `;
+        
+        // Chats
+        const rc = document.getElementById('adm-recent-chats');
+        if(!data.recent_chats.length) rc.innerHTML = `<div class="empty-state">${t('adm_no_tickets')}</div>`;
+        else rc.innerHTML = data.recent_chats.map(c => `
+            <div class="adm-list-item" style="cursor:pointer" onclick="openAdminChat(${c.user_id}, '${escHtml(c.username || c.user_id)}')">
+                <div style="font-weight:bold; font-size:13px;">@${c.username || c.user_id}</div>
+                <div style="font-size:11px; color:var(--text-2); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${c.direction==='out'?t('adm_chat_you')+' ':''}${escHtml(c.text || '[Image]')}</div>
+            </div>`).join('');
+            
+        // Finances
+        const wd = document.getElementById('adm-withdrawals-list');
+        if(!data.withdrawals.length) wd.innerHTML = `<div class="empty-state">${t('adm_no_wd')}</div>`;
+        else wd.innerHTML = data.withdrawals.map(w => `
+            <div class="adm-list-item">
+                <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
+                    <b>ID ${w.user_id}</b> <b style="color:var(--green)">$${w.amount_usd}</b>
+                </div>
+                <div style="display:flex; gap:6px;">
+                    <button class="adm-btn primary" style="flex:1" onclick="admHandleWd(${w.id}, 'approve')">${t('adm_approve')}</button>
+                    <button class="adm-btn danger" style="flex:1" onclick="admHandleWd(${w.id}, 'reject')">${t('adm_reject')}</button>
+                </div>
+            </div>`).join('');
+            
+        // Settings
+        document.getElementById('adm-sponsor-mode').value = data.settings.sponsor_mode;
+        document.getElementById('adm-maint-mode').value = data.settings.maintenance_mode;
+        if(data.settings.maintenance_end) document.getElementById('adm-maint-end').value = data.settings.maintenance_end.slice(0,16);
+
+        // Story Reqs
+        const sr = document.getElementById('adm-story-reqs');
+        if(!data.story_reqs || !data.story_reqs.length) sr.innerHTML = `<div class="empty-state">No pending stories.</div>`;
+        else sr.innerHTML = data.story_reqs.map(s => `
+            <div class="adm-list-item">
+                <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
+                    <b>@${s.username || s.user_id}</b> <span style="font-size:10px;color:var(--text-3)">ID ${s.user_id}</span>
+                </div>
+                <div style="font-size:11px; margin-bottom:8px; color:var(--text-2);">Time: ${new Date(s.created_at + 'Z').toLocaleString()}</div>
+                <div style="display:flex; gap:6px;">
+                    <button class="adm-btn primary" style="flex:1" onclick="admHandleStory(${s.id}, 'approve')">✅ Approve</button>
+                    <button class="adm-btn danger" style="flex:1" onclick="admHandleStory(${s.id}, 'reject')">❌ Reject</button>
+                </div>
+            </div>`).join('');
+
+        // Sponsors
+        document.getElementById('adm-sponsors-list').innerHTML = data.sponsors.map(s => `
+            <div class="adm-list-item" style="display:flex; justify-content:space-between; align-items:center;">
+                <span style="font-size:12px;"><b>${escHtml(s.name)}</b><br><a href="${s.url}" target="_blank" style="color:var(--blue)">Link</a></span>
+                <button class="adm-btn danger" style="padding:4px 8px;" onclick="admDelSponsor('${s.channel_id}')">X</button>
+            </div>`).join('');
+            
+        // Promos
+        document.getElementById('adm-promos-list').innerHTML = data.promos.map(p => `
+            <div class="adm-list-item" style="display:flex; justify-content:space-between; align-items:center;">
+                <span style="font-size:12px;"><b>${p.code}</b> (${p.type}: ${p.val})<br>Uses: ${p.uses}/${p.max_uses}</span>
+                <button class="adm-btn danger" style="padding:4px 8px;" onclick="admDelPromo('${p.code}')">X</button>
+            </div>`).join('');
+            
+    } catch(e) { showToast('Error loading CRM', 'error'); }
+}
+
+// -- USERS --
+let admCurrentUserId = null;
+let admCurrentUsername = null;
+async function admSearchUser() {
+    const uid = document.getElementById('adm-search-uid').value.trim();
+    if(!uid) return;
+    try {
+        const r = await authFetch(`/api/admin/user/${uid}`);
+        if(!r.ok) return showToast('User not found', 'error');
+        const data = await r.json();
+        admCurrentUserId = data.user.user_id;
+        admCurrentUsername = data.user.username || data.user.user_id;
+        document.getElementById('adm-u-title').textContent = `${t('adm_user_info')} ${data.user.user_id} (@${data.user.username || '-'})`;
+        document.getElementById('adm-u-bal').value = data.user.balance;
+        document.getElementById('adm-u-earn').value = data.user.total_earned;
+        document.getElementById('adm-u-sold').value = data.user.photos_sold;
+        document.getElementById('adm-u-refs').value = data.user.referrals_count;
+        document.getElementById('adm-u-ban').checked = !!data.user.is_banned;
+        document.getElementById('adm-user-result').style.display = 'block';
+    } catch(e) { showToast('Error', 'error'); }
+}
+
+async function admSaveUser() {
+    if(!admCurrentUserId) return;
+    const body = {
+        balance: parseFloat(document.getElementById('adm-u-bal').value),
+        total_earned: parseFloat(document.getElementById('adm-u-earn').value),
+        photos_sold: parseInt(document.getElementById('adm-u-sold').value),
+        referrals_count: parseInt(document.getElementById('adm-u-refs').value),
+        is_banned: document.getElementById('adm-u-ban').checked ? 1 : 0
+    };
+    try {
+        await authFetch(`/api/admin/user/${admCurrentUserId}`, {
+            method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)
+        });
+        showToast('Saved', 'success');
+    } catch(e) { showToast('Error', 'error'); }
+}
+
+async function admUserAction(action, val='') {
+    if(!admCurrentUserId) return;
+    const fd = new FormData(); fd.append('action', action); fd.append('val', val);
+    await authFetch(`/api/admin/user/${admCurrentUserId}/action`, {method:'POST', body:fd});
+    showToast('Action executed', 'success');
+}
+
+function admPromptAction(action, text) {
+    const v = prompt(text);
+    if(v !== null) admUserAction(action, v);
+}
+
+function admOpenChatWithFoundUser() {
+    if(!admCurrentUserId) return;
+    openAdminChat(admCurrentUserId, `@${admCurrentUsername}`);
+}
+
+// -- WITHDRAWALS --
+async function admHandleWd(wid, action) {
+    const fd = new FormData(); fd.append('action', action);
+    await authFetch(`/api/admin/withdrawal/${wid}`, {method:'POST', body:fd});
+    showToast('Processed', 'success');
+    admLoadDashboard();
+}
+
+// -- SYSTEM / BULK --
+async function admPostBulk(field, val=null) {
+    if(!confirm(`Apply ${field} to ALL users?`)) return;
+    const fd = new FormData(); fd.append('field', field); if(val) fd.append('val', val);
+    await authFetch(`/api/admin/bulk`, {method:'POST', body:fd});
+    showToast('Applied to all', 'success');
+}
+async function admSellAll() {
+    if(!confirm("Sell all photos on auction globally?")) return;
+    await authFetch(`/api/admin/sell_all`, {method:'POST'});
+    showToast('All photos sold', 'success');
+}
+async function admCleanup(cond) {
+    if(!confirm("Delete files? This cannot be undone.")) return;
+    const fd = new FormData(); fd.append('condition', cond);
+    const r = await authFetch(`/api/admin/cleanup`, {method:'POST', body:fd});
+    const d = await r.json();
+    showToast(`Deleted ${d.deleted} files (${d.mb} MB)`, 'success');
+}
+async function admSaveMaintenance() {
+    const mode = document.getElementById('adm-maint-mode').value;
+    const end = document.getElementById('adm-maint-end').value;
+    const fd = new FormData(); fd.append('mode', mode); fd.append('end_time', end);
+    const r = await authFetch(`/api/admin/settings/maintenance`, {method:'POST', body:fd});
+    if(r.ok) showToast(t('toast_maint_saved'), 'success');
+    else showToast(t('toast_err'), 'error');
+}
+async function admBroadcast() {
+    const t_str = document.getElementById('adm-bc-text').value.trim();
+    if(!t_str) return;
+    const fd = new FormData(); fd.append('text', t_str);
+    const r = await authFetch(`/api/admin/broadcast`, {method:'POST', body:fd});
+    if(r.ok) {
+        showToast(t('toast_bc_start'), 'success');
+        document.getElementById('adm-bc-text').value = '';
+    } else showToast(t('toast_err'), 'error');
+}
+async function admUpdateSponsorMode(mode) {
+    const fd = new FormData(); fd.append('mode', mode);
+    await authFetch(`/api/admin/settings/sponsor_mode`, {method:'POST', body:fd});
+    showToast('Mode saved', 'success');
+}
+
+// -- SPONSORS & PROMO & STORY MODERATION --
+async function admHandleStory(reqId, action) {
+    const fd = new FormData(); fd.append('action', action);
+    try {
+        await authFetch(`/api/admin/story_action/${reqId}`, {method:'POST', body:fd});
+        showToast('Story processed', 'success');
+        admLoadDashboard();
+    } catch(e) { showToast('Error', 'error'); }
+}
+
+async function admSubmitPromo() {
+    const code = document.getElementById('adm-promo-code').value.trim() || "AUTO";
+    const type = document.getElementById('adm-promo-type').value;
+    const val = document.getElementById('adm-promo-val').value;
+    const limit = document.getElementById('adm-promo-limit').value;
+    const dur = document.getElementById('adm-promo-dur').value || 0;
+    
+    if(!val || !limit) return showToast('Fill value and limit', 'error');
+    
+    const fd = new FormData(); 
+    fd.append('code', code); fd.append('ptype', type); fd.append('val', val); 
+    fd.append('limit', limit); fd.append('dur', dur);
+    
+    try {
+        const r = await authFetch(`/api/admin/promo`, {method:'POST', body:fd});
+        if(r.ok) {
+            showToast(t('toast_promo_ok'), 'success');
+            document.getElementById('adm-promo-code').value = '';
+            document.getElementById('adm-promo-val').value = '';
+            admLoadDashboard();
+        } else showToast(t('toast_err'), 'error');
+    } catch(e) { showToast(t('toast_err'), 'error'); }
+}
+
+async function admDelPromo(code) {
+    if(confirm('Delete promo?')) await authFetch(`/api/admin/promo/${code}`, {method:'DELETE'}).then(()=>admLoadDashboard());
+}
+function admShowAddSponsor() {
+    const cid = prompt("Channel ID (e.g. -100123...):"); if(!cid) return;
+    const name = prompt("Name:");
+    const url = prompt("Invite URL:");
+    const days = prompt("Days active (0 for unlimited):", "0");
+    const fd = new FormData(); fd.append('cid', cid); fd.append('name', name); fd.append('url', url); fd.append('days', days);
+    authFetch(`/api/admin/sponsor`, {method:'POST', body:fd}).then(()=>admLoadDashboard());
+}
+async function admDelSponsor(cid) {
+    if(confirm('Delete sponsor?')) await authFetch(`/api/admin/sponsor/${cid}`, {method:'DELETE'}).then(()=>admLoadDashboard());
+}
+function admShowGlobalWheel() {
+    const def = admDataCache.wheel.map(w => w.chance).join(' ');
+    const res = prompt("Enter 5 chances separated by space:\n$5 | LOSE | $20 | +2 SLOTS | JACKPOT", def);
+    if(res) {
+        const fd = new FormData(); fd.append('chances', res);
+        authFetch(`/api/admin/wheel`, {method:'PUT', body:fd}).then(()=>showToast('Wheel updated', 'success'));
+    }
+}
+
+// ==========================================================
+//  CHAT MANAGEMENT SYSTEM
+// ==========================================================
+let adminCurrentChatUid = null;
+let adminSupportImgFile = null;
+
+async function openAdminChat(uid, title) {
+    adminCurrentChatUid = uid;
+    document.getElementById('acv-title').textContent = title;
+    document.getElementById('admin-chat-view').classList.add('open');
+    await admLoadChatMsgs();
+}
+function closeAdminChat() {
+    document.getElementById('admin-chat-view').classList.remove('open');
+    adminCurrentChatUid = null;
+    cancelAdminChatImg();
+    admLoadDashboard();
+}
+
+async function admLoadChatMsgs() {
+    if(!adminCurrentChatUid) return;
+    try {
+        const r = await authFetch(`/api/admin/chat/${adminCurrentChatUid}`);
+        if(r.ok) {
+            const data = await r.json();
+            renderAdminChatMsgs(data.messages || []);
+        }
+    } catch(e) {}
+}
+
+function renderAdminChatMsgs(msgs) {
+  const container = document.getElementById('admin-chat-area');
+  if(!msgs.length){ container.innerHTML = `<div class="chat-empty">No messages history yet.</div>`; return; }
+  
+  container.innerHTML = msgs.map(m => {
+    if (m.direction === 'system') return `<div class="chat-system-msg">${escHtml(m.text)}</div>`;
+    
+    let imgHtml = m.image ? `<img src="/uploads/support/${m.image}">` : '';
+    const isFromAdmin = m.direction === 'out';
+    
+    let actions = `<div style="display:flex; gap:8px; justify-content:flex-end; margin-top:6px;">
+        ${isFromAdmin && m.text ? `<span style="font-size:12px; cursor:pointer; color:var(--text-2);" onclick="admEditMsg(${m.id}, '${escHtml(m.text).replace(/'/g,"\\'")}')">✏️ Edit</span>` : ''}
+        <span style="font-size:12px; cursor:pointer; color:var(--red);" onclick="admDelMsg(${m.id})">❌ Del</span>
+    </div>`;
+
+    return `<div class="chat-bubble ${isFromAdmin ? 'from-admin' : 'from-user'}">
+        ${escHtml(m.text)}${imgHtml}
+        <div class="bubble-meta">${isFromAdmin ? t('adm_chat_you') : 'User'} ${new Date(m.created_at + 'Z').toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</div>
+        ${actions}
+    </div>`;
+  }).join('');
+  container.scrollTop = container.scrollHeight;
+}
+
+async function admEditMsg(msgId, oldText) {
+    const nt = prompt("Edit message:", oldText);
+    if(nt !== null && nt !== oldText) {
+        const fd = new FormData(); fd.append('text', nt);
+        await authFetch(`/api/admin/chat/msg/${msgId}`, {method:'PUT', body:fd});
+        admLoadChatMsgs();
+    }
+}
+async function admDelMsg(msgId) {
+    if(!confirm("Delete message?")) return;
+    await authFetch(`/api/admin/chat/msg/${msgId}`, {method:'DELETE'});
+    admLoadChatMsgs();
+}
+async function admCloseTicket() {
+    if(!adminCurrentChatUid) return;
+    await authFetch(`/api/admin/chat/ticket/${adminCurrentChatUid}/close`, {method:'POST'});
+    showToast('Ticket closed', 'success');
+    admLoadChatMsgs();
+}
+async function admDeleteTicket() {
+    if(!adminCurrentChatUid || !confirm("Wipe entire chat history for this user?")) return;
+    await authFetch(`/api/admin/chat/ticket/${adminCurrentChatUid}`, {method:'DELETE'});
+    closeAdminChat();
+}
+
+function handleAdminChatImgSelect(input) {
+    if(input.files && input.files[0]) {
+        adminSupportImgFile = input.files[0];
+        document.getElementById('admin-chat-img-preview-box').style.display = 'flex';
+        document.getElementById('admin-chat-img-thumb').src = URL.createObjectURL(adminSupportImgFile);
+    }
+}
+function cancelAdminChatImg() {
+    adminSupportImgFile = null;
+    document.getElementById('admin-chat-img-upload').value = "";
+    document.getElementById('admin-chat-img-preview-box').style.display = 'none';
+}
+
+async function sendAdminSupportMsg() {
+  if(!adminCurrentChatUid) return;
+  const inp = document.getElementById('admin-chat-input'), text = inp.value.trim();
+  if(!text && !adminSupportImgFile) return;
+  
+  inp.value = '';
+  document.getElementById('admin-chat-send-btn').disabled = true;
+  
+  const fd = new FormData();
+  fd.append('target_uid', adminCurrentChatUid);
+  fd.append('text', text);
+  if (adminSupportImgFile) fd.append('file', adminSupportImgFile);
+
+  try{
+    const r = await authFetch(`/api/admin/chat/send`, { method: 'POST', body: fd });
+    if(r.ok) {
+        cancelAdminChatImg();
+        admLoadChatMsgs();
+    }
+  }catch(e){ showToast('Failed to send', 'error'); }
+  document.getElementById('admin-chat-send-btn').disabled = false;
+}
+document.getElementById('admin-chat-input').addEventListener('keydown', e => { if(e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); sendAdminSupportMsg(); } });
+
+init();
+</script>
+</body>
+</html>
