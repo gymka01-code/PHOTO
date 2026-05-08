@@ -847,13 +847,6 @@ async def api_generate_story(init_data: str = Header(None, alias="X-Telegram-Ini
         except:
             pass
         
-        try:
-            draw.rounded_rectangle([80, 400, 1000, 1400], radius=40, outline="#38bdf8", width=4)
-            draw.rounded_rectangle([90, 410, 990, 1390], radius=30, fill="#020617", outline="#818cf8", width=2)
-        except AttributeError:
-            draw.rectangle([80, 400, 1000, 1400], outline="#38bdf8", width=4)
-            draw.rectangle([90, 410, 990, 1390], fill="#020617", outline="#818cf8", width=2)
-        
         def get_font(size):
             if os.path.exists(FONT_PATH):
                 try: return ImageFont.truetype(FONT_PATH, size)
@@ -861,9 +854,29 @@ async def api_generate_story(init_data: str = Header(None, alias="X-Telegram-Ini
             return ImageFont.load_default()
         
         f_huge = get_font(120)
+        f_large = get_font(70)
         f_medium = get_font(50)
         f_small = get_font(34)
         
+        def get_text_size(text, font):
+            try:
+                bbox = font.getbbox(text)
+                return bbox[2] - bbox[0], bbox[3] - bbox[1]
+            except AttributeError:
+                try:
+                    w, h = font.getsize(text)
+                    return w, h
+                except:
+                    return len(text) * 15, 30
+                    
+        # Контейнер статистики
+        try:
+            draw.rounded_rectangle([80, 250, 1000, 1600], radius=40, outline="#38bdf8", width=4)
+            draw.rounded_rectangle([90, 260, 990, 1590], radius=30, fill="#020617", outline="#818cf8", width=2)
+        except AttributeError:
+            draw.rectangle([80, 250, 1000, 1600], outline="#38bdf8", width=4)
+            draw.rectangle([90, 260, 990, 1590], fill="#020617", outline="#818cf8", width=2)
+
         username = p.get("username") or f"user_{uid}"
         if not username.startswith("@") and username != f"user_{uid}":
             username = f"@{username}"
@@ -871,17 +884,52 @@ async def api_generate_story(init_data: str = Header(None, alias="X-Telegram-Ini
         earned = float(p.get("total_earned") or 0.0)
         sold = int(p.get("photos_sold") or 0)
         vip_lvl = vip_level(int(p.get("referrals_count") or 0))
+        lang = p.get("lang", "ru")
         
-        draw.text((150, 480), "PHOTOFLIP ESTIMATION", fill="#38bdf8", font=f_small)
-        draw.text((150, 540), username, fill="#ffffff", font=f_medium)
+        # Тексты статистики
+        t_title = "PHOTOFLIP ESTIMATION"
+        tw, th = get_text_size(t_title, f_small)
+        draw.text(((width - tw) // 2, 320), t_title, fill="#38bdf8", font=f_small)
+        
+        tw, th = get_text_size(username, f_medium)
+        draw.text(((width - tw) // 2, 380), username, fill="#ffffff", font=f_medium)
         
         val_to_show = earned if earned > 0 else 185.50
-        draw.text((150, 690), "TOTAL VALUE:", fill="#94a3b8", font=f_small)
-        draw.text((150, 760), f"${val_to_show:.2f}", fill="#4ade80", font=f_huge) # Ярко-зеленый цвет
+        t_val_label = "TOTAL EARNED:" if lang == "en" else "ЗАРАБОТАНО:"
+        tw, th = get_text_size(t_val_label, f_small)
+        draw.text(((width - tw) // 2, 500), t_val_label, fill="#94a3b8", font=f_small)
         
-        draw.text((150, 960), f"VIP Status: Level {vip_lvl}", fill="#fcd34d", font=f_medium)
-        draw.text((150, 1040), f"Photos Sold: {sold}", fill="#e2e8f0", font=f_medium)
-        draw.text((150, 1120), f"Active Referrals: {p.get('referrals_count', 0)}", fill="#e2e8f0", font=f_medium)
+        val_text = f"${val_to_show:.2f}"
+        tw, th = get_text_size(val_text, f_huge)
+        draw.text(((width - tw) // 2, 560), val_text, fill="#4ade80", font=f_huge)
+        
+        stats_y = 780
+        t_sold = f"Photos Sold: {sold}" if lang == "en" else f"Продано фото: {sold}"
+        t_vip = f"VIP Level: {vip_lvl}" if lang == "en" else f"VIP Уровень: {vip_lvl}"
+        
+        draw.text((150, stats_y), t_sold, fill="#e2e8f0", font=f_large)
+        draw.text((150, stats_y + 100), t_vip, fill="#fcd34d", font=f_large)
+        
+        # 🟢 ВИЗУАЛЬНАЯ КНОПКА ПО ЦЕНТРУ
+        btn_text = "ОЦЕНИТЬ ФОТО" if lang == "ru" else "VALUE MY PHOTOS"
+        
+        btn_w, btn_h = 800, 140
+        bx1 = (width - btn_w) // 2
+        by1 = 1100  # Четко по центру визуального веса экрана
+        bx2 = bx1 + btn_w
+        by2 = by1 + btn_h
+        
+        try:
+            draw.rounded_rectangle([bx1, by1, bx2, by2], radius=40, fill="#3b82f6")
+        except AttributeError:
+            draw.rectangle([bx1, by1, bx2, by2], fill="#3b82f6")
+            
+        tw, th = get_text_size(btn_text, f_medium)
+        draw.text((bx1 + (btn_w - tw) // 2, by1 + (btn_h - th) // 2 - 10), btn_text, fill="#ffffff", font=f_medium)
+        
+        hint_text = "ЖМИ НА КНОПКУ ВЫШЕ 👆" if lang == "ru" else "TAP THE BUTTON ABOVE 👆"
+        tw, th = get_text_size(hint_text, f_small)
+        draw.text(((width - tw) // 2, by2 + 30), hint_text, fill="#94a3b8", font=f_small)
         
         img.save(out_filepath, "JPEG", quality=90)
         
@@ -890,7 +938,6 @@ async def api_generate_story(init_data: str = Header(None, alias="X-Telegram-Ini
         raise HTTPException(500, f"Render Error: {str(e)}")
         
     return {"story_url": f"{WEBAPP_URL}/uploads/stories/{out_filename}"}
-
 @app.post("/api/story/request_bonus")
 async def api_story_request_bonus(init_data: str = Header(None, alias="X-Telegram-Init-Data")):
     uid = verify_webapp_data(init_data)
