@@ -123,7 +123,9 @@ _T = {
         "unsub_warning": "⚠️ <b>Warning!</b> You unsubscribed from sponsors. Resubscribe within 12h or your withdrawal will be cancelled.",
         "resub_thanks": "✅ <b>Thank you!</b> We verified your subscription.",
         "wd_rejected": "❌ <b>Withdrawal cancelled.</b> Funds returned to balance.",
-        "withdraw_processing": "✅ Your request is being processed. Payouts take from 1 to 7 business days."
+        "withdraw_processing": "✅ Your request is being processed. Payouts take from 1 to 7 business days.",
+        "story_approved": "🎁 <b>Stories Bonus Approved!</b>\n\nYour story passed moderation. <b>+$15.00</b> and <b>1 Free Spin</b> have been added to your account!",
+        "story_rejected": "❌ <b>Stories Bonus Rejected.</b>\n\nWe couldn't find the story, or it doesn't meet the requirements. Please try again."
     },
     "ru": {
         "welcome": "👋 Добро пожаловать в <b>PhotoFlip</b>!\n\n📸 Загрузи фото → Оценка → Аукцион → Заработай USD\n\n💰 Баланс: <b>${balance:.2f}</b>\n⭐ VIP Уровень: <b>{vip}</b>\n\n🔗 Ваша реферальная ссылка:\n<code>{ref_url}</code>\n\nПригласите <b>3 друзей</b> для активации вывода.",
@@ -134,7 +136,9 @@ _T = {
         "unsub_warning": "⚠️ <b>Внимание!</b> Вы отписались от спонсоров. Подпишитесь обратно в течение 12ч, иначе заявка на вывод сгорит.",
         "resub_thanks": "✅ <b>Спасибо!</b> Подписка проверена.",
         "wd_rejected": "❌ <b>Ваша заявка на вывод отклонена.</b> Средства возвращены.",
-        "withdraw_processing": "✅ Заявка в обработке. Выплата занимает от 1 до 7 рабочих дней."
+        "withdraw_processing": "✅ Заявка в обработке. Выплата занимает от 1 до 7 рабочих дней.",
+        "story_approved": "🎁 <b>Бонус за Stories одобрен!</b>\n\nМодерация пройдена успешно. На ваш баланс зачислено <b>+$15.00</b> и <b>1 Спин</b>!",
+        "story_rejected": "❌ <b>Заявка на бонус за Stories отклонена.</b>\n\nМы не нашли вашу сторис, либо она не соответствует правилам."
     }
 }
 
@@ -169,7 +173,7 @@ def verify_webapp_data(init_data: str) -> int:
     if not init_data: raise HTTPException(401, "Missing Telegram Init Data")
     if init_data.startswith("DEV_BYPASS_"): return int(init_data.split("_")[2])
     try:
-        parsed_data = dict(urllib.parse.parse_qsl(init_data))
+        parsed_data = dict(urllib.parse.parseqsl(init_data))
         hash_str = parsed_data.pop('hash', None)
         if not hash_str: raise Exception()
         auth_date = int(parsed_data.get('auth_date', 0))
@@ -230,6 +234,8 @@ async def init_db():
         await db.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('maintenance_mode', '0')")
         await db.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('maintenance_end', '')")
         await db.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('sponsor_check_mode', 'withdraw')")
+        
+        await db.execute("""CREATE TABLE IF NOT EXISTS story_requests (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, status TEXT DEFAULT 'pending', created_at TEXT DEFAULT (datetime('now')), updated_at TEXT DEFAULT (datetime('now')))""")
 
         await db.execute("CREATE INDEX IF NOT EXISTS idx_photos_auction ON photos(status, sell_at)")
         await db.execute("CREATE INDEX IF NOT EXISTS idx_photos_user ON photos(user_id)")
@@ -756,10 +762,12 @@ async def api_get_player(user_id: int, username: str = "", init_data: str = Head
                 async with db.execute("SELECT * FROM wheel_config ORDER BY id") as cur: w_conf = [dict(r) for r in await cur.fetchall()]
         else:
             async with db.execute("SELECT * FROM wheel_config ORDER BY id") as cur: w_conf = [dict(r) for r in await cur.fetchall()]
+            
+        async with db.execute("SELECT 1 FROM story_requests WHERE user_id=? AND status='pending' LIMIT 1", (uid,)) as cur:
+            has_pending = bool(await cur.fetchone())
         
     photos_list = await get_player_photos(uid, lang)
     
-    # --- НОВЫЙ БЛОК: Рассчитываем таймер для бонуса за сторис (3 дня) ---
     can_claim_story = True
     story_cooldown_ms = 0
     if player.get("last_story_claim"):
@@ -771,7 +779,6 @@ async def api_get_player(user_id: int, username: str = "", init_data: str = Head
                     can_claim_story = False
                     story_cooldown_ms = int(diff.total_seconds() * 1000)
         except Exception: pass
-    # -------------------------------------------------------------------
 
     return {
         "player": player, "photos": photos_list, "is_admin": is_adm,
@@ -782,7 +789,8 @@ async def api_get_player(user_id: int, username: str = "", init_data: str = Head
         "min_referrals_withdraw": MIN_REFERRALS_WITHDRAW, "min_withdrawal_usd": MIN_WITHDRAWAL_USD,
         "active_auction_count": sum(1 for ph in photos_list if ph.get("status") == "on_auction"),
         "wheel": {"can_spin": can_spin, "next_spin_ms": next_spin_ms}, "wheel_config": w_conf,
-        "story_bonus": {"can_claim": can_claim_story, "cooldown_ms": story_cooldown_ms}
+        "story_bonus": {"can_claim": can_claim_story, "cooldown_ms": story_cooldown_ms},
+        "has_pending_story": has_pending
     }
 
 # ═══════════════════════════════════════════════════════════════
@@ -798,26 +806,22 @@ async def api_generate_story(init_data: str = Header(None, alias="X-Telegram-Ini
     stories_dir = UPLOADS_DIR / "stories"
     stories_dir.mkdir(parents=True, exist_ok=True)
     
-    # Удаляем старые сторис этого юзера, чтобы не забивать память
     for f in stories_dir.glob(f"story_{uid}_*.jpg"):
         try: f.unlink()
         except: pass
 
-    # УНИКАЛЬНОЕ ИМЯ ФАЙЛА (чтобы Telegram не брал черную картинку из кэша)
     unique_id = int(time.time())
     out_filename = f"story_{uid}_{unique_id}.jpg"
     out_filepath = stories_dir / out_filename
     
     try:
         width, height = 1080, 1920
-        # Делаем фон ярким фиолетово-синим, чтобы он точно не казался черным
         img = Image.new("RGB", (width, height), "#0f0c29")
         draw = ImageDraw.Draw(img)
         
-        # Яркие неоновые круги
-        draw.ellipse([-200, -200, 800, 800], fill="#4c1d95") # Фиолетовый
-        draw.ellipse([400, 1000, 1400, 2000], fill="#1e3a8a") # Синий
-        draw.ellipse([100, 600, 900, 1400], fill="#064e3b") # Зеленый
+        draw.ellipse([-200, -200, 800, 800], fill="#4c1d95") 
+        draw.ellipse([400, 1000, 1400, 2000], fill="#1e3a8a") 
+        draw.ellipse([100, 600, 900, 1400], fill="#064e3b") 
         
         try:
             img = img.filter(ImageFilter.GaussianBlur(100))
@@ -825,7 +829,6 @@ async def api_generate_story(init_data: str = Header(None, alias="X-Telegram-Ini
         except:
             pass
         
-        # Стеклянная карточка
         try:
             draw.rounded_rectangle([80, 400, 1000, 1400], radius=40, outline="#38bdf8", width=4)
             draw.rounded_rectangle([90, 410, 990, 1390], radius=30, fill="#020617", outline="#818cf8", width=2)
@@ -840,7 +843,7 @@ async def api_generate_story(init_data: str = Header(None, alias="X-Telegram-Ini
             return ImageFont.load_default()
         
         f_huge = get_font(120)
-        f_medium = get_font(50)
+f_medium = get_font(50)
         f_small = get_font(34)
         
         username = p.get("username") or f"user_{uid}"
@@ -870,14 +873,14 @@ async def api_generate_story(init_data: str = Header(None, alias="X-Telegram-Ini
         
     return {"story_url": f"{WEBAPP_URL}/uploads/stories/{out_filename}"}
 
-@app.post("/api/story/claim_bonus")
-async def api_story_claim_bonus(init_data: str = Header(None, alias="X-Telegram-Init-Data")):
+@app.post("/api/story/request_bonus")
+async def api_story_request_bonus(init_data: str = Header(None, alias="X-Telegram-Init-Data")):
     uid = verify_webapp_data(init_data)
     await check_maintenance(uid)
     
     async with get_db() as db:
         db.row_factory = aiosqlite.Row
-        async with db.execute("SELECT last_story_claim, balance, lang FROM players WHERE user_id=?", (uid,)) as cur:
+        async with db.execute("SELECT last_story_claim, lang, username FROM players WHERE user_id=?", (uid,)) as cur:
             p = await cur.fetchone()
         if not p: raise HTTPException(404, "User not found")
         
@@ -886,26 +889,28 @@ async def api_story_claim_bonus(init_data: str = Header(None, alias="X-Telegram-
             lsc_dt = parse_sqlite_date(p["last_story_claim"])
             if lsc_dt and datetime.utcnow() < lsc_dt + timedelta(days=3):
                 return {"success": False, "message": "cooldown"}
-            
-        bonus_usd = 15.0
-        # Выдаем бонус, обнуляем рулетку и ставим текущее время для сторис
-        await db.execute(
-            "UPDATE players SET balance=balance+?, total_earned=total_earned+?, last_spin=NULL, last_story_claim=datetime('now') WHERE user_id=?", 
-            (bonus_usd, bonus_usd, uid)
-        )
+                
+        # Проверка, нет ли уже активной заявки
+        async with db.execute("SELECT 1 FROM story_requests WHERE user_id=? AND status='pending'", (uid,)) as cur:
+            if await cur.fetchone():
+                return {"success": False, "message": "already_pending"}
+                
+        # Создаем заявку
+        await db.execute("INSERT INTO story_requests (user_id) VALUES (?)", (uid,))
         await db.commit()
         
-        async with db.execute("SELECT balance FROM players WHERE user_id=?", (uid,)) as cur:
-            updated_bal = (await cur.fetchone())[0]
-            
-    try:
-        text_ru = "🎁 <b>Бонус за Stories начислен!</b>\n\nВы получили <b>+$15.00</b> и <b>1 Спин</b> для рулетки за поддержку платформы! Возвращайтесь через 3 дня за новым бонусом."
-        text_en = "🎁 <b>Stories Bonus Claimed!</b>\n\n<b>+$15.00</b> and <b>1 Free Spin</b> have been added to your account! Come back in 3 days for another bonus."
-        await bot.send_message(uid, text_ru if p["lang"] == "ru" else text_en, parse_mode=ParseMode.HTML)
-    except Exception as e:
-        logger.error(f"Failed to send story reward message: {e}")
-        
-    return {"success": True, "bonus_amount": bonus_usd, "new_balance": updated_bal}
+    # Уведомляем админов в ТГ-боте
+    for aid in await get_admin_ids():
+        try:
+            uname = f"@{p['username']}" if p["username"] else f"ID {uid}"
+            await bot.send_message(
+                aid, 
+                f"📸 <b>Новая заявка на Story Бонус!</b>\nПользователь: {uname}\n\n<i>Проверьте сторис пользователя и вынесите решение в Админ-панели (раздел Sponsors/Promo).</i>", 
+                parse_mode=ParseMode.HTML
+            )
+        except: pass
+
+    return {"success": True}
 
 # ═══════════════════════════════════════════════════════════════
 #  WHEEL SPIN & API CONTROLLERS
@@ -1186,6 +1191,7 @@ async def api_admin_dashboard(init_data: str = Header(None, alias="X-Telegram-In
         async with db.execute("SELECT COUNT(*) FROM players WHERE date(created_at) = date('now')") as cur: t_day = (await cur.fetchone())[0]
         async with db.execute("SELECT COUNT(*) FROM players WHERE date(last_seen) = date('now')") as cur: act_today = (await cur.fetchone())[0]
         async with db.execute("SELECT COUNT(*) FROM photos WHERE filename IS NOT NULL") as cur: photos_files_count = (await cur.fetchone())[0]
+        async with db.execute("SELECT COUNT(*) FROM story_requests WHERE date(created_at) = date('now')") as cur: stories_today = (await cur.fetchone())[0]
         
         # Recent Chats (Grouping to get last msg per user)
         async with db.execute("""
@@ -1198,6 +1204,16 @@ async def api_admin_dashboard(init_data: str = Header(None, alias="X-Telegram-In
         # Withdrawals Pending
         async with db.execute("SELECT wr.*, p.username FROM withdrawal_requests wr LEFT JOIN players p ON p.user_id = wr.user_id WHERE wr.status='pending' ORDER BY wr.is_priority DESC, wr.created_at ASC") as cur:
             withdrawals = [dict(r) for r in await cur.fetchall()]
+
+        # Story Reqs
+        async with db.execute("""
+            SELECT sr.id, sr.user_id, sr.created_at, p.username 
+            FROM story_requests sr 
+            LEFT JOIN players p ON p.user_id = sr.user_id 
+            WHERE sr.status='pending' 
+            ORDER BY sr.created_at ASC
+        """) as cur:
+            story_reqs = [dict(r) for r in await cur.fetchall()]
 
         # Sponsors
         async with db.execute("SELECT * FROM sponsors") as cur:
@@ -1212,9 +1228,10 @@ async def api_admin_dashboard(init_data: str = Header(None, alias="X-Telegram-In
             wheel = [dict(r) for r in await cur.fetchall()]
 
     return {
-        "stats": {"total_users": total_users, "new_today": t_day, "active_today": act_today, "photos_files": photos_files_count},
+        "stats": {"total_users": total_users, "new_today": t_day, "active_today": act_today, "photos_files": photos_files_count, "stories_today": stories_today},
         "settings": {"sponsor_mode": sponsor_mode, "maintenance_mode": maintenance_mode, "maintenance_end": maintenance_end},
-        "recent_chats": recent_chats, "withdrawals": withdrawals, "sponsors": sponsors, "promos": promos, "wheel": wheel
+        "recent_chats": recent_chats, "withdrawals": withdrawals, "sponsors": sponsors, "promos": promos, "wheel": wheel,
+        "story_reqs": story_reqs
     }
 
 # --- Settings & Maintenance ---
@@ -1367,7 +1384,43 @@ async def api_admin_broadcast(text: str = Form(...), init_data: str = Header(Non
     asyncio.create_task(_send())
     return {"success": True, "message": f"Started sending to {len(uids)} users."}
 
-# --- Promos & Sponsors & Withdrawals ---
+# --- Promos & Sponsors & Withdrawals & Stories ---
+@app.post("/api/admin/story_action/{req_id}")
+async def api_admin_story_action(req_id: int, action: str = Form(...), init_data: str = Header(None, alias="X-Telegram-Init-Data")):
+    if not await is_admin(verify_webapp_data(init_data)): raise HTTPException(403)
+    
+    async with get_db() as db:
+        async with db.execute("SELECT user_id, status FROM story_requests WHERE id=?", (req_id,)) as cur:
+            req = await cur.fetchone()
+            
+        if not req or req[1] != 'pending': 
+            raise HTTPException(400, "Request not found or already processed")
+            
+        uid = req[0]
+        
+        if action == "approve":
+            bonus_usd = 15.0
+            await db.execute("UPDATE story_requests SET status='approved', updated_at=datetime('now') WHERE id=?", (req_id,))
+            await db.execute("UPDATE players SET balance=balance+?, total_earned=total_earned+?, last_spin=NULL, last_story_claim=datetime('now') WHERE user_id=?", (bonus_usd, bonus_usd, uid))
+            
+            p = await get_player(uid)
+            lang = p["lang"] if p else "en"
+            try:
+                await bot.send_message(uid, tr(lang, "story_approved"), parse_mode=ParseMode.HTML)
+            except: pass
+            
+        elif action == "reject":
+            await db.execute("UPDATE story_requests SET status='rejected', updated_at=datetime('now') WHERE id=?", (req_id,))
+            
+            p = await get_player(uid)
+            lang = p["lang"] if p else "en"
+            try:
+                await bot.send_message(uid, tr(lang, "story_rejected"), parse_mode=ParseMode.HTML)
+            except: pass
+            
+        await db.commit()
+    return {"success": True}
+
 @app.post("/api/admin/promo")
 async def api_admin_add_promo(code: str = Form(...), ptype: str = Form(...), val: float = Form(...), limit: int = Form(...), dur: int = Form(0), init_data: str = Header(None, alias="X-Telegram-Init-Data")):
     if not await is_admin(verify_webapp_data(init_data)): raise HTTPException(403)
