@@ -1443,9 +1443,8 @@ async function postPromoStory() {
         }
         const storyUrl = res.story_url;
 
-        let refUrl = gameData?.referral_url;
-        if (!refUrl || refUrl === "https://t.me/PhotoFlipBot" || refUrl.trim() === "") {
-            const botUsername = tg.initDataUnsafe?.receiver?.username || "PhotoFlipBot";
+        // ПРАВИЛЬНЫЙ БЛОК БЕЗ ДУБЛИРОВАНИЯ
+        const botUsername = tg.initDataUnsafe?.receiver?.username || "PhotoFlipBot";
         let refUrl = gameData?.referral_url;
         if (!refUrl || refUrl === "https://t.me/PhotoFlipBot" || refUrl.trim() === "") {
             refUrl = `https://t.me/${botUsername}?start=ref_${userId}`;
@@ -1459,7 +1458,7 @@ async function postPromoStory() {
         const shareParams = {
             text: currentLang === 'ru' ? textRu : textEn,
             widget_link: {
-                url: refUrl, // Ссылка остается! Она вставится в кнопку для Premium юзеров
+                url: refUrl,
                 name: currentLang === 'ru' ? "Оценить фото" : "Value photos"
             }
         };
