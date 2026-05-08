@@ -205,7 +205,7 @@ async def init_db():
     async with get_db() as db:
         await db.execute("PRAGMA journal_mode=WAL;")
         await db.execute("PRAGMA synchronous=NORMAL;")
-        await db.execute("""CREATE TABLE IF NOT EXISTS players (user_id INTEGER PRIMARY KEY, username TEXT, balance REAL DEFAULT 0.0, total_earned REAL DEFAULT 0.0, photos_sold INTEGER DEFAULT 0, referrals_count INTEGER DEFAULT 0, referred_by INTEGER DEFAULT NULL, lang TEXT DEFAULT 'en', last_seen TEXT DEFAULT (datetime('now')), created_at TEXT DEFAULT (datetime('now')))""")
+        await db.execute("""CREATE TABLE IF NOT EXISTS players (user_id INTEGER PRIMARY KEY, username TEXT, balance REAL DEFAULT 0.0, total_earned REAL DEFAULT 0.0, photos_sold INTEGER DEFAULT 0, referrals_count INTEGER DEFAULT 0, referred_by INTEGER DEFAULT NULL, lang TEXT DEFAULT 'ru', last_seen TEXT DEFAULT (datetime('now')), created_at TEXT DEFAULT (datetime('now')))""")
         
         for col in [
             "extra_slots INTEGER DEFAULT 0", "last_spin TEXT DEFAULT NULL", "is_banned INTEGER DEFAULT 0", 
@@ -713,7 +713,7 @@ async def api_get_player(user_id: int, username: str = "", init_data: str = Head
         return JSONResponse(status_code=403, content={"error": "maintenance", "end_time": await get_setting("maintenance_end")})
 
     player, _ = await get_or_create_player(uid, username)
-    lang = player.get("lang", "en")
+    lang = player.get("lang", "ru")
     
     if player.get("is_banned"): return JSONResponse(status_code=403, content={"error": "banned"})
 
