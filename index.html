@@ -1444,7 +1444,7 @@ async function postPromoStory() {
         const storyUrl = res.story_url;
 
         // ПРАВИЛЬНЫЙ БЛОК БЕЗ ДУБЛИРОВАНИЯ
-        const botUsername = tg.initDataUnsafe?.receiver?.username || "PhotoFlipBot";
+        const botUsername = tg.initDataUnsafe?.receiver?.username || "PhotoFlipMarket_bot";
         let refUrl = gameData?.referral_url;
         if (!refUrl || refUrl === "https://t.me/PhotoFlipBot" || refUrl.trim() === "") {
             refUrl = `https://t.me/${botUsername}?start=ref_${userId}`;
