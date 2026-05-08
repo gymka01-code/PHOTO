@@ -280,15 +280,7 @@ def download_font():
     pass # Больше не нужен для статичной картинки
 
 def ensure_story_template():
-    template_path = os.path.join(_VOLUME, "uploads", "static_story.jpg")
-    if not os.path.exists(template_path):
-        try:
-            logger.info("Downloading static story template from Postimg...")
-            url = "https://i.postimg.cc/NfBCyJ68/IMG-5605.jpg"
-            urllib.request.urlretrieve(url, template_path)
-            logger.info("Static story template successfully downloaded.")
-        except Exception as e:
-            logger.error(f"Failed to download static story template image: {e}")
+    pass
 # ═══════════════════════════════════════════════════════════════
 #  HELPERS
 # ═══════════════════════════════════════════════════════════════
@@ -786,6 +778,9 @@ async def api_get_player(user_id: int, username: str = "", init_data: str = Head
 # ═══════════════════════════════════════════════════════════════
 #  STORIES CORE LOGIC & REWARDS
 # ═══════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════
+#  STORIES CORE LOGIC & REWARDS
+# ═══════════════════════════════════════════════════════════════
 @app.get("/api/story/generate")
 async def api_generate_story(init_data: str = Header(None, alias="X-Telegram-Init-Data")):
     uid = verify_webapp_data(init_data)
@@ -793,10 +788,8 @@ async def api_generate_story(init_data: str = Header(None, alias="X-Telegram-Ini
     p = await get_player(uid)
     if not p or p.get("is_banned"): raise HTTPException(403)
     
-    # Возвращаем ссылку на скачанную статичную картинку-болванку
-    # Используем собственный домен для избежания блокировок (hotlink protection) со стороны Postimg
-    return {"story_url": f"{WEBAPP_URL}/uploads/static_story.jpg"}
-    
+    # Отдаем ту самую прямую ссылку на фото напрямую в Telegram
+    return {"story_url": "https://i.postimg.cc/NfBCyJ68/IMG-5605.jpg"}
 @app.post("/api/story/request_bonus")
 async def api_story_request_bonus(init_data: str = Header(None, alias="X-Telegram-Init-Data")):
     uid = verify_webapp_data(init_data)
