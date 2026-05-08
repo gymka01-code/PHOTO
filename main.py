@@ -898,6 +898,28 @@ async def api_promo_activate(req: PromoReq, init_data: str = Header(None, alias=
     await check_maintenance(uid)
     code = req.code.strip().upper()
     
+    # === НОВАЯ ЛОГИКА: ОБРАБОТКА РЕФЕРАЛЬНОГО КОДА ===
+    if code.startswith("REF-"):
+        try:
+            referrer_id = int(code.split("-")[1])
+            if referrer_id == uid:
+                raise HTTPException(400, detail="Cannot use your own code")
+            
+            # Проверяем, не привязан ли юзер уже к кому-то
+            p = await get_player(uid)
+            if p and p.get("referred_by"):
+                raise HTTPException(400, detail="Already referred")
+                
+            bound = await _bind_referral(uid, referrer_id)
+            if bound:
+                return {"success": True, "message": "Referral activated!"}
+            else:
+                raise HTTPException(400, detail="Invalid referral code")
+        except ValueError:
+            raise HTTPException(400, detail="Invalid referral format")
+    # =================================================
+
+    # Старая логика для обычных промокодов
     async with get_db() as db:
         db.row_factory = aiosqlite.Row
         async with db.execute("SELECT * FROM promo_codes WHERE code=?", (code,)) as cur: promo = await cur.fetchone()
