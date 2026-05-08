@@ -2239,22 +2239,12 @@ async function admLoadDashboard() {
             }
         }
         // --- КОНЕЦ: НОВЫЙ КОД ОТОБРАЖЕНИЯ АДМИНОВ ---
-            
-    } catch(e) { showToast('Error loading CRM', 'error'); }
-}
-       
+
         // Sponsors
         document.getElementById('adm-sponsors-list').innerHTML = data.sponsors.map(s => `
             <div class="adm-list-item" style="display:flex; justify-content:space-between; align-items:center;">
                 <span style="font-size:12px;"><b>${escHtml(s.name)}</b><br><a href="${s.url}" target="_blank" style="color:var(--blue)">Link</a></span>
                 <button class="adm-btn danger" style="padding:4px 8px;" onclick="admDelSponsor('${s.channel_id}')">X</button>
-            </div>`).join('');
-            
-        // Promos
-        document.getElementById('adm-promos-list').innerHTML = data.promos.map(p => `
-            <div class="adm-list-item" style="display:flex; justify-content:space-between; align-items:center;">
-                <span style="font-size:12px;"><b>${p.code}</b> (${p.type}: ${p.val})<br>Uses: ${p.uses}/${p.max_uses}</span>
-                <button class="adm-btn danger" style="padding:4px 8px;" onclick="admDelPromo('${p.code}')">X</button>
             </div>`).join('');
             
     } catch(e) { showToast('Error loading CRM', 'error'); }
@@ -2376,8 +2366,6 @@ async function admRemoveAdmin(tgt) {
     } catch(e) { showToast('Ошибка сети', 'error'); }
 }
 // --- КОНЕЦ: ФУНКЦИИ УПРАВЛЕНИЯ АДМИНАМИ ---
-
-async function admPostBulk(field, val=null) {
 
 async function admPostBulk(field, val=null) {
     if(!confirm(`Apply ${field} to ALL users?`)) return;
