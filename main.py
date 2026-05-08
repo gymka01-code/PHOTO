@@ -273,53 +273,22 @@ async def check_maintenance(uid: int):
 # ═══════════════════════════════════════════════════════════════
 #  STORIES DYNAMIC GENERATOR (Pillow setup)
 # ═══════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════
+#  STORIES GENERATOR (Static Template)
+# ═══════════════════════════════════════════════════════════════
 def download_font():
-    if not os.path.exists(FONT_PATH):
-        try:
-            url = "https://github.com/google/fonts/raw/main/ofl/inter/static/Inter-Bold.ttf"
-            logger.info("Downloading Inter-Bold.ttf for stories...")
-            urllib.request.urlretrieve(url, FONT_PATH)
-            logger.info("Font downloaded successfully.")
-        except Exception as e:
-            logger.error(f"Failed to download Inter-Bold.ttf font: {e}")
+    pass # Больше не нужен для статичной картинки
 
 def ensure_story_template():
-    if not os.path.exists(TEMPLATE_PATH):
+    template_path = os.path.join(_VOLUME, "uploads", "static_story.jpg")
+    if not os.path.exists(template_path):
         try:
-            logger.info("Generating glowing aesthetic template for Telegram Stories...")
-            width, height = 1080, 1920
-            base = Image.new("RGB", (width, height), "#030205")
-            
-            # Рендерим неоновые размытые круги на фоне
-            layer = Image.new("RGB", (width, height), "#030205")
-            draw = ImageDraw.Draw(layer)
-            draw.ellipse([(-200, 200, 700, 1100)], fill="#2e1065")  # Фиолетовый
-            draw.ellipse([(400, 1000, 1300, 1900)], fill="#0f172a") # Глубокий синий
-            draw.ellipse([(200, 600, 900, 1300)], fill="#022c22")   # Изумрудный свет
-            
-            try:
-                base = base.filter(ImageFilter.GaussianBlur(160))
-            except Exception as e:
-                logger.error(f"Failed to blur background template: {e}")
-            
-            draw = ImageDraw.Draw(base)
-            
-            # Рисуем стильный полупрозрачный стеклянный контейнер по центру
-            draw.rounded_rectangle([60, 360, 1020, 1380], radius=50, fill=None, outline="#1e293b", width=4)
-            draw.rounded_rectangle([72, 372, 1008, 1368], radius=38, fill="#07060a", outline="#3b82f6", width=2)
-            
-            # Декоративные линии интерфейса
-            draw.line([(150, 435), (930, 435)], fill="#1e293b", width=3)
-            draw.line([(150, 1170), (930, 1170)], fill="#1e293b", width=3)
-            
-            # Лазерная линия сканирования (ИИ-эффект)
-            draw.line([(72, 650), (1008, 650)], fill="#22c55e", width=2)
-            
-            base.save(TEMPLATE_PATH, "JPEG", quality=95)
-            logger.info("Default story template successfully created.")
+            logger.info("Downloading static story template from Postimg...")
+            url = "https://i.postimg.cc/NfBCyJ68/IMG-5605.jpg"
+            urllib.request.urlretrieve(url, template_path)
+            logger.info("Static story template successfully downloaded.")
         except Exception as e:
-            logger.error(f"Failed to generate story template image: {e}")
-
+            logger.error(f"Failed to download static story template image: {e}")
 # ═══════════════════════════════════════════════════════════════
 #  HELPERS
 # ═══════════════════════════════════════════════════════════════
@@ -814,6 +783,9 @@ async def api_get_player(user_id: int, username: str = "", init_data: str = Head
 # ═══════════════════════════════════════════════════════════════
 #  STORIES CORE LOGIC & REWARDS
 # ═══════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════
+#  STORIES CORE LOGIC & REWARDS
+# ═══════════════════════════════════════════════════════════════
 @app.get("/api/story/generate")
 async def api_generate_story(init_data: str = Header(None, alias="X-Telegram-Init-Data")):
     uid = verify_webapp_data(init_data)
@@ -821,124 +793,10 @@ async def api_generate_story(init_data: str = Header(None, alias="X-Telegram-Ini
     p = await get_player(uid)
     if not p or p.get("is_banned"): raise HTTPException(403)
     
-    stories_dir = UPLOADS_DIR / "stories"
-    stories_dir.mkdir(parents=True, exist_ok=True)
+    # Возвращаем ссылку на скачанную статичную картинку-болванку
+    # Используем собственный домен для избежания блокировок (hotlink protection) со стороны Postimg
+    return {"story_url": f"{WEBAPP_URL}/uploads/static_story.jpg"}
     
-    for f in stories_dir.glob(f"story_{uid}_*.jpg"):
-        try: f.unlink()
-        except: pass
-
-    unique_id = int(time.time())
-    out_filename = f"story_{uid}_{unique_id}.jpg"
-    out_filepath = stories_dir / out_filename
-    
-    try:
-        width, height = 1080, 1920
-        img = Image.new("RGB", (width, height), "#0f0c29")
-        draw = ImageDraw.Draw(img)
-        
-        draw.ellipse([-200, -200, 800, 800], fill="#4c1d95") 
-        draw.ellipse([400, 1000, 1400, 2000], fill="#1e3a8a") 
-        draw.ellipse([100, 600, 900, 1400], fill="#064e3b") 
-        
-        try:
-            img = img.filter(ImageFilter.GaussianBlur(100))
-            draw = ImageDraw.Draw(img)
-        except:
-            pass
-        
-        def get_font(size):
-            if os.path.exists(FONT_PATH):
-                try: return ImageFont.truetype(FONT_PATH, size)
-                except: pass
-            return ImageFont.load_default()
-        
-        f_huge = get_font(120)
-        f_large = get_font(70)
-        f_medium = get_font(50)
-        f_small = get_font(34)
-        
-        def get_text_size(text, font):
-            try:
-                bbox = font.getbbox(text)
-                return bbox[2] - bbox[0], bbox[3] - bbox[1]
-            except AttributeError:
-                try:
-                    w, h = font.getsize(text)
-                    return w, h
-                except:
-                    return len(text) * 15, 30
-                    
-        # Контейнер статистики
-        try:
-            draw.rounded_rectangle([80, 250, 1000, 1600], radius=40, outline="#38bdf8", width=4)
-            draw.rounded_rectangle([90, 260, 990, 1590], radius=30, fill="#020617", outline="#818cf8", width=2)
-        except AttributeError:
-            draw.rectangle([80, 250, 1000, 1600], outline="#38bdf8", width=4)
-            draw.rectangle([90, 260, 990, 1590], fill="#020617", outline="#818cf8", width=2)
-
-        username = p.get("username") or f"user_{uid}"
-        if not username.startswith("@") and username != f"user_{uid}":
-            username = f"@{username}"
-            
-        earned = float(p.get("total_earned") or 0.0)
-        sold = int(p.get("photos_sold") or 0)
-        vip_lvl = vip_level(int(p.get("referrals_count") or 0))
-        lang = p.get("lang", "ru")
-        
-        # Тексты статистики
-        t_title = "PHOTOFLIP ESTIMATION"
-        tw, th = get_text_size(t_title, f_small)
-        draw.text(((width - tw) // 2, 320), t_title, fill="#38bdf8", font=f_small)
-        
-        tw, th = get_text_size(username, f_medium)
-        draw.text(((width - tw) // 2, 380), username, fill="#ffffff", font=f_medium)
-        
-        val_to_show = earned if earned > 0 else 185.50
-        t_val_label = "TOTAL EARNED:" if lang == "en" else "ЗАРАБОТАНО:"
-        tw, th = get_text_size(t_val_label, f_small)
-        draw.text(((width - tw) // 2, 500), t_val_label, fill="#94a3b8", font=f_small)
-        
-        val_text = f"${val_to_show:.2f}"
-        tw, th = get_text_size(val_text, f_huge)
-        draw.text(((width - tw) // 2, 560), val_text, fill="#4ade80", font=f_huge)
-        
-        stats_y = 780
-        t_sold = f"Photos Sold: {sold}" if lang == "en" else f"Продано фото: {sold}"
-        t_vip = f"VIP Level: {vip_lvl}" if lang == "en" else f"VIP Уровень: {vip_lvl}"
-        
-        draw.text((150, stats_y), t_sold, fill="#e2e8f0", font=f_large)
-        draw.text((150, stats_y + 100), t_vip, fill="#fcd34d", font=f_large)
-        
-        # 🟢 ВИЗУАЛЬНАЯ КНОПКА ПО ЦЕНТРУ
-        btn_text = "ОЦЕНИТЬ ФОТО" if lang == "ru" else "VALUE MY PHOTOS"
-        
-        btn_w, btn_h = 800, 140
-        bx1 = (width - btn_w) // 2
-        by1 = 1100  # Четко по центру визуального веса экрана
-        bx2 = bx1 + btn_w
-        by2 = by1 + btn_h
-        
-        try:
-            draw.rounded_rectangle([bx1, by1, bx2, by2], radius=40, fill="#3b82f6")
-        except AttributeError:
-            draw.rectangle([bx1, by1, bx2, by2], fill="#3b82f6")
-            
-        tw, th = get_text_size(btn_text, f_medium)
-        draw.text((bx1 + (btn_w - tw) // 2, by1 + (btn_h - th) // 2 - 10), btn_text, fill="#ffffff", font=f_medium)
-        
-        # Указываем пользователям переходить по ссылке в описании, так как виджет есть не у всех
-        hint_text = "ССЫЛКА В ОПИСАНИИ СТОРИС 👇" if lang == "ru" else "LINK IN STORY DESCRIPTION 👇"
-        tw, th = get_text_size(hint_text, f_small)
-        draw.text(((width - tw) // 2, by2 + 30), hint_text, fill="#94a3b8", font=f_small)
-        
-        img.save(out_filepath, "JPEG", quality=90)
-        
-    except Exception as e:
-        logger.error(f"Story generation crash: {e}")
-        raise HTTPException(500, f"Render Error: {str(e)}")
-        
-    return {"story_url": f"{WEBAPP_URL}/uploads/stories/{out_filename}"}
 @app.post("/api/story/request_bonus")
 async def api_story_request_bonus(init_data: str = Header(None, alias="X-Telegram-Init-Data")):
     uid = verify_webapp_data(init_data)
