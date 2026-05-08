@@ -181,11 +181,10 @@ def verify_webapp_data(init_data: str) -> int:
         except: raise HTTPException(401, "Invalid Bypass")
     
     try:
-        parsed_data = dict(urllib.parse.parseqsl(init_data, keep_blank_values=True))
+        parsed_data = dict(urllib.parse.parse_qsl(init_data, keep_blank_values=True))
         hash_str = parsed_data.pop('hash', None)
         if not hash_str: raise Exception("Missing hash in init_data")
         
-        # Убрана строгая проверка auth_date во избежание 401 из-за рассинхрона времени или старой сессии ТГ
         data_check_string = "\n".join(f"{k}={v}" for k, v in sorted(parsed_data.items()))
         secret_key = hmac.new(b"WebAppData", BOT_TOKEN.encode(), hashlib.sha256).digest()
         calc_hash = hmac.new(secret_key, data_check_string.encode(), hashlib.sha256).hexdigest()
@@ -1163,6 +1162,7 @@ async def api_support_send(text: str = Form(""), file: UploadFile = File(None), 
     
     async with get_db() as db:
         db.row_factory = aiosqlite.Row
+        # Берем самый последний тикет, неважно открыт он или закрыт
         async with db.execute("SELECT id, claimed_by, status FROM tickets WHERE user_id=? ORDER BY id DESC LIMIT 1", (uid,)) as cur:
             tkt = await cur.fetchone()
             
