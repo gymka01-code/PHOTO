@@ -927,7 +927,8 @@ async def api_generate_story(init_data: str = Header(None, alias="X-Telegram-Ini
         tw, th = get_text_size(btn_text, f_medium)
         draw.text((bx1 + (btn_w - tw) // 2, by1 + (btn_h - th) // 2 - 10), btn_text, fill="#ffffff", font=f_medium)
         
-        hint_text = "ЖМИ НА КНОПКУ ВЫШЕ 👆" if lang == "ru" else "TAP THE BUTTON ABOVE 👆"
+        # Указываем пользователям переходить по ссылке в описании, так как виджет есть не у всех
+        hint_text = "ССЫЛКА В ОПИСАНИИ СТОРИС 👇" if lang == "ru" else "LINK IN STORY DESCRIPTION 👇"
         tw, th = get_text_size(hint_text, f_small)
         draw.text(((width - tw) // 2, by2 + 30), hint_text, fill="#94a3b8", font=f_small)
         
