@@ -426,6 +426,8 @@ async def auction_worker():
     while True:
         try:
             notifications, active_ref_notifications = [], []
+            passive_income_notifications = [] # <--- НОВЫЙ СПИСОК УВЕДОМЛЕНИЙ
+            
             async with get_db() as db:
                 db.row_factory = aiosqlite.Row
                 async with db.execute("SELECT * FROM photos WHERE status='on_auction' AND sell_at<=?", (datetime.utcnow().isoformat(),)) as cur:
@@ -437,7 +439,8 @@ async def auction_worker():
                     gross = rub_to_usd(float(sale_rub))
                     net = apply_commission(gross)
                     
-                    async with db.execute("SELECT photos_sold, referred_by FROM players WHERE user_id=?", (ph["user_id"],)) as cur:
+                    # Запрашиваем данные продавца, включая username
+                    async with db.execute("SELECT photos_sold, referred_by, username FROM players WHERE user_id=?", (ph["user_id"],)) as cur:
                         u_data = await cur.fetchone()
                         
                     is_first_sale = False
@@ -448,20 +451,35 @@ async def auction_worker():
                     await db.execute("UPDATE photos SET status='sold', sold_at=datetime('now'), buyer=?, final_price=?, sale_rub=? WHERE id=?", (buyer, net, sale_rub, ph["id"]))
                     await db.execute("UPDATE players SET balance=balance+?, total_earned=total_earned+?, photos_sold=photos_sold+1 WHERE user_id=?", (net, net, ph["user_id"]))
                     
-                    if is_first_sale and u_data["referred_by"]:
-                        await db.execute("UPDATE players SET referrals_count=referrals_count+1 WHERE user_id=?", (u_data["referred_by"],))
-                        active_ref_notifications.append({"referrer_id": u_data["referred_by"], "user_id": ph["user_id"]})
+                    # === ЛОГИКА РЕФЕРАЛОВ И ПАССИВНОГО ДОХОДА ===
+                    if u_data and u_data["referred_by"]:
+                        ref_id = u_data["referred_by"]
                         
+                        # 1. Активация реферала (первая продажа)
+                        if is_first_sale:
+                            await db.execute("UPDATE players SET referrals_count=referrals_count+1 WHERE user_id=?", (ref_id,))
+                            active_ref_notifications.append({"referrer_id": ref_id, "user_id": ph["user_id"]})
+                            
+                        # 2. Начисление 5% с продажи рефоводу
+                        ref_bonus = round(net * 0.05, 2)
+                        if ref_bonus > 0:
+                            await db.execute("UPDATE players SET balance=balance+?, total_earned=total_earned+? WHERE user_id=?", (ref_bonus, ref_bonus, ref_id))
+                            seller_name = f"@{u_data['username']}" if u_data['username'] else f"ID {ph['user_id']}"
+                            passive_income_notifications.append({"referrer_id": ref_id, "amount": ref_bonus, "seller": seller_name})
+                    # ===============================================
+
                     async with db.execute("SELECT balance, lang FROM players WHERE user_id=?", (ph["user_id"],)) as cur:
                         if p_row := await cur.fetchone():
                             notifications.append({"uid": ph["user_id"], "lang": p_row["lang"], "rub": sale_rub, "gross": gross, "net": net, "buyer": buyer, "bal": p_row["balance"]})
                 if due: await db.commit()
 
+            # Отправка сообщений продавцу
             for n in notifications:
                 try: await bot.send_message(n["uid"], tr(n["lang"], "sold", rub=int(n["rub"]), gross=n["gross"], commission=round(n["gross"]-n["net"],2), net=n["net"], buyer=n["buyer"], balance=round(n["bal"], 2)), parse_mode=ParseMode.HTML)
                 except: pass
                 await asyncio.sleep(0.05)
                 
+            # Отправка уведомлений об активации рефа
             for arn in active_ref_notifications:
                 try:
                     p = await get_player(arn["user_id"])
@@ -469,6 +487,20 @@ async def auction_worker():
                     await bot.send_message(arn["referrer_id"], f"✅ <b>Реферал активирован!</b>\n\nПользователь {display} продал свое первое фото и теперь засчитан как ваш активный реферал. +1 🤝", parse_mode=ParseMode.HTML)
                 except: pass
                 await asyncio.sleep(0.05)
+                
+            # === Отправка уведомлений о пассивном доходе (5%) ===
+            for pn in passive_income_notifications:
+                try:
+                    p = await get_player(pn["referrer_id"])
+                    lang = p["lang"] if p else "en"
+                    if lang == "ru":
+                        text = f"💸 <b>Пассивный доход!</b>\nВаш друг {pn['seller']} успешно продал фото на аукционе.\n\nВам зачислено <b>+${pn['amount']:.2f}</b> (5%)!"
+                    else:
+                        text = f"💸 <b>Passive Income!</b>\nYour friend {pn['seller']} successfully sold a photo.\n\nYou received <b>+${pn['amount']:.2f}</b> (5%)!"
+                    await bot.send_message(pn["referrer_id"], text, parse_mode=ParseMode.HTML)
+                except: pass
+                await asyncio.sleep(0.05)
+
         except Exception as e: logger.error(f"auction_worker error: {e}")
         await asyncio.sleep(15)
 
