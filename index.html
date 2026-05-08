@@ -1446,19 +1446,21 @@ async function postPromoStory() {
         let refUrl = gameData?.referral_url;
         if (!refUrl || refUrl === "https://t.me/PhotoFlipBot" || refUrl.trim() === "") {
             const botUsername = tg.initDataUnsafe?.receiver?.username || "PhotoFlipBot";
+        let refUrl = gameData?.referral_url;
+        if (!refUrl || refUrl === "https://t.me/PhotoFlipBot" || refUrl.trim() === "") {
             refUrl = `https://t.me/${botUsername}?start=ref_${userId}`;
         }
 
-        // ОБЯЗАТЕЛЬНО добавляем саму ссылку в текст. 
-        // Для юзеров без Premium это единственный способ сделать кликабельный переход.
-        const textRu = `Оказывается, за ваши фотографии платят! Загрузи любую картинку из галереи и чекни, сколько она стоит 👇\n\n🔗 Ссылка: ${refUrl}`;
-        const textEn = `Just sold a photo I took on my way to the store 🤯 Turns out people pay for this. Upload any pic from your gallery and see how much it's worth 👇\n\n🔗 My link: ${refUrl}`;
+        // ОБНОВЛЕННЫЙ ТЕКСТ С ПРОМОКОДОМ
+        const textRu = `Оказывается, за фотографии платят! Загрузил картинку из галереи на аукцион 📸\n\n👇 ЖМИ НА ТЕКСТ 👇\nЗаходи в бота @${botUsername}\nВводи код: REF-${userId} и забирай бонус!\n\n🔗 Или кликай: ${refUrl}`;
+        
+        const textEn = `Turns out people pay for pics! Just uploaded my gallery photo to auction 📸\n\n👇 TAP HERE 👇\nGo to @${botUsername}\nEnter code: REF-${userId} for a welcome bonus!\n\n🔗 Or click: ${refUrl}`;
 
         const shareParams = {
             text: currentLang === 'ru' ? textRu : textEn,
             widget_link: {
-                url: refUrl,
-                name: currentLang === 'ru' ? "Оценить фото 📸" : "Value photos 📸" // Эмодзи можно вернуть, проблема была в Premium
+                url: refUrl, // Ссылка остается! Она вставится в кнопку для Premium юзеров
+                name: currentLang === 'ru' ? "Оценить фото" : "Value photos"
             }
         };
 
