@@ -1423,7 +1423,14 @@ async function postPromoStory() {
 
     try {
         const storyUrl = "https://i.postimg.cc/zDTdQCjt/Chat-GPT-Image-8-maa-2026-g-00-31-47.png"; 
-        const refUrl = gameData?.referral_url || `https://t.me/PhotoFlipBot`;
+
+        // ИСПРАВЛЕНИЕ: Формируем ссылку так, чтобы Telegram её не вырезал
+        let refUrl = gameData?.referral_url;
+        if (!refUrl || refUrl === "https://t.me/PhotoFlipBot" || refUrl.trim() === "") {
+            // Динамически получаем юзернейм текущего бота прямо из данных Telegram
+            const botUsername = tg.initDataUnsafe?.receiver?.username || "PhotoFlipBot";
+            refUrl = `https://t.me/${botUsername}?start=ref_${userId}`;
+        }
 
         const shareParams = {
             text: currentLang === 'ru' 
