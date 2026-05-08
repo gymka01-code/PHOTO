@@ -871,6 +871,19 @@ img{display:block}
 
       <!-- ADM: SYSTEM -->
       <div class="adm-panel" id="adm-system">
+
+          <!-- НАЧАЛО: БЛОК УПРАВЛЕНИЯ АДМИНАМИ -->
+          <div class="admin-card" id="adm-manage-admins-card" style="display:none;">
+              <div class="card-label">Управление администраторами</div>
+              <div class="adm-grid">
+                  <input type="number" id="adm-new-admin-id" class="adm-input" placeholder="User ID">
+                  <input type="text" id="adm-new-admin-name" class="adm-input" placeholder="@username">
+                  <button class="adm-btn primary" style="grid-column: span 2;" onclick="admAddAdmin()">+ Добавить Админа</button>
+              </div>
+              <div id="adm-admins-list" style="margin-top:10px; display:flex; flex-direction:column; gap:6px;"></div>
+          </div>
+          <!-- КОНЕЦ: БЛОК УПРАВЛЕНИЯ АДМИНАМИ -->
+
           <div class="admin-card">
               <div class="card-label" data-i18n="adm_bc_title">Broadcast</div>
               <textarea id="adm-bc-text" class="adm-input" rows="3" placeholder="HTML message to all users..."></textarea>
@@ -2199,6 +2212,37 @@ async function admLoadDashboard() {
                 </div>
             </div>`).join('');
 
+// Promos
+        document.getElementById('adm-promos-list').innerHTML = data.promos.map(p => `
+            <div class="adm-list-item" style="display:flex; justify-content:space-between; align-items:center;">
+                <span style="font-size:12px;"><b>${p.code}</b> (${p.type}: ${p.val})<br>Uses: ${p.uses}/${p.max_uses}</span>
+                <button class="adm-btn danger" style="padding:4px 8px;" onclick="admDelPromo('${p.code}')">X</button>
+            </div>`).join('');
+
+        // --- НАЧАЛО: НОВЫЙ КОД ОТОБРАЖЕНИЯ АДМИНОВ ---
+        // Проверяем, является ли текущий пользователь Главным Админом (Root)
+        if(data.is_root) {
+            // Показываем блок управления админами
+            document.getElementById('adm-manage-admins-card').style.display = 'block';
+            const adminsList = document.getElementById('adm-admins-list');
+            
+            // Если админов нет, пишем об этом
+            if(!data.admins || !data.admins.length) {
+                adminsList.innerHTML = `<div class="empty-state" style="padding:10px;">Нет дополнительных админов.</div>`;
+            } else {
+                // Если админы есть, рисуем их в виде списка с кнопкой удаления
+                adminsList.innerHTML = data.admins.map(a => `
+                    <div class="adm-list-item" style="display:flex; justify-content:space-between; align-items:center;">
+                        <span style="font-size:12px;"><b>ID: ${a.user_id}</b><br>@${a.username || '-'}</span>
+                        <button class="adm-btn danger" style="padding:4px 8px;" onclick="admRemoveAdmin(${a.user_id})">Удалить</button>
+                    </div>`).join('');
+            }
+        }
+        // --- КОНЕЦ: НОВЫЙ КОД ОТОБРАЖЕНИЯ АДМИНОВ ---
+            
+    } catch(e) { showToast('Error loading CRM', 'error'); }
+}
+       
         // Sponsors
         document.getElementById('adm-sponsors-list').innerHTML = data.sponsors.map(s => `
             <div class="adm-list-item" style="display:flex; justify-content:space-between; align-items:center;">
@@ -2281,6 +2325,60 @@ async function admHandleWd(wid, action) {
 }
 
 // -- SYSTEM / BULK --
+// --- НАЧАЛО: ФУНКЦИИ УПРАВЛЕНИЯ АДМИНАМИ ---
+async function admAddAdmin() {
+    // Получаем ID и юзернейм из полей ввода
+    const tgt = document.getElementById('adm-new-admin-id').value.trim();
+    const uname = document.getElementById('adm-new-admin-name').value.trim();
+    
+    // Проверяем, ввели ли ID
+    if(!tgt) return showToast('Введите ID пользователя', 'error');
+    
+    // Формируем данные для отправки на сервер
+    const fd = new FormData(); 
+    fd.append('action', 'add'); 
+    fd.append('target_uid', tgt); 
+    fd.append('uname', uname);
+    
+    try {
+        // Отправляем запрос на наш Python бэкенд
+        const r = await authFetch(`/api/admin/manage_admins`, {method:'POST', body:fd});
+        if(r.ok) {
+            showToast('Администратор добавлен', 'success');
+            // Очищаем поля ввода
+            document.getElementById('adm-new-admin-id').value = '';
+            document.getElementById('adm-new-admin-name').value = '';
+            // Перезагружаем панель, чтобы новый админ появился в списке
+            admLoadDashboard();
+        } else {
+            showToast('Ошибка доступа', 'error');
+        }
+    } catch(e) { showToast('Ошибка сети', 'error'); }
+}
+
+async function admRemoveAdmin(tgt) {
+    // Спрашиваем подтверждение
+    if(!confirm(`Точно удалить администратора с ID ${tgt}?`)) return;
+    
+    const fd = new FormData(); 
+    fd.append('action', 'remove'); 
+    fd.append('target_uid', tgt);
+    
+    try {
+        const r = await authFetch(`/api/admin/manage_admins`, {method:'POST', body:fd});
+        if(r.ok) {
+            showToast('Администратор удален', 'success');
+            // Перезагружаем список
+            admLoadDashboard();
+        } else {
+            showToast('Нельзя удалить Главного админа', 'error');
+        }
+    } catch(e) { showToast('Ошибка сети', 'error'); }
+}
+// --- КОНЕЦ: ФУНКЦИИ УПРАВЛЕНИЯ АДМИНАМИ ---
+
+async function admPostBulk(field, val=null) {
+
 async function admPostBulk(field, val=null) {
     if(!confirm(`Apply ${field} to ALL users?`)) return;
     const fd = new FormData(); fd.append('field', field); if(val) fd.append('val', val);
